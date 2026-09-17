@@ -1,0 +1,27 @@
+experiment_name: ray-tune-qwen-lora
+
+environment:
+  version: "databricks_ai_v5"
+  dependencies:
+    - peft>=0.13
+    - fsspec>=2024.6.1
+
+compute:
+  num_accelerators: 4
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=tune.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 45
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0
+  HF_HOME: /tmp/hf

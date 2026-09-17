@@ -1,0 +1,25 @@
+experiment_name: ray-train-qwen-sft
+
+environment:
+  version: "databricks_ai_v5"
+  dependencies:
+    - fsspec>=2024.6.1
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=train.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 90
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0

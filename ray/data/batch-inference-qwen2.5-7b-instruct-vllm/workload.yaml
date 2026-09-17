@@ -1,0 +1,33 @@
+experiment_name: ray-data-qwen-batch-inference
+
+environment:
+  version: "5"
+  dependencies:
+    - ray[data]==2.56.1
+    - vllm
+    - datasets>=3.0
+    - huggingface_hub>=0.34
+    - hf_transfer
+    - fsspec>=2024.6.1
+    - opencv-python-headless==4.12.0.88
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=batch_inference.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 60
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0
+  # Replace with a writable Unity Catalog volume path. The volume must already exist.
+  OUTPUT_PATH: /Volumes/main/default/air_examples/ray_batch_inference

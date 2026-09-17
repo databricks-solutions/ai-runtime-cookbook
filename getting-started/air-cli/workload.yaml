@@ -1,0 +1,15 @@
+experiment_name: air-cli-hello-world
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: python $CODE_SOURCE_PATH/hello_world.py
+
+max_retries: 0
+timeout_minutes: 15

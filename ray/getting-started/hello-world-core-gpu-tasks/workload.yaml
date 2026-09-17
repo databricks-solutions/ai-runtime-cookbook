@@ -1,0 +1,25 @@
+experiment_name: ray-core-hello-world
+
+environment:
+  version: "5"
+  dependencies:
+    - ray[default]
+
+compute:
+  num_accelerators: 2
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=hello_world.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 15
+
+env_variables:
+  NCCL_DEBUG: INFO

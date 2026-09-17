@@ -1,0 +1,53 @@
+experiment_name: air-multinode-llama-sft
+
+environment:
+  version: '5'
+  dependencies:
+    - transformers==5.16.1
+    - datasets==5.0.1
+    - huggingface_hub==1.30.0
+    - accelerate==1.15.0
+    - fsspec==2026.6.0
+
+# 16 GPUs across 2 nodes (GPU_8xH100 = 8 H100 per node).
+compute:
+  num_accelerators: 16
+  accelerator_type: GPU_8xH100
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd $CODE_SOURCE_PATH
+  torchrun \
+    --nnodes="$NUM_NODES" \
+    --node_rank="$NODE_RANK" \
+    --nproc_per_node="${LOCAL_WORLD_SIZE:-8}" \
+    --master_addr="$MASTER_ADDR" \
+    --master_port="$MASTER_PORT" \
+    train.py
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0
+  HF_HOME: /tmp/hf
+
+# Replace this with a Databricks secret containing a Hugging Face token with
+# access to meta-llama/Llama-3.1-8B.
+secrets:
+  HF_TOKEN: 'my_scope/hf_token'
+
+max_retries: 1
+timeout_minutes: 120
+
+parameters:
+  model_name: meta-llama/Llama-3.1-8B
+  dataset_name: tatsu-lab/alpaca
+  max_seq_len: 1024
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 2
+  learning_rate: 0.00002
+  max_steps: 100
+  # Replace with a writable Unity Catalog volume path. The volume must already exist.
+  output_dir: /Volumes/main/default/air_examples/llama31-8b-sft

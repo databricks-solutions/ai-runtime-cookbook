@@ -1,0 +1,27 @@
+experiment_name: ray-train-image-classification
+
+environment:
+  version: "databricks_ai_v5"
+  dependencies: []
+
+# 2 A10 nodes, one GPU each. Ray Train launches one worker per GPU.
+compute:
+  num_accelerators: 2
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=train_image_classifier.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 60
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0
+  NUM_GPUS: "2" # must match num_accelerators
+  TORCH_HOME: /tmp/torch
