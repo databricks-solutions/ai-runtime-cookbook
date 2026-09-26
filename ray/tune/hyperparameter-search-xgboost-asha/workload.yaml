@@ -1,0 +1,39 @@
+experiment_name: ray-tune-xgboost-covertype
+
+environment:
+  version: "databricks_ai_v5"
+  dependencies:
+    - xgboost==3.0.4
+    - scikit-learn==1.6.1
+
+# 4 nodes x 1 A10 GPU = a 4-GPU Ray cluster; Ray Tune runs one trial per GPU.
+compute:
+  num_accelerators: 4
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=tune.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 45
+
+parameters:
+  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE on the
+  # catalog; otherwise create it first or point these at an existing schema you can write to.
+  uc_catalog: main
+  uc_schema: default
+  registered_model_name: xgboost_covertype
+  # Data and split (deterministic so downstream scoring can reproduce the held-out set).
+  test_size: 0.2
+  max_samples: 100000     # subsample for a fast sweep; set -1 for all 581,012 rows
+  random_state: 42
+  # Search config.
+  num_samples: 16         # number of trials Ray Tune samples (dispatched one per GPU)
+  n_estimators: 200       # boosting rounds per trial = ASHA's max time budget (max_t)
+  grace_period: 20        # min rounds ASHA runs a trial before it can prune it
