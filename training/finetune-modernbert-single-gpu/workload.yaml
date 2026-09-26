@@ -1,0 +1,47 @@
+experiment_name: air-modernbert-agnews
+
+environment:
+  version: '5'
+  dependencies:
+    - transformers==5.16.1
+    - datasets==5.0.1
+    - accelerate==1.15.0
+    - huggingface_hub==1.30.0
+    - scikit-learn==1.6.1
+    - fsspec==2026.6.0
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10   # any single GPU works (e.g. GPU_1xH100); A10 is the cheapest here
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: python $CODE_SOURCE_PATH/train.py
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE on the
+  # catalog; otherwise create it first or point these at an existing schema you can write to.
+  uc_catalog: main
+  uc_schema: default
+  registered_model_name: modernbert_agnews
+  # Model and data (both public; no Hugging Face token needed).
+  model_name: answerdotai/ModernBERT-base
+  dataset_name: fancyzhx/ag_news
+  max_length: 256
+  max_train_samples: 20000   # subsample to keep the single-GPU demo fast; set -1 for the full split
+  max_eval_samples: 2000
+  attn_implementation: sdpa  # or "flash_attention_2" with a matching flash-attn build
+  # Training hyperparameters (decimal, not 5e-5, so YAML parses them as floats).
+  epochs: 1
+  train_batch_size: 32
+  eval_batch_size: 64
+  learning_rate: 0.00005
+  weight_decay: 0.01
+  warmup_steps: 0.1          # float in [0,1) = ratio of total steps (transformers 5.x dropped warmup_ratio)
+  seed: 42
