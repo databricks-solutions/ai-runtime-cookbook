@@ -1,0 +1,41 @@
+experiment_name: air-xgboost-covertype
+
+environment:
+  version: '5'
+  dependencies:
+    - xgboost==3.0.4
+    - scikit-learn==1.6.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10   # any single GPU works (e.g. GPU_1xH100); A10 is the cheapest here
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: python $CODE_SOURCE_PATH/train.py
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE on the
+  # catalog; otherwise create it first or point these at an existing schema you can write to.
+  uc_catalog: main
+  uc_schema: default
+  registered_model_name: xgboost_covertype
+  # Data and split. The split is deterministic (test_size + random_state) so a downstream
+  # batch-inference job can reproduce the identical held-out set.
+  test_size: 0.2
+  max_samples: -1        # -1 = all 581,012 rows; set a small number (e.g. 50000) for a quick smoke test
+  random_state: 42
+  # XGBoost hyperparameters.
+  n_estimators: 200
+  max_depth: 8
+  learning_rate: 0.1
+  subsample: 0.8
+  colsample_bytree: 0.8
+  # Compute device for XGBoost: "cuda" uses the attached GPU_1xA10; set "cpu" to run without a GPU.
+  device: cuda
