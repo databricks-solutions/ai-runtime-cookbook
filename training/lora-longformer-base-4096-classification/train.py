@@ -52,12 +52,12 @@ def main():
     model_name = p.get("model_name", "allenai/longformer-base-4096")
     dataset_name = p.get("dataset_name", "stanfordnlp/imdb")
     num_labels = int(p.get("num_labels", 2))
-    max_length = int(p.get("max_length", 1024))
+    max_length = int(p.get("max_length", 4096))
     train_samples = int(p.get("train_samples", 2000))
     eval_samples = int(p.get("eval_samples", 500))
     learning_rate = float(p.get("learning_rate", 1e-4))
     num_epochs = int(p.get("num_epochs", 1))
-    per_device_batch_size = int(p.get("per_device_batch_size", 8))
+    per_device_batch_size = int(p.get("per_device_batch_size", 4))
     gradient_accumulation_steps = int(p.get("gradient_accumulation_steps", 1))
     lora_r = int(p.get("lora_r", 16))
     lora_alpha = int(p.get("lora_alpha", 32))
@@ -68,7 +68,7 @@ def main():
 
     # --- Data (public IMDB) ---
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    raw = load_dataset(dataset_name, cache_dir="/tmp/hf_home/datasets")
+    raw = load_dataset(dataset_name)  # cache dir comes from HF_DATASETS_CACHE
     train_ds = raw["train"].shuffle(seed=42).select(range(min(train_samples, len(raw["train"]))))
     eval_ds = raw["test"].shuffle(seed=42).select(range(min(eval_samples, len(raw["test"]))))
 
@@ -125,13 +125,16 @@ def main():
         train_dataset=train_ds,
         eval_dataset=eval_ds,
         processing_class=tokenizer,
-        data_collator=DataCollatorWithPadding(tokenizer),
+        # Longformer needs lengths that are a multiple of its attention window;
+        # pad to 512 so it doesn't re-pad (and warn) on every forward pass.
+        data_collator=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512),
         compute_metrics=compute_metrics,
     )
 
+    # report_to="mlflow" lets Trainer's MLflowCallback manage the run and log into
+    # the one `air` injects; we don't start a run manually (that would double-start).
     trainer.train()
     eval_metrics = trainer.evaluate()
-    trainer.log_metrics("eval", eval_metrics)
     print(f"\nEval accuracy: {eval_metrics['eval_accuracy']:.4f}  |  f1: {eval_metrics['eval_f1']:.4f}", flush=True)
 
     # Save the LoRA adapter (+ the classifier head via modules_to_save) and tokenizer.

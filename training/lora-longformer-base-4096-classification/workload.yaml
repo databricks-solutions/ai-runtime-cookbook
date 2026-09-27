@@ -41,7 +41,8 @@ parameters:
   model_name: allenai/longformer-base-4096
   dataset_name: stanfordnlp/imdb
   num_labels: 2
-  max_length: 1024
+  # Longformer's full 4096-token window; the collator pads to multiples of 512.
+  max_length: 4096
   # Subsets of IMDB's 25k/25k splits keep the example quick; raise for a fuller run.
   train_samples: 2000
   eval_samples: 500
@@ -52,7 +53,8 @@ parameters:
   lora_dropout: 0.05
   learning_rate: 0.0001
   num_epochs: 1
-  per_device_batch_size: 8
+  # Smaller batch keeps memory safe when a batch contains a long (4096-token) doc.
+  per_device_batch_size: 4
   gradient_accumulation_steps: 1
   # Cap total steps for a quick end-to-end smoke test. -1 = full num_epochs run.
   max_steps: -1
