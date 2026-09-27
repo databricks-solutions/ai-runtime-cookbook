@@ -57,16 +57,27 @@ def stage_audio() -> list:
     # original file straight to disk — no torchcodec/ffmpeg decode step needed.
     # faster-whisper and pyannote decode the files themselves.
     ds = ds.cast_column("audio", Audio(decode=False))
+    import shutil
+
     items = []
     for i, row in enumerate(ds):
         audio = row["audio"]
         src_name = audio.get("path") or f"clip_{i:04d}.wav"
         ext = os.path.splitext(src_name)[1] or ".wav"
-        call_id = os.path.splitext(os.path.basename(src_name))[0] or f"clip_{i:04d}"
+        base = os.path.splitext(os.path.basename(src_name))[0] or "clip"
+        # Prefix with the index so clips that share a basename don't collide.
+        call_id = f"{i:04d}_{base}"
         wav_path = f"{INPUT_DIR}/{call_id}{ext}"
         if not os.path.exists(wav_path):
-            with open(wav_path, "wb") as f:
-                f.write(audio["bytes"])
+            if audio.get("bytes") is not None:
+                with open(wav_path, "wb") as f:
+                    f.write(audio["bytes"])
+            elif audio.get("path") and os.path.exists(audio["path"]):
+                # decode=False can return a path reference with bytes=None.
+                shutil.copyfile(audio["path"], wav_path)
+            else:
+                print(f"  skipping {call_id}: no audio bytes or readable path", flush=True)
+                continue
         items.append({"wav_path": wav_path, "call_id": call_id})
     print(f"Staged {len(items)} clips to {INPUT_DIR}", flush=True)
     return items
@@ -80,18 +91,28 @@ class WhisperDiarizer:
         from faster_whisper import BatchedInferencePipeline, WhisperModel
         from pyannote.audio import Pipeline as DiarPipeline
 
-        # pyannote 3.1 checkpoints load pickled objects; torch>=2.6 defaults
-        # weights_only=True, which rejects them. Restore the permissive default.
-        _orig_load = torch.load
-        torch.load = lambda *a, **k: _orig_load(*a, **{**k, "weights_only": False})
+        # Actors run in their own process (and, on multi-node, other hosts), so
+        # re-check the token here rather than trusting the driver-only guard.
+        if not HF_TOKEN:
+            raise RuntimeError(
+                "HF_TOKEN is not set in this actor's environment; ensure the "
+                "workload secret is injected on every node."
+            )
 
-        self._torch = torch
         self.asr = BatchedInferencePipeline(
             WhisperModel(MODEL_SOURCE, device="cuda", compute_type="float16")
         )
-        self.diarizer = DiarPipeline.from_pretrained(
-            DIARIZATION_MODEL, use_auth_token=HF_TOKEN
-        ).to(torch.device("cuda"))
+        # pyannote 3.1 checkpoints load pickled objects; torch>=2.6 defaults
+        # weights_only=True, which rejects them. Scope the override to this load
+        # and restore it, rather than weakening torch.load for the whole process.
+        _orig_load = torch.load
+        torch.load = lambda *a, **k: _orig_load(*a, **{**k, "weights_only": False})
+        try:
+            self.diarizer = DiarPipeline.from_pretrained(
+                DIARIZATION_MODEL, use_auth_token=HF_TOKEN
+            ).to(torch.device("cuda"))
+        finally:
+            torch.load = _orig_load
 
     def __call__(self, batch: dict) -> dict:
         # batch_size=1 -> one clip per call; columns arrive as length-1 arrays.
@@ -128,6 +149,8 @@ def main():
 
     ray.init(address="auto")
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
+    if total_gpus < 1:
+        raise SystemExit("No GPUs found in the Ray cluster; cannot run inference.")
     print(f"Ray cluster ready: {total_gpus} GPU(s)", flush=True)
 
     items = stage_audio()
