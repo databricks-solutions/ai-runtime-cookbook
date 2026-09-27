@@ -108,7 +108,9 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.padding_side = "right"
+    # Force right padding for causal-LM SFT regardless of the tokenizer default
+    # (Qwen3 ships a pad token, so the branch above is skipped for it).
+    tokenizer.padding_side = "right"
 
     # --- Model (full precision bf16, no quantization) ---
     # NOTE: flash_attention_2 needs the flash-attn C++ extension, which can't
@@ -184,9 +186,11 @@ def main():
     print(f"  Eval loss:  {eval_metrics['eval_loss']:.4f}", flush=True)
 
     final_path = f"{volume_model_base}/invoice-ft-final-{run_tag}"
-    trainer.save_model(final_path)
-    tokenizer.save_pretrained(final_path)
-    print(f"  Model saved to: {final_path}", flush=True)
+    trainer.save_model(final_path)  # main-process-guarded internally
+    if local_rank == 0:
+        # Guard the tokenizer write to rank 0 so ranks don't race on the same dir.
+        tokenizer.save_pretrained(final_path)
+        print(f"  Model saved to: {final_path}", flush=True)
 
 
 if __name__ == "__main__":

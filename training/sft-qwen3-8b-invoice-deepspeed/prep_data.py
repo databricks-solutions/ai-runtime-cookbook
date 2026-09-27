@@ -69,12 +69,20 @@ def to_example(row):
             ocr_text = msg["content"]
         elif msg["role"] == "assistant":
             extraction_json = msg["content"]
+    # Guard before touching the strings: a row missing the user or assistant
+    # message would otherwise crash the whole map. Invalid rows are emitted with
+    # a consistent schema and dropped by the filter below.
+    if ocr_text is None or extraction_json is None:
+        return {"messages": [{"role": "user", "content": ""},
+                             {"role": "assistant", "content": ""}], "_valid": False}
+    # Separate the system prompt from the OCR text so their tokens don't glue.
+    user_content = f"{system_prompt.rstrip()}\n\n{ocr_text}".strip() if system_prompt else ocr_text.strip()
     return {
         "messages": [
-            {"role": "user", "content": (system_prompt + ocr_text).strip()},
+            {"role": "user", "content": user_content},
             {"role": "assistant", "content": extraction_json.strip()},
         ],
-        "_valid": ocr_text is not None and extraction_json is not None,
+        "_valid": True,
     }
 
 
