@@ -1,9 +1,4 @@
-"""Ray Core GPU task scheduling on AI Runtime.
-
-The workload submits one @ray.remote task per available GPU and prints where Ray
-scheduled each task, including its node rank, Ray GPU ID, visible CUDA device,
-and GPU model. ray_bootstrap.sh starts the Ray cluster before this script runs.
-"""
+"""Print scheduling details for one Ray Core task per available GPU."""
 
 import os
 import subprocess

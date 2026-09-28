@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Distributed ResNet-50 fine-tuning on Imagenette with Ray Train.
-
-The workload starts a two-node Ray cluster with one A10 GPU per node.
-TorchTrainer launches one worker per GPU, wraps the model in DDP, shards the
-dataset across workers, and reports metrics to Ray and MLflow.
-
-The dataset and model weights are public. Each node downloads and caches them
-locally, so the workload does not require credentials or shared storage.
-"""
+"""Fine-tune ResNet-50 on Imagenette with Ray Train."""
 
 import os
 import time

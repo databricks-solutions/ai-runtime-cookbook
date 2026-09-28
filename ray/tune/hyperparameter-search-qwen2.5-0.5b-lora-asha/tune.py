@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""LoRA hyperparameter search for Qwen2.5-0.5B with Ray Tune and ASHA.
-
-The workload starts a four-node Ray cluster with one A10 GPU per node. Ray Tune
-runs one trial per GPU. ASHA concentrates GPU time on promising configurations
-by stopping trials that fall behind at each rung.
-
-The model and dataset are public and do not require a Hugging Face token.
-"""
+"""Search LoRA hyperparameters for Qwen2.5-0.5B with Ray Tune and ASHA."""
 
 import os
 

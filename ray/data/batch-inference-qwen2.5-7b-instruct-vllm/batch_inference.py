@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""Offline Qwen2.5-7B-Instruct batch inference with Ray Data and vLLM.
+"""Run offline Qwen2.5-7B-Instruct inference with Ray Data and vLLM.
 
-The workload starts a Ray head on a single 8x H100 node. The Ray Data LLM API
-launches one vLLM replica per GPU, processes prompts from Alpaca, and writes the
-generated text to a Unity Catalog volume as Parquet.
-
-The model and dataset are public and do not require a Hugging Face token. Set
-OUTPUT_PATH to an existing writable Unity Catalog volume before running.
+`OUTPUT_PATH` must be an existing writable Unity Catalog volume.
 """
 
 import os
