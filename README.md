@@ -22,6 +22,8 @@ ray/<workload>/<example>/
 
 Each recipe is designed to run from its own directory using the same command.
 
+Before running a recipe, configure the [Databricks CLI with AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/) for a workspace with access to AI Runtime.
+
 1. `cd` into the recipe directory.
 1. Review `workload.yaml` for values that you need to configure.
 1. Run the workload with `databricks air run -f workload.yaml`.
