@@ -1,0 +1,92 @@
+# Qwen3.8-27B SFT fine-tuning on 32x H100 -- plain torch, no training framework.
+#
+# Self-contained torch + HF transformers + FSDP2 training loop (launched via
+# torchrun): load pretrained weights -> shard + data prep + one full pass over the
+# dataset + teardown. The training loop reports its wall time and time per step on rank 0.
+#
+# Model:  HF transformers Qwen3.8-27B (VLM-style model_type qwen3_5). Every rank loads
+#         the pretrained checkpoint and FSDP2 shards it across ranks (see train.py). Model
+#         and dataset revisions are pinned so runs stay comparable as HF repos move.
+# Data:   UltraChat 200k (SFT) streamed from the HF hub, chat-templated + tokenized
+#         with the Qwen3.8 tokenizer into seq-8192 blocks (response-only loss).
+# Image:  databricks_ai_v6 -- the "v6" AI Runtime environment version (a CUDA 13 base). We
+#         install torch 2.12 (cu130), then build flash-attn-3 + causal-conv1d from source
+#         against it, plus transformers + fla. The v6 environment (vs the older v5) is needed
+#         for its CUDA-13 driver.
+#
+# Run it directly on a 32xH100 (4-node) workspace:
+#   databricks air run -f workload.yaml
+
+experiment_name: air-multinode-qwen3-8-27b-sft
+
+environment:
+  version: databricks_ai_v6
+  dependencies: []
+
+compute:
+  accelerator_type: GPU_8xH100
+  num_accelerators: 32
+
+env_variables:
+  PYTORCH_ALLOC_CONF: "expandable_segments:True"
+
+code_source:
+  type: snapshot
+  snapshot:
+    # Snapshot this dir so the launched job has train.py.
+    root_path: "."
+
+max_retries: 0
+timeout_minutes: 240
+
+command: |
+  set -eux
+  cd "$CODE_SOURCE_PATH"
+
+  export HF_HOME=/tmp/.hf
+  export NCCL_DEBUG=WARN
+  # Build the kernels below for H100 (sm_90) only.
+  export TORCH_CUDA_ARCH_LIST="9.0"
+
+  # === ---- Env Set up ---------------------------------------------------- ===
+  #
+  echo "Env Setup"
+
+  # Install torch 2.12 (cu130) over the image's 2.11: the flash-attn-3 + causal-conv1d
+  # builds below compile against it, and cu130 matches the image's CUDA 13.
+  # torchvision/torchao come from the same index (ABI-tied to the torch build).
+  python -m pip install --no-cache-dir torch==2.12.0 torchvision==0.27.0 torchao==0.18.0 --index-url https://download.pytorch.org/whl/cu130
+
+  # flash-attn-3 (the varlen kernels the packing needs) and the fused causal-conv1d (for the
+  # gated-delta layers), built from the upstream Dao-AILab sources against the torch
+  # installed above.
+  python -m pip install --no-cache-dir ninja==1.13.0 packaging==25.0
+
+  # causal_conv1d, tag v1.6.2.
+  git clone --depth 1 --branch v1.6.2 https://github.com/Dao-AILab/causal-conv1d.git /tmp/causal-conv1d
+  CAUSAL_CONV1D_FORCE_BUILD=TRUE python -m pip install --no-cache-dir --no-build-isolation /tmp/causal-conv1d
+
+  # flash-attn-3 (Hopper): pinned to an exact commit (there is no v3 tag); kernels are in hopper/.
+  git clone https://github.com/Dao-AILab/flash-attention.git /tmp/flash-attention
+  git -C /tmp/flash-attention checkout 1bda8f9290cd48d030f1516f0e680cd464ef3554
+  FLASH_ATTN_CUDA_ARCHS="90" FLASH_ATTENTION_FORCE_BUILD=TRUE NVCC_THREADS=4 python -m pip install --no-cache-dir --no-build-isolation /tmp/flash-attention/hopper
+
+  # transformers with Qwen3.8 support (newer than the image's baked version).
+  python -m pip install --no-cache-dir transformers==5.16.1
+  # flash-linear-attention: the fused gated-delta kernel the model uses (installing it is enough).
+  python -m pip install --no-cache-dir flash-linear-attention==0.5.2
+  # datasets: train.py streams the training data from the HF hub.
+  python -m pip install --no-cache-dir datasets==4.8.5
+
+  # === ---- Run Main Training Loop ---------------------------------------- ===
+  #
+  echo "Run Main Training Loop"
+
+  # One process per GPU; AIR sets NUM_NODES/NODE_RANK/etc.
+  python -m torch.distributed.run \
+    --nproc_per_node=8 \
+    --nnodes=$NUM_NODES \
+    --node_rank=$NODE_RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT \
+    train.py
