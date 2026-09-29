@@ -3,8 +3,8 @@ experiment_name: ray-tune-qwen-lora
 environment:
   version: "databricks_ai_v5"
   dependencies:
-    - peft>=0.13
-    - fsspec>=2024.6.1
+    - peft==0.17.0
+    - fsspec==2026.6.0
 
 compute:
   num_accelerators: 4

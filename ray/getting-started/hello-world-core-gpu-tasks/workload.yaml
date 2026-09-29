@@ -3,7 +3,7 @@ experiment_name: ray-core-hello-world
 environment:
   version: "5"
   dependencies:
-    - ray[default]
+    - ray[default]==2.56.1
 
 compute:
   num_accelerators: 2

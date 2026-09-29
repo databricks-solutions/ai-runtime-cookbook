@@ -3,7 +3,7 @@ experiment_name: ray-train-qwen-sft
 environment:
   version: "databricks_ai_v5"
   dependencies:
-    - fsspec>=2024.6.1
+    - fsspec==2026.6.0
 
 compute:
   num_accelerators: 8

@@ -4,11 +4,11 @@ environment:
   version: "5"
   dependencies:
     - ray[data]==2.56.1
-    - vllm
-    - datasets>=3.0
-    - huggingface_hub>=0.34
-    - hf_transfer
-    - fsspec>=2024.6.1
+    - vllm==0.11.0
+    - datasets==3.6.0
+    - huggingface_hub==0.34.6
+    - hf_transfer==0.1.9
+    - fsspec==2025.3.0
     - opencv-python-headless==4.12.0.88
 
 compute:
@@ -30,4 +30,4 @@ timeout_minutes: 60
 env_variables:
   NCCL_SOCKET_IFNAME: eth0
   # Replace with a writable Unity Catalog volume path. The volume must already exist.
-  OUTPUT_PATH: /Volumes/main/default/air_examples/ray_batch_inference
+  OUTPUT_PATH: /Volumes/main/default/air_examples/batch-inference-qwen2.5-7b-instruct-vllm

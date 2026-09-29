@@ -50,7 +50,7 @@ def prepare_local_assets() -> None:
     if context.get_local_rank() == 0:
         if not os.path.isdir(os.path.join(IMAGENETTE_ROOT, "train")):
             download_and_extract_archive(IMAGENETTE_URL, download_root="/tmp")
-        ResNet50_Weights.DEFAULT.get_state_dict(progress=True, check_hash=True)
+        ResNet50_Weights.IMAGENET1K_V2.get_state_dict(progress=True, check_hash=True)
     dist.barrier()
 
 
@@ -111,7 +111,7 @@ def train_loop_per_worker(config: dict) -> None:
     prepare_local_assets()
     loaders = create_data_loaders(config["batch_size"])
 
-    weights = ResNet50_Weights.DEFAULT
+    weights = ResNet50_Weights.IMAGENET1K_V2
     model = resnet50(weights=weights)
     model.fc = nn.Linear(model.fc.in_features, 10)
     model = prepare_model(model)

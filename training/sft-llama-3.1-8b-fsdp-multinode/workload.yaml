@@ -38,7 +38,7 @@ env_variables:
 secrets:
   HF_TOKEN: 'my_scope/hf_token'
 
-max_retries: 1
+max_retries: 0
 timeout_minutes: 120
 
 parameters:
@@ -50,4 +50,4 @@ parameters:
   learning_rate: 0.00002
   max_steps: 100
   # Replace with a writable Unity Catalog volume path. The volume must already exist.
-  output_dir: /Volumes/main/default/air_examples/llama31-8b-sft
+  output_dir: /Volumes/main/default/air_examples/sft-llama-3.1-8b-fsdp-multinode

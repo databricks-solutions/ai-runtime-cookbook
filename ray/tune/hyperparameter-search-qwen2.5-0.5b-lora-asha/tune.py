@@ -52,7 +52,7 @@ def build_datasets():
         return out
 
     tokenized = raw.map(format_example, remove_columns=raw.column_names)
-    split = tokenized.train_test_split(test_size=EVAL_EXAMPLES, shuffle=True, seed=0)
+    validation_split = tokenized.train_test_split(test_size=EVAL_EXAMPLES, shuffle=True, seed=0)
 
     def to_tensors(ds):
         return TensorDataset(
@@ -61,7 +61,7 @@ def build_datasets():
             torch.tensor(ds["labels"], dtype=torch.long),
         )
 
-    return to_tensors(split["train"]), to_tensors(split["test"])
+    return to_tensors(validation_split["train"]), to_tensors(validation_split["test"])
 
 
 def evaluate(model, loader, device):
