@@ -129,8 +129,9 @@ def main():
         train_dataset=train_ds,
         eval_dataset=eval_ds,
         processing_class=tokenizer,
-        # Longformer needs lengths that are a multiple of its attention window;
-        # pad to 512 so it doesn't re-pad (and warn) on every forward pass.
+        # Longformer needs lengths that are a multiple of its attention window,
+        # so pad each batch up to the next multiple of 512 (not a fixed 512) to
+        # avoid re-padding (and a warning) on every forward pass.
         data_collator=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=512),
         compute_metrics=compute_metrics,
     )

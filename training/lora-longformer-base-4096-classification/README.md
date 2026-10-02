@@ -38,6 +38,7 @@ Load the base model and apply the adapter for inference:
 from peft import PeftModel
 from transformers import AutoTokenizer, LongformerForSequenceClassification
 
+# num_labels must match what you trained with (2 for the default IMDB run).
 adapter_path = "/Volumes/main/default/air_examples/lora-longformer-base-4096-classification/<MLFLOW_RUN_ID>"
 base = LongformerForSequenceClassification.from_pretrained("allenai/longformer-base-4096", num_labels=2)
 model = PeftModel.from_pretrained(base, adapter_path)
