@@ -30,13 +30,12 @@ max_retries: 1
 timeout_minutes: 240
 
 parameters:
-  # --- Data location (Unity Catalog Volume) ---
-  # These must point at the Volume that prep_data.py staged the HF datasets to.
-  # Replace with a catalog/schema/volume you can write to; they must already exist.
-  catalog: main
-  schema: default
-  volume: invoice_sft
-  volume_model: invoice_sft_checkpoints
+  # --- Output location (Unity Catalog Volume) ---
+  # Requires access to this existing volume; replace it with another writable
+  # volume if needed, and pass the same path to prep_data.py. Datasets are read
+  # from <output_root>/data; checkpoints and the final model are written under
+  # <output_root>/<MLFLOW_RUN_ID> so reruns don't overwrite each other.
+  output_root: /Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed
 
   # --- Model + training hyperparameters ---
   model_name: Qwen/Qwen3-8B

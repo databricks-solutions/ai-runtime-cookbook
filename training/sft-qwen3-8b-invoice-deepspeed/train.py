@@ -8,15 +8,15 @@ Unity Catalog Volume. Metrics are logged to the MLflow run that ``air`` injects.
 
 Hyperparameters are read from the YAML block passed by ``air`` via HYPERPARAMETERS_PATH.
 
-Prerequisite: run ``prep_data.py`` on Databricks once to stage the training and
-eval data as Hugging Face datasets on the UC Volume this script reads from.
+Prerequisite: run ``prep_data.py`` once to stage the training and eval data as
+Hugging Face datasets under ``<output_root>/data`` on the UC Volume this script
+reads from.
 """
 
 import json
 import os
 import tempfile
 
-import mlflow
 import torch
 import yaml
 from datasets import load_from_disk
@@ -58,10 +58,10 @@ def load_params() -> dict:
 
 def main():
     p = load_params()
-    catalog = p.get("catalog", "main")
-    schema = p.get("schema", "default")
-    volume = p.get("volume", "invoice_sft")
-    volume_model = p.get("volume_model", "invoice_sft_checkpoints")
+    output_root = p.get(
+        "output_root",
+        "/Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed",
+    )
     model_name = p.get("model_name", "Qwen/Qwen3-8B")
     learning_rate = float(p.get("learning_rate", 1e-5))
     num_epochs = int(p.get("num_epochs", 3))
@@ -71,9 +71,13 @@ def main():
     warmup_steps = int(p.get("warmup_steps", 20))
     max_steps = int(p.get("max_steps", -1))
 
-    volume_base = f"/Volumes/{catalog}/{schema}/{volume}"
-    volume_model_base = f"/Volumes/{catalog}/{schema}/{volume_model}"
-    run_tag = f"lr{learning_rate}_ep{num_epochs}"
+    # prep_data.py stages the datasets under <output_root>/data (stable across
+    # runs). Checkpoints and the final model go under a per-attempt directory
+    # keyed by the AIR MLflow run id, so reruns and retries never overwrite each
+    # other (falls back to an lr/epoch tag for local runs with no run id).
+    data_dir = f"{output_root}/data"
+    run_id = os.environ.get("MLFLOW_RUN_ID") or f"lr{learning_rate}_ep{num_epochs}"
+    attempt_base = f"{output_root}/{run_id}"
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
     # Write embedded DeepSpeed config to a temp file (HF Trainer needs a path).
@@ -82,9 +86,9 @@ def main():
         json.dump(DS_CONFIG, f)
 
     # --- Load datasets from the UC Volume (staged by prep_data.py) ---
-    print(f"Loading datasets from {volume_base} ...", flush=True)
-    train_dataset = load_from_disk(f"{volume_base}/invoice_train_dataset")
-    eval_dataset = load_from_disk(f"{volume_base}/invoice_eval_dataset")
+    print(f"Loading datasets from {data_dir} ...", flush=True)
+    train_dataset = load_from_disk(f"{data_dir}/invoice_train_dataset")
+    eval_dataset = load_from_disk(f"{data_dir}/invoice_eval_dataset")
 
     # Quick end-to-end validation mode: shrink the data so a full
     # train -> eval -> checkpoint-save pipeline completes in minutes.
@@ -125,7 +129,7 @@ def main():
 
     # --- SFT config ---
     training_args = SFTConfig(
-        output_dir=f"{volume_model_base}/invoice-ft-output-{run_tag}",
+        output_dir=f"{attempt_base}/output",
         run_name="qwen3-8b-fullweight-sft-invoice",
         num_train_epochs=num_epochs,
         max_steps=max_steps,                 # -1 = unbounded (use num_train_epochs)
@@ -165,27 +169,23 @@ def main():
         processing_class=tokenizer,
     )
 
+    # MLflow logging is handled by Trainer's report_to="mlflow": AIR sets
+    # MLFLOW_RUN_ID (and the tracking URI) on the node, and the MLflowCallback
+    # resumes that run and logs only from rank 0, so metrics land in the run AIR
+    # injected. We must NOT open the run manually here -- a manual
+    # mlflow.start_run() leaves a run active and the callback's own start_run()
+    # then fails with "Run ... is already active".
     train_result = trainer.train()
     metrics = train_result.metrics
     trainer.log_metrics("train", metrics)
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
 
-    if local_rank == 0:
-        mlflow.log_params({
-            "base_model": model_name,
-            "training_method": "full_weight_sft",
-            "deepspeed_stage": 3,
-            "max_seq_length": max_seq_length,
-            "train_samples": len(train_dataset),
-            "eval_samples": len(eval_dataset),
-        })
-
     print("\nTraining complete!", flush=True)
     print(f"  Train loss: {metrics['train_loss']:.4f}", flush=True)
     print(f"  Eval loss:  {eval_metrics['eval_loss']:.4f}", flush=True)
 
-    final_path = f"{volume_model_base}/invoice-ft-final-{run_tag}"
+    final_path = f"{attempt_base}/final"
     trainer.save_model(final_path)  # main-process-guarded internally
     if local_rank == 0:
         # Guard the tokenizer write to rank 0 so ranks don't race on the same dir.

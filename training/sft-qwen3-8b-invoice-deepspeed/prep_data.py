@@ -1,62 +1,32 @@
-# Databricks notebook source
-# DBTITLE 1,Introduction
-# MAGIC %md
-# MAGIC # Data Prep — Public HF dataset -> HF datasets on a UC Volume
-# MAGIC
-# MAGIC One-time prerequisite for `train.py`. The `air` GPU worker has no Spark, so this
-# MAGIC notebook stages the training and eval data as Hugging Face `Dataset` objects on a
-# MAGIC Unity Catalog Volume that `train.py` then reads with `load_from_disk`.
-# MAGIC
-# MAGIC Self-contained: it pulls the public **Winuim/invoice-sft-dataset-v2** dataset
-# MAGIC (OCR text paired with ground-truth extraction JSON in chat-message format),
-# MAGIC builds a conversational `messages` column, and writes a train/eval split.
-# MAGIC
-# MAGIC **Run once on Databricks (Serverless CPU)** before launching `databricks air run -f workload.yaml`.
-# MAGIC Set the `catalog` / `schema` / `volume` widgets to match `workload.yaml`.
+#!/usr/bin/env python3
+"""Stage the invoice SFT dataset as HF datasets on a Unity Catalog Volume.
 
-# COMMAND ----------
+One-time prerequisite for ``train.py``. The AIR GPU worker has no Spark, so this
+script pulls the public **Winuim/invoice-sft-dataset-v2** dataset (OCR text paired
+with ground-truth extraction JSON in chat-message format), builds a conversational
+``messages`` column, carves out a train/eval split, and writes both to a UC Volume
+that ``train.py`` reads with ``load_from_disk``.
 
-# MAGIC %pip install --quiet datasets huggingface_hub
-# MAGIC %restart_python
+Run it once from any environment with write access to the target volume (for
+example a Databricks cluster web terminal) before ``databricks air run``:
 
-# COMMAND ----------
+    pip install datasets huggingface_hub
+    python prep_data.py --output-root /Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed
 
-# DBTITLE 1,Configuration
-# These must match the `catalog` / `schema` / `volume` parameters in workload.yaml.
-# The catalog, schema, and volume must already exist and be writable.
-dbutils.widgets.text("catalog", "main", "Catalog")
-dbutils.widgets.text("schema", "default", "Schema")
-dbutils.widgets.text("volume", "invoice_sft", "Volume")
-dbutils.widgets.text("hf_dataset", "Winuim/invoice-sft-dataset-v2", "HF dataset")
+Pass the same ``--output-root`` you set for ``output_root`` in ``workload.yaml``;
+the datasets are written under ``<output-root>/data``.
+"""
 
-CATALOG = dbutils.widgets.get("catalog")
-SCHEMA = dbutils.widgets.get("schema")
-VOLUME = dbutils.widgets.get("volume")
-HF_DATASET = dbutils.widgets.get("hf_dataset")
-
-VOLUME_BASE = f"/Volumes/{CATALOG}/{SCHEMA}/{VOLUME}"
-TRAIN_DATASET_PATH = f"{VOLUME_BASE}/invoice_train_dataset"
-EVAL_DATASET_PATH = f"{VOLUME_BASE}/invoice_eval_dataset"
-
-print(f"HF dataset: {HF_DATASET}")
-print(f"Output:     {TRAIN_DATASET_PATH}, {EVAL_DATASET_PATH}")
-
-# COMMAND ----------
-
-# DBTITLE 1,Load + parse the chat-message dataset
+import argparse
 import json
 import os
 
-# On Serverless the HF `datasets` cache defaults to /root/.cache, which is not
-# writable. Point it at a writable local path before importing datasets.
-os.environ["HF_HOME"] = "/tmp/hf_home"
-os.environ["HF_DATASETS_CACHE"] = "/tmp/hf_home/datasets"
+# The HF `datasets` cache defaults to /root/.cache, which may be read-only. Point
+# it at a writable local path before importing datasets.
+os.environ.setdefault("HF_HOME", "/tmp/hf_home")
+os.environ.setdefault("HF_DATASETS_CACHE", "/tmp/hf_home/datasets")
 
-from datasets import load_dataset
-
-# Each row is a list of {role, content} chat messages: system + user (OCR text)
-# + assistant (ground-truth extraction JSON).
-raw = load_dataset(HF_DATASET, split="train", cache_dir="/tmp/hf_home/datasets")
+from datasets import load_dataset, load_from_disk
 
 
 def to_example(row):
@@ -86,9 +56,6 @@ def to_example(row):
     }
 
 
-parsed = raw.map(to_example, remove_columns=raw.column_names)
-
-
 def _is_valid_json(row):
     if not row["_valid"]:
         return False
@@ -99,35 +66,52 @@ def _is_valid_json(row):
         return False
 
 
-before = len(parsed)
-parsed = parsed.filter(_is_valid_json).remove_columns(["_valid"])
-print(f"Kept {len(parsed)}/{before} rows (dropped empty / invalid-JSON rows).")
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--output-root",
+        default="/Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed",
+        help="UC Volume path; datasets are written under <output-root>/data. "
+             "Must match output_root in workload.yaml.",
+    )
+    parser.add_argument("--hf-dataset", default="Winuim/invoice-sft-dataset-v2",
+                        help="Public Hugging Face dataset to stage.")
+    parser.add_argument("--test-size", type=float, default=0.05,
+                        help="Fraction of rows held out for eval.")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Split seed (fixed for reproducible re-runs).")
+    args = parser.parse_args()
 
-# COMMAND ----------
+    data_dir = f"{args.output_root}/data"
+    train_path = f"{data_dir}/invoice_train_dataset"
+    eval_path = f"{data_dir}/invoice_eval_dataset"
+    print(f"HF dataset: {args.hf_dataset}")
+    print(f"Output:     {train_path}, {eval_path}")
 
-# DBTITLE 1,Split and save to the UC Volume
-# 95/5 train/eval split (seed fixed for reproducible re-runs). The public
-# dataset is a single `train` split, so we carve the eval set out here.
-split = parsed.train_test_split(test_size=0.05, seed=42)
-train_dataset = split["train"]
-eval_dataset = split["test"]
+    # Each row is a list of {role, content} chat messages: system + user (OCR text)
+    # + assistant (ground-truth extraction JSON).
+    raw = load_dataset(args.hf_dataset, split="train", cache_dir=os.environ["HF_DATASETS_CACHE"])
+    parsed = raw.map(to_example, remove_columns=raw.column_names)
 
-train_dataset.save_to_disk(TRAIN_DATASET_PATH)
-eval_dataset.save_to_disk(EVAL_DATASET_PATH)
+    before = len(parsed)
+    parsed = parsed.filter(_is_valid_json).remove_columns(["_valid"])
+    print(f"Kept {len(parsed)}/{before} rows (dropped empty / invalid-JSON rows).")
 
-print(f"✓ Train: {len(train_dataset)} samples -> {TRAIN_DATASET_PATH}")
-print(f"✓ Eval:  {len(eval_dataset)} samples -> {EVAL_DATASET_PATH}")
+    # The public dataset is a single `train` split, so carve the eval set out here.
+    split = parsed.train_test_split(test_size=args.test_size, seed=args.seed)
+    split["train"].save_to_disk(train_path)
+    split["test"].save_to_disk(eval_path)
+    print(f"Train: {len(split['train'])} samples -> {train_path}")
+    print(f"Eval:  {len(split['test'])} samples -> {eval_path}")
 
-# COMMAND ----------
+    # Verify the staged data loads back and show one example.
+    train_check = load_from_disk(train_path)
+    print(f"\nVerify: {len(train_check)} train samples, columns={train_check.column_names}")
+    for msg in train_check[0]["messages"]:
+        print(f"  [{msg['role']}]: {msg['content'][:200]}...")
+    print("\nDone. Data is staged and ready for `databricks air run -f workload.yaml`.")
 
-# DBTITLE 1,Verify staged data
-from datasets import load_from_disk
 
-train_check = load_from_disk(TRAIN_DATASET_PATH)
-eval_check = load_from_disk(EVAL_DATASET_PATH)
-print(f"Train: {len(train_check)} samples, columns={train_check.column_names}")
-print(f"Eval:  {len(eval_check)} samples, columns={eval_check.column_names}")
-print("\nSample (first train example):")
-for msg in train_check[0]["messages"]:
-    print(f"  [{msg['role']}]: {msg['content'][:200]}...")
-print("\nDone. Data is staged and ready for `databricks air run -f workload.yaml`.")
+if __name__ == "__main__":
+    main()
