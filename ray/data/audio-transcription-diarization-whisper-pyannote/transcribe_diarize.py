@@ -51,8 +51,7 @@ def stage_audio() -> list:
     ds = load_dataset(
         "diarizers-community/voxconverse",
         split=f"dev[:{NUM_CLIPS}]",
-        cache_dir="/tmp/hf_home/datasets",
-    )
+    )  # cache dir comes from HF_DATASETS_CACHE, set above
     # decode=False keeps the audio as {"path", "bytes"} so we can write the
     # original file straight to disk — no torchcodec/ffmpeg decode step needed.
     # faster-whisper and pyannote decode the files themselves.
@@ -165,7 +164,9 @@ def main():
         batch_size=1,
     ).materialize()
 
-    out.write_parquet(OUTPUT_PATH)
+    # Overwrite so reruns replace the previous results rather than appending new
+    # Parquet files alongside stale ones (write_parquet defaults to "append").
+    out.write_parquet(OUTPUT_PATH, mode="overwrite")
     print(f"Wrote {out.count()} rows to {OUTPUT_PATH}", flush=True)
     for row in out.take(2):
         print(
