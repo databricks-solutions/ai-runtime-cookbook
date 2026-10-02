@@ -108,8 +108,9 @@ def main():
     # Verify the staged data loads back and show one example.
     train_check = load_from_disk(train_path)
     print(f"\nVerify: {len(train_check)} train samples, columns={train_check.column_names}")
-    for msg in train_check[0]["messages"]:
-        print(f"  [{msg['role']}]: {msg['content'][:200]}...")
+    if len(train_check):
+        for msg in train_check[0]["messages"]:
+            print(f"  [{msg['role']}]: {msg['content'][:200]}...")
     print("\nDone. Data is staged and ready for `databricks air run -f workload.yaml`.")
 
 

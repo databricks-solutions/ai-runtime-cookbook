@@ -181,9 +181,10 @@ def main():
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
 
-    print("\nTraining complete!", flush=True)
-    print(f"  Train loss: {metrics['train_loss']:.4f}", flush=True)
-    print(f"  Eval loss:  {eval_metrics['eval_loss']:.4f}", flush=True)
+    if local_rank == 0:
+        print("\nTraining complete!", flush=True)
+        print(f"  Train loss: {metrics['train_loss']:.4f}", flush=True)
+        print(f"  Eval loss:  {eval_metrics['eval_loss']:.4f}", flush=True)
 
     final_path = f"{attempt_base}/final"
     trainer.save_model(final_path)  # main-process-guarded internally

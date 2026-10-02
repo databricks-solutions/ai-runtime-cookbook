@@ -44,7 +44,9 @@ parameters:
   max_seq_length: 4096
   per_device_batch_size: 2
   gradient_accumulation_steps: 2
-  # transformers 5.x removed `warmup_ratio`; warm up by step count instead.
+  # transformers 5.x removed `warmup_ratio`; warm up by step count instead. For a
+  # very small max_steps smoke test, lower this too, or the whole run stays in LR
+  # warmup (near-zero learning rate) and the loss curve looks misleadingly flat.
   warmup_steps: 20
   # Cap total steps for a quick end-to-end smoke test (shrinks data + bounds
   # steps so train -> eval -> save finishes in ~4 min). -1 = full num_epochs run.
