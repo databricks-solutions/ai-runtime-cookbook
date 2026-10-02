@@ -46,9 +46,10 @@ def load_params() -> dict:
 
 def main():
     p = load_params()
-    catalog = p.get("catalog", "main")
-    schema = p.get("schema", "default")
-    volume = p.get("volume", "longformer_lora")
+    output_root = p.get(
+        "output_root",
+        "/Volumes/main/default/air_examples/lora-longformer-base-4096-classification",
+    )
     model_name = p.get("model_name", "allenai/longformer-base-4096")
     dataset_name = p.get("dataset_name", "stanfordnlp/imdb")
     num_labels = int(p.get("num_labels", 2))
@@ -64,7 +65,10 @@ def main():
     lora_dropout = float(p.get("lora_dropout", 0.05))
     max_steps = int(p.get("max_steps", -1))
 
-    output_dir = f"/Volumes/{catalog}/{schema}/{volume}/longformer-imdb-lora"
+    # Per-attempt output dir keyed by the AIR MLflow run, so reruns and retries
+    # don't overwrite a previous run's adapter.
+    run_id = os.environ.get("MLFLOW_RUN_ID")
+    output_dir = f"{output_root}/{run_id}" if run_id else output_root
 
     # --- Data (public IMDB) ---
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -131,8 +135,11 @@ def main():
         compute_metrics=compute_metrics,
     )
 
-    # report_to="mlflow" lets Trainer's MLflowCallback manage the run and log into
-    # the one `air` injects; we don't start a run manually (that would double-start).
+    # report_to="mlflow" lets Trainer's MLflowCallback manage the run. AIR sets
+    # MLFLOW_RUN_ID in the environment, which the callback resumes, so metrics log
+    # into the run AIR injected rather than a new one. We must NOT open the run
+    # ourselves here — a manual mlflow.start_run() leaves a run active and the
+    # callback's own start_run() then raises "Run ... is already active".
     trainer.train()
     eval_metrics = trainer.evaluate()
     print(f"\nEval accuracy: {eval_metrics['eval_accuracy']:.4f}  |  f1: {eval_metrics['eval_f1']:.4f}", flush=True)

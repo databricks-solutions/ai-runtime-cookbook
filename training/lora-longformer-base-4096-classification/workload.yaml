@@ -31,11 +31,10 @@ timeout_minutes: 120
 
 parameters:
   # --- Output location (Unity Catalog volume) ---
-  # Replace with a writable catalog/schema/volume that already exists; the LoRA
-  # adapter + tokenizer are saved under it.
-  catalog: main
-  schema: default
-  volume: longformer_lora
+  # Requires access to this existing volume; replace it with another writable
+  # volume if needed. The adapter + tokenizer are saved under
+  # <output_root>/<MLFLOW_RUN_ID> so reruns don't overwrite each other.
+  output_root: /Volumes/main/default/air_examples/lora-longformer-base-4096-classification
 
   # --- Model + data ---
   model_name: allenai/longformer-base-4096
