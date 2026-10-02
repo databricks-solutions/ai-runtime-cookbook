@@ -24,6 +24,6 @@ no separate prep step is needed. Point `INPUT_DIR` at your own WAVs to run on ot
 databricks air run -f workload.yaml
 ```
 
-Configure `NUM_CLIPS`, `INPUT_DIR`, `OUTPUT_PATH`, and the `HF_TOKEN` secret in
+Configure `WHISPER_MODEL`, `NUM_CLIPS`, `INPUT_DIR`, `OUTPUT_PATH`, and the `HF_TOKEN` secret in
 `workload.yaml`. Add nodes by raising `compute.num_accelerators` — `ray_bootstrap.sh`
 forms the cluster and Ray Data scales the actor pool to the available GPUs.

@@ -9,6 +9,10 @@ environment:
     - torch==2.7.1
     - torchaudio==2.7.1
     - faster-whisper==1.1.1
+    # faster-whisper 1.1.1 calls av.open(..., metadata_errors=...); newer PyAV
+    # (the AIR default resolves to av 19) removed that argument. Pin PyAV to a
+    # version that still accepts it.
+    - av==13.1.0
     - pyannote.audio==3.3.2
     - huggingface_hub==0.29.3
     - soundfile
@@ -41,6 +45,8 @@ secrets:
 
 env_variables:
   NCCL_SOCKET_IFNAME: eth0
+  # faster-whisper model to load on each GPU actor (e.g. large-v3, medium, small).
+  WHISPER_MODEL: large-v3
   NUM_CLIPS: '24'
   # Shared UC volume paths. Replace with writable volumes that already exist;
   # INPUT_DIR holds the staged WAVs, OUTPUT_PATH the result Parquet.
