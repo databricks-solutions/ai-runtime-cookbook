@@ -1,0 +1,59 @@
+experiment_name: lora-longformer-base-4096-classification
+
+environment:
+  version: '5'
+  dependencies:
+    - transformers==4.49.0
+    - peft==0.14.0
+    - accelerate==1.4.0
+    - datasets==3.3.2
+    - scikit-learn
+    - mlflow
+    # AI v5 sets HF_HUB_ENABLE_HF_TRANSFER=1, so hf_transfer must be present.
+    - hf_transfer
+
+# Longformer-base (~149M params) trains comfortably on a single A10.
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd $CODE_SOURCE_PATH
+  python train.py
+
+max_retries: 1
+timeout_minutes: 120
+
+parameters:
+  # --- Output location (Unity Catalog volume) ---
+  # Requires access to this existing volume; replace it with another writable
+  # volume if needed. The adapter + tokenizer are saved under
+  # <output_root>/<MLFLOW_RUN_ID> so reruns don't overwrite each other.
+  output_root: /Volumes/main/default/air_examples/lora-longformer-base-4096-classification
+
+  # --- Model + data ---
+  model_name: allenai/longformer-base-4096
+  dataset_name: stanfordnlp/imdb
+  num_labels: 2
+  # Longformer's full 4096-token window; the collator pads to multiples of 512.
+  max_length: 4096
+  # Subsets of IMDB's 25k/25k splits keep the example quick; raise for a fuller run.
+  train_samples: 2000
+  eval_samples: 500
+
+  # --- LoRA + training hyperparameters ---
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  learning_rate: 0.0001
+  num_epochs: 1
+  # Smaller batch keeps memory safe when a batch contains a long (4096-token) doc.
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 1
+  # Cap total steps for a quick end-to-end smoke test. -1 = full num_epochs run.
+  max_steps: -1
