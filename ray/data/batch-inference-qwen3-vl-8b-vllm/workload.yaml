@@ -1,0 +1,46 @@
+experiment_name: ray-data-qwen3-vl-batch-inference
+
+environment:
+  version: "5"
+  dependencies:
+    # ray 2.56.1 is validated against vllm 0.22.0 (the version its `llm` extra pins).
+    - ray[data]==2.56.1
+    - vllm==0.22.0
+    - huggingface_hub==0.36.2
+    # Ray Data LLM enables HF_HUB_ENABLE_HF_TRANSFER for model downloads, so this is required.
+    - hf_transfer==0.1.9
+    - mlflow-skinny==3.13.0
+    # vllm needs opencv-python-headless>=4.13. Its manylinux_2_28 wheels bundle an
+    # OpenSSL build that aborts with "FATAL FIPS SELFTEST FAILURE" on AI Runtime,
+    # so pin the x86_64 manylinux2014 wheel, which bundles a compatible OpenSSL.
+    - opencv-python-headless@https://files.pythonhosted.org/packages/de/06/14c8c5d331bc72738683a9b227966aceaa4c6d08752f33d64578aebcb6f8/opencv_python_headless-4.14.0.94-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+
+# One 8xH100 node; Ray Data runs one vLLM replica per GPU. Increase
+# num_accelerators to add nodes. ray_bootstrap.sh forms the multi-node cluster.
+# At this dataset size, startup dominates, so extra nodes don't shorten the run.
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=batch_inference.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 60
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0
+  # Use vLLM's PyTorch sampler. The default FlashInfer sampler JIT-compiles a CUDA
+  # kernel at startup and needs CUDA headers (curand.h) that this environment lacks.
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  # 0 processes all 3,669 test images. Set a small value for a quick smoke test.
+  NUM_IMAGES: "0"
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  # Each run writes to a subdirectory named after its MLflow run ID.
+  OUTPUT_PATH: /Volumes/main/default/air_examples/batch-inference-qwen3-vl-8b-vllm
