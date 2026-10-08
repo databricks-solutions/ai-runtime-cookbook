@@ -164,10 +164,13 @@ def main():
         batch_size=1,
     ).materialize()
 
-    # Overwrite so reruns replace the previous results rather than appending new
-    # Parquet files alongside stale ones (write_parquet defaults to "append").
-    out.write_parquet(OUTPUT_PATH, mode="overwrite")
-    print(f"Wrote {out.count()} rows to {OUTPUT_PATH}", flush=True)
+    # Write each run under its own AIR MLflow run id so reruns don't overwrite
+    # earlier results (falls back to OUTPUT_PATH itself when run locally). Overwrite
+    # mode keeps a retried write from appending Parquet files next to partial ones.
+    run_id = os.environ.get("MLFLOW_RUN_ID")
+    output_dir = f"{OUTPUT_PATH}/{run_id}" if run_id else OUTPUT_PATH
+    out.write_parquet(output_dir, mode="overwrite")
+    print(f"Wrote {out.count()} rows to {output_dir}", flush=True)
     for row in out.take(2):
         print(
             f"[{row['call_id']}] {row['num_speakers']} speakers, "

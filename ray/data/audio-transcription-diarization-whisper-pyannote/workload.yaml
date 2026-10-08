@@ -38,8 +38,9 @@ command: |
 max_retries: 0
 timeout_minutes: 60
 
-# pyannote/speaker-diarization-3.1 is gated. Replace with a Databricks secret
-# (scope/key) holding a Hugging Face token that has accepted the model's terms.
+# pyannote/speaker-diarization-3.1 and pyannote/segmentation-3.0 are gated. Replace
+# with a Databricks secret (scope/key) holding a Hugging Face token that has
+# accepted both models' terms.
 secrets:
   HF_TOKEN: 'my_scope/hf_token'
 
@@ -49,6 +50,6 @@ env_variables:
   WHISPER_MODEL: large-v3
   NUM_CLIPS: '24'
   # Shared UC volume paths. Replace with writable volumes that already exist;
-  # INPUT_DIR holds the staged WAVs, OUTPUT_PATH the result Parquet.
+  # INPUT_DIR holds the staged WAVs; results go to <OUTPUT_PATH>/<MLFLOW_RUN_ID>.
   INPUT_DIR: /Volumes/main/default/air_examples/voxconverse_wavs
   OUTPUT_PATH: /Volumes/main/default/air_examples/audio_diarization_results

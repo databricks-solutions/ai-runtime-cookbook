@@ -7,16 +7,18 @@ written to a Unity Catalog volume as Parquet.
 
 Input is the public, ungated `diarizers-community/voxconverse` multi-speaker dataset
 (CC-BY-4.0); the entrypoint stages `NUM_CLIPS` clips to `INPUT_DIR` on the Ray head, so
-no separate prep step is needed. Point `INPUT_DIR` at your own WAVs to run on other audio.
+no separate prep step is needed.
 
-## Prerequisites
+## Before you run
 
 1. Writable Unity Catalog volumes for `INPUT_DIR` (staged WAVs) and `OUTPUT_PATH`
    (result Parquet); they must already exist and may be the same volume.
-2. **Hugging Face token for pyannote.** `pyannote/speaker-diarization-3.1` is gated:
-   accept its terms once at https://huggingface.co/pyannote/speaker-diarization-3.1,
-   store the token in a Databricks secret, and set `secrets.HF_TOKEN` in `workload.yaml`
-   to that `scope/key`.
+2. **Hugging Face token for pyannote.** Accept the terms for both gated models:
+   - https://huggingface.co/pyannote/speaker-diarization-3.1
+   - https://huggingface.co/pyannote/segmentation-3.0
+
+   Store the token in a Databricks secret, then set `secrets.HF_TOKEN` in
+   `workload.yaml` to that `scope/key`.
 
 ## Run
 
@@ -27,3 +29,6 @@ databricks air run -f workload.yaml
 Configure `WHISPER_MODEL`, `NUM_CLIPS`, `INPUT_DIR`, `OUTPUT_PATH`, and the `HF_TOKEN` secret in
 `workload.yaml`. Add nodes by raising `compute.num_accelerators` — `ray_bootstrap.sh`
 forms the cluster and Ray Data scales the actor pool to the available GPUs.
+
+Each run writes its Parquet results to `<OUTPUT_PATH>/<MLFLOW_RUN_ID>`, so reruns
+don't overwrite earlier output (the run id is shown on the AIR attempt's MLflow page).
