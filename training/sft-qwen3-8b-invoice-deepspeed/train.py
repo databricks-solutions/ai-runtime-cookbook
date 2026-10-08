@@ -155,6 +155,8 @@ def main():
         gradient_checkpointing_kwargs={"use_reentrant": False},
         max_length=max_seq_length,
         packing=False,
+        # prep_data.py stages prompt/completion pairs, so the loss covers only the
+        # assistant JSON (completion_only_loss is ignored for a `messages` column).
         completion_only_loss=True,
         deepspeed=ds_path,
         report_to="mlflow",

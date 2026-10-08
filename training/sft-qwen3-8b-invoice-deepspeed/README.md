@@ -14,7 +14,10 @@ Full-weight SFT of `Qwen/Qwen3-8B` for invoice/receipt entity extraction — TRL
    access to that volume (for example a Databricks cluster web terminal), passing
    the same path. The AIR GPU worker has no Spark, so this pre-stages the public
    `Winuim/invoice-sft-dataset-v2` dataset as Hugging Face datasets under
-   `<output_root>/data`, which `train.py` reads.
+   `<output_root>/data`, which `train.py` reads. Only answers that match the JSON
+   schema in the prompt are kept (about 4.9k of 7k rows; the rest carry raw OCR
+   amounts, non-ISO dates, or other item layouts), and each example is stored as a
+   `prompt` / `completion` pair so the loss covers only the assistant's JSON.
 
    ```bash
    pip install datasets huggingface_hub
