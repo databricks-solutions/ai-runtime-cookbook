@@ -1,11 +1,11 @@
 # LoRA Longformer for long-document classification
 
 PEFT LoRA fine-tuning of `allenai/longformer-base-4096` for sequence
-classification on a single GPU. Longformer's 4096-token attention window suits
-long documents; the example uses the public IMDB sentiment dataset. LoRA adapts
-the local + global attention projections and trains the classification head, so
-only a small fraction of parameters are updated. Metrics go to MLflow and the
-adapter + tokenizer are saved to a Unity Catalog volume.
+classification on a single GPU. Longformer supports sequences up to 4096 tokens,
+which suits long documents; the example uses the public IMDB sentiment dataset.
+LoRA adapts the local + global attention projections and trains the classification
+head, so only a small fraction of parameters are updated. Metrics go to MLflow and
+the adapter + tokenizer are saved to a Unity Catalog volume.
 
 ## Before you run
 

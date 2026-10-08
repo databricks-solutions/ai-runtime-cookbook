@@ -3,9 +3,10 @@
 
 Runs on a single GPU (launched from workload.yaml). Fine-tunes
 ``allenai/longformer-base-4096`` with a PEFT LoRA adapter on the public IMDB
-sentiment dataset — Longformer's 4096-token window suits long reviews. Metrics
-go to the MLflow run that ``air`` injects; the trained adapter (plus the
-classification head) and tokenizer are saved to a Unity Catalog volume.
+sentiment dataset — Longformer supports sequences up to 4096 tokens, which suits
+long reviews. Metrics go to the MLflow run that ``air`` injects; the trained
+adapter (plus the classification head) and tokenizer are saved to a Unity Catalog
+volume.
 
 LoRA targets Longformer's local + global attention projections, and the
 randomly-initialized classifier head is kept trainable via ``modules_to_save``

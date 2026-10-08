@@ -40,7 +40,8 @@ parameters:
   model_name: allenai/longformer-base-4096
   dataset_name: stanfordnlp/imdb
   num_labels: 2
-  # Longformer's full 4096-token window; the collator pads to multiples of 512.
+  # Longformer supports sequences up to 4096 tokens (its local attention window
+  # is 512); the collator pads each batch to a multiple of 512.
   max_length: 4096
   # Subsets of IMDB's 25k/25k splits keep the example quick; raise for a fuller run.
   train_samples: 2000
