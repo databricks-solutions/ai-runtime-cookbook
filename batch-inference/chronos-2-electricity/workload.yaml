@@ -1,0 +1,32 @@
+experiment_name: air-chronos-2-electricity
+
+environment:
+  version: "5"
+  dependencies:
+    - chronos-forecasting==2.3.2
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: python "$CODE_SOURCE_PATH/predict.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  model_name: amazon/chronos-2
+  # Public electricity-price sample used by the upstream Chronos quickstart.
+  data_url: https://autogluon.s3.amazonaws.com/datasets/timeseries/electricity_price/train.parquet
+  prediction_length: 24
+  num_windows: 16  # Batch 16 consecutive daily forecast origins per input series.
+  context_length: 2048
+  batch_size: 8
+  seasonal_period: 24
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/chronos-2-electricity

@@ -1,0 +1,36 @@
+experiment_name: air-dinov3-flowers102
+
+environment:
+  version: "5"
+  dependencies:
+    - timm==1.0.30
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 60
+
+parameters:
+  model_name: vit_small_patch16_dinov3.lvd1689m
+  epochs: 10
+  batch_size: 32
+  backbone_learning_rate: 0.00001
+  head_learning_rate: 0.001
+  weight_decay: 0.05
+  label_smoothing: 0.1
+  warmup_epochs: 1
+  num_workers: 4
+  seed: 42
+  # Download cache is local and ephemeral; final artifacts go to output_root.
+  data_root: /tmp/flowers102
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/finetune-dinov3-flowers102
