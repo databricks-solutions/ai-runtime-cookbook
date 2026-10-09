@@ -11,9 +11,7 @@ compute:
   accelerator_type: GPU_1xA10   # any single GPU works (e.g. GPU_1xH100); A10 is the cheapest here
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 command: python $CODE_SOURCE_PATH/train.py
 
