@@ -16,9 +16,7 @@ compute:
   accelerator_type: GPU_8xH100
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 # Launch under torchrun so each GPU gets a rank; AIR provides NUM_NODES / NODE_RANK / MASTER_ADDR /
 # MASTER_PORT / LOCAL_WORLD_SIZE (so the same command also scales to multiple nodes).

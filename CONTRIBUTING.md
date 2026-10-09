@@ -39,7 +39,7 @@ Each recipe must include:
 Keep recipes independent:
 
 - Do not depend on files from another recipe.
-- Set `code_source.snapshot.root_path` to the recipe directory, normally `.`.
+- Set `code_source.root_path` to the recipe directory, normally `.`.
 - Commands must execute against the recipe snapshot and must not depend on files outside the recipe. Reference bundled files through `$CODE_SOURCE_PATH`, or `cd "$CODE_SOURCE_PATH"` and then use relative paths.
 - Use absolute paths for external locations such as Unity Catalog volumes.
 
