@@ -32,7 +32,7 @@ parameters:
   # Requires access to this existing volume; replace it with another writable
   # volume if needed. The adapter + tokenizer are saved under
   # <output_root>/<MLFLOW_RUN_ID> so reruns don't overwrite each other.
-  output_root: /Volumes/main/default/air_examples/lora-longformer-base-4096-classification
+  output_root: /Volumes/main/default/air_examples/finetune-longformer-base-4096-lora
 
   # --- Model + data ---
   model_name: allenai/longformer-base-4096

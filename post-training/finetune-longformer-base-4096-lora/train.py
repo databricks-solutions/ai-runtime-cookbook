@@ -49,7 +49,7 @@ def main():
     p = load_params()
     output_root = p.get(
         "output_root",
-        "/Volumes/main/default/air_examples/lora-longformer-base-4096-classification",
+        "/Volumes/main/default/air_examples/finetune-longformer-base-4096-lora",
     )
     model_name = p.get("model_name", "allenai/longformer-base-4096")
     dataset_name = p.get("dataset_name", "stanfordnlp/imdb")

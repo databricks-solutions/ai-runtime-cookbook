@@ -12,10 +12,10 @@ Recipes are organized by workload directly under the repository root:
 <workload>/<example>/
 ```
 
-Ray is the exception, with recipes organized by workload under `ray/`:
+Ray is the exception: its recipes are organized by Ray library under `ray/`, with introductory recipes in `ray/getting-started/`:
 
 ```text
-ray/<workload>/<example>/
+ray/<library>/<example>/
 ```
 
 ## Run a recipe
