@@ -1,4 +1,4 @@
-# DINOv3 image classification on Flowers-102
+# Image classification fine-tuning with DINOv3
 
 Fine-tune [DINOv3 ViT-Small](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m), a 21.6M-parameter pretrained vision transformer, on [Oxford Flowers-102](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/) for ten epochs on one A10 GPU. [DINOv3](https://arxiv.org/abs/2508.10104) is a recent state-of-the-art self-supervised vision method; this compact example adapts its distilled backbone and a new classification head with AdamW, separate backbone/head learning rates, warmup, cosine decay, and BF16 mixed precision.
 

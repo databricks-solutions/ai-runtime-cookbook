@@ -28,7 +28,7 @@ def split_history(data, horizon, context_length, seasonal_period, num_windows):
         if len(series) < horizon * num_windows + seasonal_period:
             raise ValueError("Each series needs all forecast windows plus one seasonal period")
         if not series["timestamp"].diff().iloc[1:].eq(pd.Timedelta(hours=1)).all():
-            raise ValueError("This electricity recipe expects regular hourly observations")
+            raise ValueError("This recipe expects regular hourly observations")
         for window in range(num_windows):
             end = len(series) - horizon * (num_windows - window - 1)
             cutoff = end - horizon

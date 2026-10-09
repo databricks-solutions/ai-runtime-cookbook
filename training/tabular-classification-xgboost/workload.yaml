@@ -1,0 +1,35 @@
+experiment_name: air-tabular-classification-xgboost
+
+environment:
+  version: "5"
+  dependencies:
+    - xgboost==3.0.4
+    - scikit-learn==1.6.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  # Public, anonymized credit card transactions (OpenML dataset 1597); replace with your own table.
+  data_url: https://data.openml.org/datasets/0000/1597/dataset_1597.pq
+  # Chronological split: earliest 60% train, next 20% validation, latest 20% test.
+  validation_fraction: 0.2
+  test_fraction: 0.2
+  random_state: 42
+  n_estimators: 1000
+  early_stopping_rounds: 50
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  scale_pos_weight: 1.0  # Raise to upweight the rare fraud class.
+  device: cuda

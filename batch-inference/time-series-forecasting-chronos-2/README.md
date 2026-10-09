@@ -1,4 +1,4 @@
-# Chronos-2 batch forecasting of electricity prices
+# Time-series forecasting with Chronos-2
 
 Use [amazon/chronos-2](https://huggingface.co/amazon/chronos-2) to batch 16 daily forecasts of German electricity prices from the public [Chronos quickstart dataset](https://github.com/amazon-science/chronos-forecasting#quick-start) on one A10 GPU. Each forecast predicts 24 hourly prices from up to 2,048 earlier observations, without fine-tuning.
 

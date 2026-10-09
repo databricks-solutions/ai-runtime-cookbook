@@ -1,4 +1,4 @@
-experiment_name: air-chronos-2-electricity
+experiment_name: air-time-series-forecasting-chronos-2
 
 environment:
   version: "5"
@@ -10,9 +10,7 @@ compute:
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 command: python "$CODE_SOURCE_PATH/predict.py"
 
@@ -29,4 +27,4 @@ parameters:
   batch_size: 8
   seasonal_period: 24
   # Requires access to this existing volume; replace it with another writable volume if needed.
-  output_root: /Volumes/main/default/air_examples/chronos-2-electricity
+  output_root: /Volumes/main/default/air_examples/time-series-forecasting-chronos-2

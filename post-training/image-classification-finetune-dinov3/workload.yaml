@@ -1,4 +1,4 @@
-experiment_name: air-dinov3-flowers102
+experiment_name: air-image-classification-finetune-dinov3
 
 environment:
   version: "5"
@@ -10,9 +10,7 @@ compute:
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 command: python "$CODE_SOURCE_PATH/train.py"
 
@@ -33,4 +31,4 @@ parameters:
   # Download cache is local and ephemeral; final artifacts go to output_root.
   data_root: /tmp/flowers102
   # Requires access to this existing volume; replace it with another writable volume if needed.
-  output_root: /Volumes/main/default/air_examples/finetune-dinov3-flowers102
+  output_root: /Volumes/main/default/air_examples/image-classification-finetune-dinov3
