@@ -12,4 +12,4 @@ compute:
 code_source:
   root_path: .
 
-command: python "$CODE_SOURCE_PATH/train.py"
+command: python "$CODE_SOURCE_PATH/main.py"
