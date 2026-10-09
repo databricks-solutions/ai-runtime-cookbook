@@ -15,10 +15,10 @@ environment:
     - av==13.1.0
     - pyannote.audio==3.3.2
     - huggingface_hub==0.29.3
-    - soundfile
+    - soundfile==0.13.1
     - datasets==3.2.0
-    - hf_transfer
-    - fsspec>=2024.6.1
+    - hf_transfer==0.1.9
+    - fsspec==2024.9.0
 
 # One 8xH100 node; Ray Data runs one ASR+diarization actor per GPU. Increase
 # num_accelerators to add nodes — ray_bootstrap.sh forms the multi-node cluster.
