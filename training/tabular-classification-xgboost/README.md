@@ -1,4 +1,4 @@
-# XGBoost training on Forest CoverType (single GPU)
+# Tabular classification with XGBoost (single GPU)
 
 This recipe trains an XGBoost multi-class classifier on the public Forest CoverType dataset on a single A10 GPU (`tree_method="hist"`, `device="cuda"`). It streams the config, per-round train/test mlogloss curves, and evaluation metrics (accuracy, macro one-vs-rest AUC, log loss) to the AIR MLflow run, and registers the trained model to Unity Catalog.
 

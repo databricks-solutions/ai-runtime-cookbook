@@ -1,4 +1,4 @@
-experiment_name: air-xgboost-covertype
+experiment_name: air-tabular-classification-xgboost
 
 environment:
   version: '5'
