@@ -1,0 +1,26 @@
+experiment_name: ray-tune-hello-world
+
+environment:
+  version: "5"
+  dependencies:
+    - "ray[tune]==2.56.1"
+    - torch==2.14.1
+
+compute:
+  num_accelerators: 4
+  accelerator_type: GPU_1xA10
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: ..
+    include_paths:
+      - ray_bootstrap.sh
+      - tune
+
+command: |
+  cd "$CODE_SOURCE_PATH"
+  RAY_ENTRYPOINT=tune/hello_world.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 30

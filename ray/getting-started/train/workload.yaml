@@ -1,9 +1,10 @@
-experiment_name: ray-core-hello-world
+experiment_name: ray-train-hello-world
 
 environment:
   version: "5"
   dependencies:
-    - ray[default]==2.56.1
+    - "ray[train]==2.56.1"
+    - torch==2.14.1
 
 compute:
   num_accelerators: 2
@@ -12,11 +13,14 @@ compute:
 code_source:
   type: snapshot
   snapshot:
-    root_path: .
+    root_path: ..
+    include_paths:
+      - ray_bootstrap.sh
+      - train
 
 command: |
   cd "$CODE_SOURCE_PATH"
-  RAY_ENTRYPOINT=hello_world.py bash ray_bootstrap.sh
+  RAY_ENTRYPOINT=train/hello_world.py bash ray_bootstrap.sh
 
 max_retries: 0
 timeout_minutes: 15
