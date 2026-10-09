@@ -1,0 +1,41 @@
+experiment_name: ray-data-esm2-protein-embeddings
+
+# databricks_ai_v6 provides PyTorch 2.11 (CUDA 13), transformers 5.8, Ray 2.56,
+# scikit-learn, and MLflow. Transformer Engine is added by
+# install_transformer_engine.sh in the command below.
+environment:
+  version: databricks_ai_v6
+  dependencies: []
+
+# One 8xH100 node; Ray Data runs one ESM-2 actor per GPU. Increase
+# num_accelerators to add nodes. ray_bootstrap.sh forms the multi-node cluster.
+# At this dataset size, startup dominates, so extra nodes don't shorten the run.
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: |
+  set -e
+  cd "$CODE_SOURCE_PATH"
+  bash install_transformer_engine.sh
+  RAY_ENTRYPOINT=embed_proteins.py bash ray_bootstrap.sh
+
+max_retries: 0
+timeout_minutes: 60
+
+env_variables:
+  NCCL_SOCKET_IFNAME: eth0
+  # 0 embeds all ~28,000 DeepLoc sequences. Set a small value for a quick smoke test.
+  NUM_SEQUENCES: "0"
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  # Each run writes to a subdirectory named after its MLflow run ID.
+  OUTPUT_PATH: /Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo
+  # Optional: a Unity Catalog volume directory for caching the compiled Transformer Engine
+  # binding, for example /Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo/te_wheels.
+  # The first run builds it (a few minutes); later runs install it in seconds.
+  TE_WHEEL_CACHE: ""
