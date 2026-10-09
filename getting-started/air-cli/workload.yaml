@@ -1,13 +1,15 @@
-experiment_name: air-cli-hello-world
+experiment_name: python-quickstart
+
+environment:
+  version: 6
+  dependencies:
+    - torch==2.11.0
 
 compute:
   num_accelerators: 1
-  accelerator_type: GPU_1xA10
+  accelerator_type: GPU_1xH100
 
 code_source:
   root_path: .
 
-command: python $CODE_SOURCE_PATH/hello_world.py
-
-max_retries: 0
-timeout_minutes: 15
+command: python "$CODE_SOURCE_PATH/main.py"
