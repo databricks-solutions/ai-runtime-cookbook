@@ -1,16 +1,14 @@
 experiment_name: lora-longformer-base-4096-classification
 
 environment:
-  version: '5'
+  version: '6'
   dependencies:
+    - torch==2.14.1
     - transformers==4.49.0
     - peft==0.14.0
     - accelerate==1.4.0
     - datasets==3.3.2
-    - scikit-learn
-    - mlflow
-    # AI v5 sets HF_HUB_ENABLE_HF_TRANSFER=1, so hf_transfer must be present.
-    - hf_transfer
+    - scikit-learn==1.9.1
 
 # Longformer-base (~149M params) trains comfortably on a single A10.
 compute:
