@@ -7,10 +7,9 @@ environment:
     # and trl 1.13.0 is the release verified against transformers 5.17.0.
     - trl==1.13.0
     - transformers==5.17.0
-    - accelerate
-    - datasets
-    - deepspeed
-    - mlflow
+    - accelerate==1.15.0
+    - datasets==5.1.0
+    - deepspeed==0.19.7
 
 # Full-weight SFT of an 8B model with DeepSpeed ZeRO-3 fits on one 8xH100 node.
 compute:
@@ -26,7 +25,7 @@ command: |
   cd $CODE_SOURCE_PATH
   torchrun --nproc_per_node="${LOCAL_WORLD_SIZE:-8}" train.py
 
-max_retries: 1
+max_retries: 0
 timeout_minutes: 240
 
 parameters:

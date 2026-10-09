@@ -20,7 +20,7 @@ Full-weight SFT of `Qwen/Qwen3-8B` for invoice/receipt entity extraction — TRL
    `prompt` / `completion` pair so the loss covers only the assistant's JSON.
 
    ```bash
-   pip install datasets huggingface_hub
+   pip install datasets==5.1.0 huggingface_hub==1.33.0 fsspec==2024.9.0
    python prep_data.py --output-root /Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed
    ```
 
