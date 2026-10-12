@@ -73,6 +73,9 @@ def run_epoch(model, loader, device, loss_fn, optimizer=None, scheduler=None):
 def main():
     with open(os.environ["HYPERPARAMETERS_PATH"]) as handle:
         p = yaml.safe_load(handle)
+    # Small floats may arrive as "1e-05", which PyYAML parses as a string.
+    for key in ("backbone_learning_rate", "head_learning_rate", "weight_decay", "label_smoothing"):
+        p[key] = float(p[key])
     if not 0 <= p["warmup_epochs"] < p["epochs"]:
         raise ValueError("Require 0 <= warmup_epochs < epochs")
     random.seed(p["seed"])
