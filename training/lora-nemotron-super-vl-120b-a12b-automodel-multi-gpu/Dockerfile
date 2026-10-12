@@ -12,8 +12,6 @@ RUN cd /opt/Automodel \
 # PyTorch/torchvision/torchao/Triton are supplied by the NGC image.
 # CUDA extras (TE, DeepEP, Mamba, grouped GEMM) are also retained from the image.
 # --no-deps avoids re-resolving those inherited packages or replacing their builds.
-# Megatron FSDP uses the same Git revision as the pinned upstream lockfile;
-# install it separately because Git dependencies cannot use --require-hashes.
 ENV UV_HTTP_TIMEOUT=300
 
 RUN cd /opt/Automodel \
@@ -25,5 +23,4 @@ RUN cd /opt/Automodel \
          --requirements /tmp/vlm-requirements.txt \
     && uv pip install --no-config --no-deps --no-build-isolation \
          --python /opt/venv/bin/python --editable /opt/Automodel \
-         "megatron-fsdp @ git+https://github.com/yuhezhang-ai/Megatron-LM.git@455389c480af6b3acdca74c7830c68b3274eb083#subdirectory=megatron/core/distributed/fsdp/src" \
     && rm /tmp/vlm-requirements.txt
