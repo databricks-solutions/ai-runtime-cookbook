@@ -21,7 +21,7 @@ rng:
 
 model:
   _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
-  pretrained_model_name_or_path: NVIDIA-Nemotron/Nemotron-3.5-Super-VL-120B-A12B-GA-candidate-MTP-boosted-20261001
+  pretrained_model_name_or_path: nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16
   trust_remote_code: true
   num_nextn_predict_layers: 0  # Keep MTP disabled for this LoRA example.
   torch_dtype: torch.bfloat16
@@ -53,7 +53,7 @@ peft:
 
 processor:
   _target_: transformers.AutoProcessor.from_pretrained
-  pretrained_model_name_or_path: NVIDIA-Nemotron/Nemotron-3.5-Super-VL-120B-A12B-GA-candidate-MTP-boosted-20261001
+  pretrained_model_name_or_path: nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16
   trust_remote_code: true
 
 checkpoint:

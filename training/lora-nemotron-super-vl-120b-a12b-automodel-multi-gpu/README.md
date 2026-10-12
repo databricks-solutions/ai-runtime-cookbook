@@ -1,6 +1,6 @@
 # LoRA fine-tuning of Nemotron Super VL with NeMo AutoModel (multi-GPU)
 
-This recipe fine-tunes `NVIDIA-Nemotron/Nemotron-3.5-Super-VL-120B-A12B-GA-candidate-MTP-boosted-20261001` on CORD-v2 receipt images for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, rank-64 LoRA, and the GMM/DeepEP backend; the vision and audio towers stay frozen and MTP is disabled. Stock `nemo-automodel:26.08.00` does not yet include Super VL support, so the recipe builds a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) from the bundled `Dockerfile`.
+This recipe fine-tunes `nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16` on CORD-v2 receipt images for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, rank-64 LoRA, and the GMM/DeepEP backend; the vision and audio towers stay frozen and MTP is disabled. Stock `nemo-automodel:26.08.00` does not yet include Super VL support, so the recipe builds a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) from the bundled `Dockerfile`.
 
 ## Before you run
 
@@ -21,7 +21,7 @@ databricks air images push -s nemo-automodel-vl:26.08.00 --catalog main --schema
 
 The image is referenced in `workload.yaml` via `environment.unity_catalog_image` (default `main.default.nemo-automodel-vl:26.08.00`). Change `--catalog`/`--schema` above and that field together if you push to a different Unity Catalog location.
 
-The Super VL model repo is **private and gated**. The Hugging Face token behind the shared cookbook secret `my_scope/hf_token` (mapped to `HF_TOKEN` in `workload.yaml`) must belong to an account that has been granted access to the repo; replace it with your own scope/key if needed.
+The Super VL model may require accepting NVIDIA's license on Hugging Face. The Hugging Face token behind the shared cookbook secret `my_scope/hf_token` (mapped to `HF_TOKEN` in `workload.yaml`) must belong to an account that has accepted the license (or otherwise been granted access); replace it with your own scope/key if needed.
 
 Set `env_variables.ADAPTER_OUTPUT_ROOT` in `workload.yaml` to an existing writable Unity Catalog volume if the default location (`/Volumes/main/default/air_examples/lora-nemotron-super-vl-120b-a12b-automodel-multi-gpu`) is unsuitable; the volume must already exist.
 
