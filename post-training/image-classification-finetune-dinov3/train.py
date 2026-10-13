@@ -39,6 +39,7 @@ def make_loaders(p, data_config):
         loaders[split] = DataLoader(
             dataset, batch_size=p["batch_size"], shuffle=split == "train",
             num_workers=p["num_workers"], pin_memory=True,
+            persistent_workers=p["num_workers"] > 0,
             worker_init_fn=seed_worker,
             generator=torch.Generator().manual_seed(p["seed"]),
         )
@@ -48,7 +49,10 @@ def make_loaders(p, data_config):
 def run_epoch(model, loader, device, loss_fn, optimizer=None, scheduler=None):
     training = optimizer is not None
     model.train(training)
-    total_loss, correct, count = 0.0, 0, 0
+    # Accumulate on the GPU and read back once per epoch to avoid a CPU/GPU sync every batch.
+    total_loss = torch.zeros((), device=device)
+    correct = torch.zeros((), device=device, dtype=torch.long)
+    count = 0
     for images, labels in loader:
         images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
         if training:
@@ -57,17 +61,18 @@ def run_epoch(model, loader, device, loss_fn, optimizer=None, scheduler=None):
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
                 logits = model(images)
                 loss = loss_fn(logits, labels)
-            if not torch.isfinite(loss):
-                raise ValueError("Non-finite loss during fine-tuning")
             if training:
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
-        total_loss += loss.item() * labels.size(0)
-        correct += (logits.argmax(dim=1) == labels).sum().item()
+        total_loss += loss.detach().float() * labels.size(0)
+        correct += (logits.argmax(dim=1) == labels).sum()
         count += labels.size(0)
-    return {"loss": total_loss / count, "accuracy": correct / count}
+    # Checked once per epoch: a NaN or inf in any batch makes the epoch total non-finite.
+    if not torch.isfinite(total_loss):
+        raise ValueError("Non-finite loss during fine-tuning")
+    return {"loss": total_loss.item() / count, "accuracy": correct.item() / count}
 
 
 def main():
@@ -110,8 +115,8 @@ def main():
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_multiplier)
     train_loss = torch.nn.CrossEntropyLoss(label_smoothing=p["label_smoothing"])
     eval_loss = torch.nn.CrossEntropyLoss()
-    best_accuracy, best_epoch = -1.0, 0
-    checkpoint_path = output_dir / "best_model.pt"
+    best_accuracy, best_epoch, best_state = -1.0, 0, None
+    logging_operations = []
 
     with mlflow.start_run(run_id=run_id):
         mlflow.log_params({"dataset": "Oxford/Flowers102", "precision": "bfloat16", **p})
@@ -126,14 +131,21 @@ def main():
                 "backbone_learning_rate": optimizer.param_groups[0]["lr"],
                 "head_learning_rate": optimizer.param_groups[1]["lr"],
             }
-            mlflow.log_metrics(metrics, step=epoch)
+            # Log asynchronously so MLflow network calls do not delay the next epoch.
+            logging_operations.append(mlflow.log_metrics(metrics, step=epoch, synchronous=False))
             if val_metrics["accuracy"] > best_accuracy:
                 best_accuracy, best_epoch = val_metrics["accuracy"], epoch
-                torch.save(model.state_dict(), checkpoint_path)
+                # Keep the best weights in CPU memory; they are written once after training.
+                # Optional: in large or long-running workloads, save checkpoints here (for example,
+                # under output_root) so training can resume after a failure.
+                best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
             print(f"Epoch {epoch}/{p['epochs']}: {metrics}", flush=True)
+        for operation in logging_operations:
+            operation.wait()  # Surface any logging failures before evaluating.
 
         # Restore the validation-selected model before touching the official test set.
-        model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
+        model.load_state_dict(best_state)
+        torch.save(best_state, output_dir / "best_model.pt")
         test_metrics = run_epoch(model, loaders["test"], device, eval_loss)
         final_metrics = {
             **{f"test_{key}": value for key, value in test_metrics.items()},

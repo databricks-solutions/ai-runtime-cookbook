@@ -19,8 +19,8 @@ max_retries: 0
 timeout_minutes: 30
 
 parameters:
-  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE on the
-  # catalog; otherwise create it first or point these at an existing schema you can write to.
+  # Unity Catalog model-registry target. Set these to an existing schema where you have
+  # USE CATALOG, USE SCHEMA, and CREATE MODEL; the recipe does not create schemas.
   uc_catalog: main
   uc_schema: default
   registered_model_name: xgboost_covertype

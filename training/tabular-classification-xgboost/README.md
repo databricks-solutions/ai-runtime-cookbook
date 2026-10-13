@@ -4,7 +4,7 @@ This recipe trains an XGBoost multi-class classifier on the public Forest CoverT
 
 ## Before you run
 
-In `workload.yaml`, set `parameters.uc_catalog` and `parameters.uc_schema` to a catalog and schema in your workspace where you have `USE CATALOG`, `USE SCHEMA`, and `CREATE MODEL`. The default `main.default` usually needs to be changed. If the schema does not exist, the recipe creates it, which requires `CREATE SCHEMA` on the catalog. Each run registers a new version of `<uc_catalog>.<uc_schema>.<registered_model_name>` (default `main.default.xgboost_covertype`).
+In `workload.yaml`, set `parameters.uc_catalog` and `parameters.uc_schema` to a catalog and schema in your workspace where you have `USE CATALOG`, `USE SCHEMA`, and `CREATE MODEL`. The default `main.default` usually needs to be changed. The schema must already exist; the recipe does not create it and stops with an error before training if the schema is missing. Each run registers a new version of `<uc_catalog>.<uc_schema>.<registered_model_name>` (default `main.default.xgboost_covertype`).
 
 ## Run
 

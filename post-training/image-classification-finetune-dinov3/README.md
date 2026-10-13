@@ -2,11 +2,11 @@
 
 Fine-tune [DINOv3 ViT-Small](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m), a 21.6M-parameter pretrained vision transformer, on [Oxford Flowers-102](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/) for ten epochs on one A10 GPU. [DINOv3](https://arxiv.org/abs/2508.10104) is a recent state-of-the-art self-supervised vision method; this compact example adapts its distilled backbone and a new classification head with AdamW, separate backbone/head learning rates, warmup, cosine decay, and BF16 mixed precision.
 
+The official splits contain 1,020 training, 1,020 validation, and 6,149 test images. Only training images receive random crops and flips; evaluation uses the pretrained model's normalization and deterministic resize/crop. The validation split selects the best checkpoint, and the test split is evaluated once after training. Ten epochs are a demonstration budget, not a claim of state-of-the-art Flowers-102 accuracy.
+
 ## Before you run
 
 Review the weights' [DINOv3 license](https://ai.meta.com/resources/models-and-libraries/dinov3-license) and the dataset's [usage information](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/README.txt). The public `timm` weights and dataset download automatically without a Hugging Face token. Set `parameters.output_root` to another existing writable Unity Catalog volume directory if needed.
-
-The official splits contain 1,020 training, 1,020 validation, and 6,149 test images. Only training images receive random crops and flips; evaluation uses the pretrained model's normalization and deterministic resize/crop. The validation split selects the best checkpoint, and the test split is evaluated once after training. Ten epochs are a demonstration budget, not a claim of state-of-the-art Flowers-102 accuracy.
 
 ## Run
 
