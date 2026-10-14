@@ -1,4 +1,4 @@
-# Nemotron Lightning LoRA fine-tuning with NVIDIA NeMo AutoModel on one 8x H100 node.
+# Nemotron 3.5 Lightning LoRA fine-tuning with NVIDIA NeMo AutoModel on one 8x H100 node.
 # Run from this directory: databricks air run -f workload.yaml
 
 experiment_name: air-nemotron-lightning-hellaswag-lora
@@ -9,7 +9,7 @@ environment:
   # Custom NeMo AutoModel container, referenced by its Unity Catalog coordinates
   # (<catalog>.<schema>.<image>:<tag>). Push the NGC image into your UC Artifact
   # Registry once before the first run (see README "Before you run"):
-  #   databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 --catalog main --schema default
+  #   databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 --pull --catalog main --schema default
   unity_catalog_image: main.default.nemo-automodel:26.08.00
 
 compute:
@@ -17,12 +17,10 @@ compute:
   num_accelerators: 8
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
-    include_paths:
-      - train.sh
-      - nemotron_hellaswag.yaml
+  root_path: .
+  include_paths:
+    - train.sh
+    - nemotron_hellaswag.yaml
 
 env_variables:
   LOCAL_BATCH_SIZE: "32"
@@ -37,7 +35,7 @@ env_variables:
   HF_HOME: /local_disk0/nemotron-air/huggingface
   # Durable copy of the final LoRA adapter. Requires access to this existing
   # volume; replace it with another writable volume if needed.
-  ADAPTER_OUTPUT_ROOT: /Volumes/main/default/air_examples/lora-nemotron-lightning-30b-automodel-multi-gpu
+  ADAPTER_OUTPUT_ROOT: /Volumes/main/default/air_examples/lora-nemotron-3.5-lightning-30b-a3b-automodel-multi-gpu
   MLFLOW_TRACKING_URI: databricks
   MLFLOW_ENABLE_DB_SDK: "false"
   TORCHINDUCTOR_COMPILE_THREADS: "1"
