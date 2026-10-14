@@ -44,7 +44,8 @@ DATASET_FILES = {
 MAX_LENGTH = 1024
 # Padded tokens per forward pass. Short sequences get large micro-batches and
 # long ones get small micro-batches, so GPU memory use stays roughly flat.
-TOKENS_PER_BATCH = 65536
+# Set this in workload.yaml; lower it for larger checkpoints that run out of memory.
+TOKENS_PER_BATCH = int(os.environ.get("TOKENS_PER_BATCH", "65536"))
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 # 0 embeds every sequence. Set a small value for a quick smoke test.
 NUM_SEQUENCES = int(os.environ.get("NUM_SEQUENCES", "0"))

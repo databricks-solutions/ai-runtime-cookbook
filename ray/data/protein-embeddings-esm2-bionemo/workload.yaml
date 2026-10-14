@@ -15,9 +15,7 @@ compute:
   accelerator_type: GPU_8xH100
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 command: |
   set -e
@@ -32,6 +30,9 @@ env_variables:
   NCCL_SOCKET_IFNAME: eth0
   # 0 embeds all ~28,000 DeepLoc sequences. Set a small value for a quick smoke test.
   NUM_SEQUENCES: "0"
+  # Padded tokens per GPU forward pass. Lower it for larger checkpoints, such as
+  # nvidia/esm2_t36_3B_UR50D, if they run out of GPU memory.
+  TOKENS_PER_BATCH: "65536"
   # Requires access to this existing volume; replace it with another writable volume if needed.
   # Each run writes to a subdirectory named after its MLflow run ID.
   OUTPUT_PATH: /Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo
