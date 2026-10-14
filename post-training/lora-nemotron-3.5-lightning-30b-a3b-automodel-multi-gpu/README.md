@@ -1,29 +1,43 @@
 # LoRA fine-tuning of Nemotron 3.5 Lightning with NeMo AutoModel (multi-GPU)
 
-This recipe fine-tunes `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16` (a hybrid Mamba-attention mixture-of-experts model) on HellaSwag for 50 steps on one 8x H100 node, using FSDP2, eight-way expert parallelism, rank-8 LoRA, and the GMM/DeepEP backend from NVIDIA's `nemo-automodel:26.08.00` container run as a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images). It trains with a local batch of 32 and a global batch of 256 (no gradient accumulation), and runs validation and saves a checkpoint at the final step. The run completes in about 9 minutes (~550s of workload execution, excluding the one-time image push and cluster startup) and logs training metrics only — HellaSwag multiple-choice accuracy requires a separate evaluation.
+This recipe uses NeMo AutoModel to fine-tune `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16` on HellaSwag with LoRA. The model combines Mamba and attention layers in a mixture-of-experts architecture.
+
+Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, and rank-8 LoRA. The local batch size is 32 per GPU for a global batch of 256 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. It logs training metrics only; HellaSwag multiple-choice accuracy requires a separate evaluation.
+
+Environment configurations: the workload runs NVIDIA's `nemo-automodel:26.08.00` container image as a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images). This container provides the GMM/DeepEP backend used for training.
+
+Workload execution takes about 9 minutes. For the first run, image upload may take additional time.
 
 ## Before you run
 
-Custom images must be enabled for your workspace, which a workspace admin does; see [Run AI Runtime workloads with custom Docker images](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) for how to enable them and the Unity Catalog Artifact Registry privileges the push requires. AIR runs custom images by their Unity Catalog coordinates.
+Enable the necessary previews in your workspace (a workspace admin does this) by following the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/docker-images).
 
-Pushing the NGC image needs Docker installed and running locally, an [NGC account](https://org.ngc.nvidia.com/) with an [API key](https://org.ngc.nvidia.com/setup/api-key), and privileges to push an image into the target Unity Catalog schema. You can push to any schema you own as long as you update `environment.unity_catalog_image` in `workload.yaml` to match.
+### Custom image setup
 
-The `nvcr.io/nvidia/*` containers are typically gated, so first authenticate to NGC (skip if the image is public). Use `$oauthtoken` as the username and your NGC API key as the password:
+Install Docker and start it on your machine. Choose a Unity Catalog schema where you have permission to push images; this example uses `main.default`. See the guide above for the required Artifact Registry privileges.
 
-```bash
-docker login nvcr.io
-```
+The image `nvcr.io/nvidia/nemo-automodel:26.08.00` is public — you do not need an NGC account, API key, or Docker login to pull it. If you switch to an NGC image that requires authentication, run `docker login nvcr.io` first, with `$oauthtoken` as the username and your NGC API key as the password.
 
-Then push the image into your Unity Catalog. The push reuses a compatible `linux/amd64` local image and pulls one for that platform when none is cached, so an arm64 image (for example one pulled on an Apple Silicon machine) is never pushed; add `--pull` to refresh a stale local image. `--artifact` names the destination explicitly so it matches `environment.unity_catalog_image` below. The container is large (several GB), so this takes a while:
+Push the NVIDIA NeMo AutoModel image into Unity Catalog:
 
 ```bash
 databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 \
   --pull --catalog main --schema default --artifact nemo-automodel:26.08.00
 ```
 
-The image is referenced in `workload.yaml` via `environment.unity_catalog_image` (default `main.default.nemo-automodel:26.08.00`). Change `--catalog`/`--schema` above and that field together if you push to a different Unity Catalog location.
+The CLI pulls a `linux/amd64` image, so an arm64 image (for example one pulled on Apple Silicon) is never pushed; `--pull` refreshes a cached image, and `--artifact` names the destination so it matches `environment.unity_catalog_image` below. The container is large (several GB), so this takes a while.
 
-Set `env_variables.ADAPTER_OUTPUT_ROOT` in `workload.yaml` to an existing writable Unity Catalog volume if the default location (`/Volumes/main/default/air_examples/lora-nemotron-3.5-lightning-30b-a3b-automodel-multi-gpu`) is unsuitable; the volume must already exist.
+This command creates `main.default.nemo-automodel:26.08.00`. To use a different catalog or schema, change `--catalog`/`--schema` above and update `environment.unity_catalog_image` in `workload.yaml` to match.
+
+### Output location setup
+
+Check `env_variables.ADAPTER_OUTPUT_ROOT` in `workload.yaml`. The recipe saves the final adapter under this path by default:
+
+```text
+/Volumes/main/default/air_examples/lora-nemotron-3.5-lightning-30b-a3b-automodel-multi-gpu
+```
+
+The volume must already exist and be writable. To use another location, update `ADAPTER_OUTPUT_ROOT` to a directory in another existing writable volume.
 
 ## Run
 
