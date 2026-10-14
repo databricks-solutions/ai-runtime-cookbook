@@ -1,0 +1,30 @@
+experiment_name: air-learning-to-rank-xgboost
+
+environment:
+  version: "5"
+  dependencies:
+    - xgboost==3.0.4
+    - scikit-learn==1.6.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  dataset_url: https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip
+  data_root: /tmp/learning-to-rank-xgboost
+  fold: 1
+  n_estimators: 300
+  early_stopping_rounds: 30
+  max_depth: 6
+  learning_rate: 0.05
+  ndcg_k: 10
+  seed: 42

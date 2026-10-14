@@ -1,0 +1,36 @@
+experiment_name: air-recommendation-two-tower
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.6.0
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  dataset_url: https://files.grouplens.org/datasets/movielens/ml-1m.zip
+  data_root: /tmp/recommendation-two-tower
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/recommendation-two-tower
+  positive_rating: 4
+  train_fraction: 0.8
+  validation_fraction: 0.1
+  epochs: 15
+  batch_size: 4096
+  eval_batch_size: 256
+  embedding_dim: 64
+  hidden_dim: 128
+  learning_rate: 0.003
+  weight_decay: 0.000001
+  top_k: 20
+  seed: 42

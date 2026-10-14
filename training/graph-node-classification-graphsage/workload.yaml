@@ -1,0 +1,31 @@
+experiment_name: air-graph-node-classification-graphsage
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.6.0
+    - scikit-learn==1.6.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  dataset_url: https://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+  data_root: /tmp/graph-node-classification-graphsage
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/graph-node-classification-graphsage
+  epochs: 50
+  hidden_channels: 128
+  dropout: 0.5
+  learning_rate: 0.01
+  weight_decay: 0.0005
+  seed: 42
