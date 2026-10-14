@@ -14,10 +14,11 @@ The `nvcr.io/nvidia/*` containers are typically gated, so first authenticate to 
 docker login nvcr.io
 ```
 
-Then push the image into your Unity Catalog. `--pull` fetches the `linux/amd64` image fresh from NGC even when another architecture is cached locally (for example an arm64 image pulled on an Apple Silicon machine); the container is large (several GB), so this takes a while:
+Then push the image into your Unity Catalog. The push reuses a compatible `linux/amd64` local image and pulls one for that platform when none is cached, so an arm64 image (for example one pulled on an Apple Silicon machine) is never pushed; add `--pull` to refresh a stale local image. `--artifact` names the destination explicitly so it matches `environment.unity_catalog_image` below. The container is large (several GB), so this takes a while:
 
 ```bash
-databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 --pull --catalog main --schema default
+databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 \
+  --pull --catalog main --schema default --artifact nemo-automodel:26.08.00
 ```
 
 The image is referenced in `workload.yaml` via `environment.unity_catalog_image` (default `main.default.nemo-automodel:26.08.00`). Change `--catalog`/`--schema` above and that field together if you push to a different Unity Catalog location.

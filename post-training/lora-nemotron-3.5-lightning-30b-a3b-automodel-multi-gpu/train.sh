@@ -8,6 +8,8 @@ set -euo pipefail
 
 checkpoint_dir="$CHECKPOINT_ROOT"
 
+# AutoModel's MLflow logger needs the AIR run's experiment name so it logs into
+# the existing MLFLOW_RUN_ID instead of starting a separate run.
 mlflow_experiment_name="$(python -c 'import os, mlflow; run = mlflow.get_run(os.environ["MLFLOW_RUN_ID"]); print(mlflow.get_experiment(run.info.experiment_id).name)')"
 
 cd "$CODE_SOURCE_PATH"

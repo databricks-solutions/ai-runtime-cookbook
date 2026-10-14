@@ -9,7 +9,8 @@ environment:
   # Custom NeMo AutoModel container, referenced by its Unity Catalog coordinates
   # (<catalog>.<schema>.<image>:<tag>). Push the NGC image into your UC Artifact
   # Registry once before the first run (see README "Before you run"):
-  #   databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 --pull --catalog main --schema default
+  #   databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 \
+  #     --pull --catalog main --schema default --artifact nemo-automodel:26.08.00
   unity_catalog_image: main.default.nemo-automodel:26.08.00
 
 compute:
