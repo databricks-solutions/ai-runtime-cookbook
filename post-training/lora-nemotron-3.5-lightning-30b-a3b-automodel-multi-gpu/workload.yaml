@@ -24,14 +24,7 @@ code_source:
     - nemotron_hellaswag.yaml
 
 env_variables:
-  LOCAL_BATCH_SIZE: "32"
-  GLOBAL_BATCH_SIZE: "256"
-  MAX_STEPS: "50"
-  NUM_EPOCHS: "1"
-  VALIDATE_EVERY_STEPS: "50"
-  WARMUP_STEPS: "2"
-  EXPERTS_BACKEND: gmm
-  TOKEN_DISPATCHER: deepep
+  # Local-disk checkpoint and Hugging Face cache locations on the AIR node.
   CHECKPOINT_ROOT: /local_disk0/nemotron-air/checkpoints
   HF_HOME: /local_disk0/nemotron-air/huggingface
   # Durable copy of the final LoRA adapter. Requires access to this existing

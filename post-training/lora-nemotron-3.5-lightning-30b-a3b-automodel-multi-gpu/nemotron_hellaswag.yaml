@@ -1,6 +1,9 @@
 # LoRA finetuning for Nemotron Nano v3.5 Lightning (hybrid mamba-attention MoE
 # with multi-token prediction).
 #
+# This file is the source of truth for the training configuration; train.sh only
+# injects the AIR experiment name and the local-disk checkpoint path at runtime.
+#
 # To run this recipe:
 # automodel nemotron_hellaswag.yaml --nproc-per-node 8
 # Adjust --nproc-per-node to the number of GPUs available on your machine.
@@ -8,16 +11,20 @@
 recipe: TrainFinetuneRecipeForNextTokenPrediction
 
 step_scheduler:
+  # Run length and batch sizes: edit these to change the workload.
+  max_steps: 50
+  num_epochs: 1
   global_batch_size: 256
   local_batch_size: 32
-  ckpt_every_steps: 1000
-  val_every_steps: 1000 # will run every x number of gradient steps
+  # Checkpoint and validate once, at the final step.
+  ckpt_every_steps: 50
+  val_every_steps: 50
+  save_checkpoint_every_epoch: false
   log_remote_every_steps: 5
-  max_steps: 100
 
 dist_env:
   backend: nccl
-  timeout_minutes: 1
+  timeout_minutes: 10
 
 rng:
   _target_: nemo_automodel.components.training.rng.StatefulRNG
@@ -41,7 +48,7 @@ model:
     attn: te
     linear: te
     rms_norm: te
-    experts: gmm
+    experts: torch_mm
     dispatcher: deepep
 
 checkpoint:
@@ -100,7 +107,7 @@ optimizer:
 
 lr_scheduler:
   lr_decay_style: cosine
-  lr_warmup_steps: 10
+  lr_warmup_steps: 2
   min_lr: 1.0e-5
 
 mlflow:

@@ -14,20 +14,11 @@ mlflow_experiment_name="$(python -c 'import os, mlflow; run = mlflow.get_run(os.
 
 cd "$CODE_SOURCE_PATH"
 
+# Training config lives in nemotron_hellaswag.yaml; only inject the AIR
+# experiment name and the local-disk checkpoint path here.
 automodel nemotron_hellaswag.yaml --nproc-per-node=8 \
   --mlflow.experiment_name="$mlflow_experiment_name" \
-  --model.backend.experts="$EXPERTS_BACKEND" \
-  --model.backend.dispatcher="$TOKEN_DISPATCHER" \
-  --step_scheduler.max_steps="$MAX_STEPS" \
-  --step_scheduler.num_epochs="$NUM_EPOCHS" \
-  --step_scheduler.global_batch_size="${GLOBAL_BATCH_SIZE:-256}" \
-  --step_scheduler.local_batch_size="${LOCAL_BATCH_SIZE:-32}" \
-  --step_scheduler.ckpt_every_steps="$MAX_STEPS" \
-  --step_scheduler.save_checkpoint_every_epoch=false \
-  --step_scheduler.val_every_steps="$VALIDATE_EVERY_STEPS" \
-  --checkpoint.checkpoint_dir="$checkpoint_dir" \
-  --dist_env.timeout_minutes="${DIST_TIMEOUT_MINUTES:-10}" \
-  --lr_scheduler.lr_warmup_steps="$WARMUP_STEPS"
+  --checkpoint.checkpoint_dir="$checkpoint_dir"
 
 # Locate the adapter from AutoModel's completed final checkpoint.
 
