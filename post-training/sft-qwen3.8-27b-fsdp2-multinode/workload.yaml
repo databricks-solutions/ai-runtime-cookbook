@@ -31,10 +31,8 @@ env_variables:
   PYTORCH_ALLOC_CONF: "expandable_segments:True"
 
 code_source:
-  type: snapshot
-  snapshot:
-    # Snapshot this dir so the launched job has train.py.
-    root_path: "."
+  # Snapshot this dir so the launched job has train.py.
+  root_path: "."
 
 max_retries: 0
 timeout_minutes: 240

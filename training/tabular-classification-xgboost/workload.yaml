@@ -1,4 +1,4 @@
-experiment_name: air-xgboost-covertype
+experiment_name: air-tabular-classification-xgboost
 
 environment:
   version: '5'
@@ -11,9 +11,7 @@ compute:
   accelerator_type: GPU_1xA10   # any single GPU works (e.g. GPU_1xH100); A10 is the cheapest here
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 command: python $CODE_SOURCE_PATH/train.py
 
@@ -21,8 +19,8 @@ max_retries: 0
 timeout_minutes: 30
 
 parameters:
-  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE on the
-  # catalog; otherwise create it first or point these at an existing schema you can write to.
+  # Unity Catalog model-registry target. Set these to an existing schema where you have
+  # USE CATALOG, USE SCHEMA, and CREATE MODEL; the recipe does not create schemas.
   uc_catalog: main
   uc_schema: default
   registered_model_name: xgboost_covertype

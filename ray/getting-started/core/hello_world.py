@@ -1,4 +1,9 @@
-"""Print scheduling details for one Ray Core task per available GPU."""
+"""Ray Core remote-task example on AI Runtime.
+
+Dispatches one @ray.remote task per GPU across the cluster. Each task prints
+which node and physical GPU it was assigned to, confirming tasks reached every
+node. Run after ray_bootstrap.sh has started the cluster.
+"""
 
 import os
 import subprocess

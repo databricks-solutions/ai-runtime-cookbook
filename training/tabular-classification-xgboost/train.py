@@ -38,24 +38,20 @@ def load_params() -> dict:
     return {}
 
 
-def ensure_uc_schema(catalog: str, schema: str) -> None:
-    """Create the target UC schema if missing, so a fresh catalog works with no manual setup.
-    Needs CREATE on the catalog; raises an actionable error otherwise."""
+def require_uc_schema(catalog: str, schema: str) -> None:
+    """Fail fast, before training, if the target UC schema is missing or not visible.
+    The recipe never creates catalogs or schemas."""
     from databricks.sdk import WorkspaceClient
+    from databricks.sdk.errors import NotFound, PermissionDenied
 
     try:
-        WorkspaceClient().schemas.create(name=schema, catalog_name=catalog)
-        print(f"Created schema {catalog}.{schema}")
-    except Exception as e:  # noqa: BLE001
-        msg = str(e).lower()
-        if "already exists" in msg:
-            return
-        if any(t in msg for t in ("permission", "denied", "does not have", "unauthorized")):
-            raise RuntimeError(
-                f"Cannot create {catalog}.{schema}: grant CREATE on catalog '{catalog}', or set "
-                f"uc_catalog/uc_schema to an existing schema you can write to."
-            ) from e
-        raise
+        WorkspaceClient().schemas.get(f"{catalog}.{schema}")
+    except (NotFound, PermissionDenied) as e:
+        raise RuntimeError(
+            f"Unity Catalog schema '{catalog}.{schema}' does not exist or is not accessible. Set "
+            f"uc_catalog/uc_schema in workload.yaml to an existing schema where you have USE CATALOG, "
+            f"USE SCHEMA, and CREATE MODEL."
+        ) from e
 
 
 def load_data(test_size: float, max_samples: int, random_state: int):
@@ -95,6 +91,7 @@ def main() -> None:
     uc_catalog = p.get("uc_catalog", "main")
     uc_schema = p.get("uc_schema", "default")
     model_fqn = f"{uc_catalog}.{uc_schema}.{p.get('registered_model_name', 'xgboost_covertype')}"
+    require_uc_schema(uc_catalog, uc_schema)
 
     # XGBoost drives the GPU itself (no torch needed). "cuda" uses the attached GPU_1xA10.
     device = str(p.get("device", "cuda"))
@@ -122,7 +119,6 @@ def main() -> None:
     n_estimators = int(p.get("n_estimators", 200))
 
     mlflow.set_registry_uri("databricks-uc")
-    ensure_uc_schema(uc_catalog, uc_schema)
 
     # AIR provisions an MLflow run for the job and sets MLFLOW_RUN_ID; resume it so everything lands
     # in the run the CLI shows. (Falls back to a fresh run when executed outside AIR.)
