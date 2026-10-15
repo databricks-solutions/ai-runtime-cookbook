@@ -8,21 +8,17 @@ set -euo pipefail
 
 checkpoint_dir="$CHECKPOINT_ROOT"
 
+# AutoModel's MLflow logger needs the AIR run's experiment name so it logs into
+# the existing MLFLOW_RUN_ID instead of starting a separate run.
 mlflow_experiment_name="$(python -c 'import os, mlflow; run = mlflow.get_run(os.environ["MLFLOW_RUN_ID"]); print(mlflow.get_experiment(run.info.experiment_id).name)')"
 
 cd "$CODE_SOURCE_PATH"
 
+# Training config lives in nemotron_cord_v2.yaml; only inject the AIR
+# experiment name and the local-disk checkpoint path here.
 automodel nemotron_cord_v2.yaml --nproc-per-node=8 \
   --mlflow.experiment_name="$mlflow_experiment_name" \
-  --step_scheduler.max_steps="$MAX_STEPS" \
-  --step_scheduler.num_epochs="$NUM_EPOCHS" \
-  --step_scheduler.global_batch_size="${GLOBAL_BATCH_SIZE:-8}" \
-  --step_scheduler.local_batch_size="${LOCAL_BATCH_SIZE:-1}" \
-  --step_scheduler.ckpt_every_steps="$MAX_STEPS" \
-  --step_scheduler.save_checkpoint_every_epoch=false \
-  --step_scheduler.val_every_steps="$VALIDATE_EVERY_STEPS" \
-  --checkpoint.checkpoint_dir="$checkpoint_dir" \
-  --dist_env.timeout_minutes="${DIST_TIMEOUT_MINUTES:-30}"
+  --checkpoint.checkpoint_dir="$checkpoint_dir"
 
 # Locate the adapter from AutoModel's completed final checkpoint.
 
