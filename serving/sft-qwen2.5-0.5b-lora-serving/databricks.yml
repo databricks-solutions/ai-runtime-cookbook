@@ -1,0 +1,20 @@
+bundle:
+  name: qwen05b-sft-serving
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    default: main
+  schema:
+    default: default
+  model_name:
+    default: qwen2_5_0_5b_sft
+  endpoint_name:
+    default: air-cookbook-qwen05b-lora-serving
+
+targets:
+  dev:
+    default: true
+    mode: development
