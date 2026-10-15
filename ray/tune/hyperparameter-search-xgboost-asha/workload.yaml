@@ -12,9 +12,7 @@ compute:
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: .
+  root_path: .
 
 command: |
   cd "$CODE_SOURCE_PATH"
