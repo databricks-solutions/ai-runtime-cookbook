@@ -12,8 +12,6 @@ Workload execution takes about 12 minutes. For the first run, the one-time image
 
 Enable the necessary previews in your workspace (a workspace admin does this) by following the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/docker-images).
 
-### Custom image setup
-
 Install Docker and start it on your machine. Choose a Unity Catalog schema where you have permission to push images; this example uses `main.default`. See the guide above for the required Artifact Registry privileges.
 
 The Dockerfile's base image `nvcr.io/nvidia/nemo-automodel:26.08.00` is public and the AutoModel source is fetched from public GitHub, so you do not need an NGC account, API key, or Docker login to build it. If you switch to an NGC image that requires authentication, run `docker login nvcr.io` first, with `$oauthtoken` as the username and your NGC API key as the password.
@@ -29,8 +27,6 @@ databricks air images push -s nemo-automodel-vl:26.08.00 \
 `--artifact` names the destination so it matches `environment.unity_catalog_image` below. The container is large (several GB), so the build and push take a while.
 
 This creates `main.default.nemo-automodel-vl:26.08.00`. To use a different catalog or schema, change `--catalog`/`--schema` above and update `environment.unity_catalog_image` in `workload.yaml` to match.
-
-### Output location setup
 
 Check `env_variables.ADAPTER_OUTPUT_ROOT` in `workload.yaml`. The recipe saves the final adapter under this path by default:
 
