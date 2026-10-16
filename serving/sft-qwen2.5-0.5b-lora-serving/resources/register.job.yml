@@ -1,0 +1,28 @@
+resources:
+  jobs:
+    register_qwen_sft:
+      name: Qwen 0.5B SFT registration
+      max_concurrent_runs: 1
+      parameters:
+        - name: source_training_run_id
+          default: ""
+      environments:
+        - environment_key: ai_v6
+          spec:
+            base_environment: databricks_ai_v6
+            dependencies:
+              - ninja==1.11.1.4
+      tasks:
+        - task_key: register
+          notebook_task:
+            notebook_path: ../register_job.py
+            base_parameters:
+              source_training_run_id: "{{job.parameters.source_training_run_id}}"
+              uc_catalog: ${var.catalog}
+              uc_schema: ${var.schema}
+              uc_model_name: ${var.model_name}
+          environment_key: ai_v6
+          compute:
+            hardware_accelerator: GPU_1xA10
+          max_retries: 0
+          timeout_seconds: 1800
