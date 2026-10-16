@@ -3,9 +3,9 @@
 set -euo pipefail
 
 # Check the durable output location before spending GPU time.
-volume_dir="$OUTPUT_ROOT/$MLFLOW_RUN_ID"
-if ! mkdir -p "$volume_dir"; then
-    echo "OUTPUT_ROOT must be a writable directory in an existing volume: $OUTPUT_ROOT" >&2
+volume_dir="${OUTPUT_ROOT:-}/$MLFLOW_RUN_ID"
+if [[ "${OUTPUT_ROOT:-}" != /Volumes/* ]] || ! mkdir -p "$volume_dir"; then
+    echo "OUTPUT_ROOT must be a writable directory in an existing Unity Catalog volume: ${OUTPUT_ROOT:-<unset>}" >&2
     exit 1
 fi
 
@@ -46,11 +46,12 @@ uv run --frozen --no-dev python examples/finetune_example.py \
     --output-dir "$WORK_DIR/checkpoints" \
     2>&1 | tee "$WORK_DIR/training.log"
 
+# Copy the checkpoints to the volume first, so an MLflow upload error can't lose them.
+test -f "$WORK_DIR/checkpoints/final_finetuned_model.pth"
+cp -R "$WORK_DIR/checkpoints" "$volume_dir/"
+
 # Publish checkpoints, epoch losses and data provenance to MLflow. This step
 # only needs MLflow, which the AIR environment already provides.
-test -f "$WORK_DIR/checkpoints/final_finetuned_model.pth"
 python "$CODE_SOURCE_PATH/log_training.py"
-
-# Keep a durable copy of the checkpoints and training summary.
-cp -R "$WORK_DIR/checkpoints" "$WORK_DIR/training_summary.json" "$volume_dir/"
+cp "$WORK_DIR/training_summary.json" "$volume_dir/"
 echo "Copied checkpoints and training summary to $volume_dir"

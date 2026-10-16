@@ -24,7 +24,7 @@ def main():
         "batch_size": int(os.environ.get("BATCH_SIZE", "32")),
         "seed": int(os.environ.get("TRAIN_SEED", "42")),
         "upstream_commit": subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(work_dir / "Kumo-TS"), "rev-parse", "HEAD"], text=True
         ).strip(),
         "window_length": 100,
         "window_stride": 100,
