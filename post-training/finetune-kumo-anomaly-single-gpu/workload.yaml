@@ -1,0 +1,46 @@
+# Fine-tune NVIDIA Kumo-Anomaly for time-series anomaly detection on one A10 GPU.
+# Run from this directory: databricks air run -f workload.yaml
+
+experiment_name: air-kumo-anomaly-finetune
+
+mlflow_run_name: kumo-anomaly-finetune
+
+environment:
+  version: '6'
+
+compute:
+  accelerator_type: GPU_1xA10
+  num_accelerators: 1
+
+code_source:
+  root_path: .
+  include_paths:
+    - run_pipeline.sh
+    - prepare_data.py
+    - log_training.py
+
+env_variables:
+  EPOCHS: '10'
+  LEARNING_RATE: '1e-5'
+  BATCH_SIZE: '32'
+  TRAIN_SEED: '42'
+  # Normal rows kept for training and validation; '0' keeps every eligible row.
+  TRAIN_ROWS: '50000'
+  VAL_ROWS: '10000'
+  # Optional directory that already holds TimeSeries.csv and labelsTimeSeries.csv.
+  DATA_DIR: ''
+  # Scratch space on the node's local disk for the upstream checkout, its uv
+  # environment, the prepared data, and checkpoints.
+  WORK_DIR: /local_disk0/kumo-anomaly/finetune
+  HF_HOME: /local_disk0/kumo-anomaly/huggingface
+  # Durable copy of the checkpoints. Requires access to this existing volume;
+  # replace it with another writable volume if needed.
+  OUTPUT_ROOT: /Volumes/main/default/air_examples/finetune-kumo-anomaly-single-gpu
+  MLFLOW_TRACKING_URI: databricks
+  PYTHONUNBUFFERED: '1'
+
+timeout_minutes: 30
+
+max_retries: 0
+
+command: bash "$CODE_SOURCE_PATH/run_pipeline.sh"
