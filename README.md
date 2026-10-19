@@ -22,7 +22,10 @@ ray/<library>/<example>/
 
 Each recipe is designed to run from its own directory using the same command.
 
-Before running a recipe, configure the [Databricks CLI with AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/) for a workspace with access to AI Runtime.
+Before running a recipe, set up the Databricks CLI for a workspace with access to AI Runtime:
+
+- Configure the Databricks CLI with AI Runtime ([AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/)).
+- Authenticate to your workspace with `databricks auth login` ([AWS](https://docs.databricks.com/aws/en/dev-tools/cli/authentication) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/authentication)).
 
 1. `cd` into the recipe directory.
 1. Review `workload.yaml` for values that you need to configure.
