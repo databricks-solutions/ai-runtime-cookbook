@@ -31,13 +31,13 @@ env_variables:
   NCCL_SOCKET_IFNAME: eth0
 
 max_retries: 0
-timeout_minutes: 60
+timeout_minutes: 30
 
 parameters:
   dataset_repo: criteo/CriteoClickLogs
   train_day: day=2015-02-15
   eval_day: day=2015-02-16  # validation and test come from the following day
-  train_files: 8            # ~1.5M rows each, split across ranks; must be at least the number of ranks
+  train_files: 32           # 0.8M-1.5M rows each, split across ranks; must be at least the number of ranks
   validation_files: 1
   test_files: 1
   data_root: /tmp/recommendation-dlrm
