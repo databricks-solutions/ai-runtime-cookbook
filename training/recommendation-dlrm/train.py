@@ -178,8 +178,10 @@ def main():
                 running.zero_()
                 window_steps, window_started = 0, time.perf_counter()
             if step % p["eval_every_steps"] == 0 and step != total_steps:
+                eval_started = time.perf_counter()
                 log(rank, prefixed("validation", evaluate(model, validation, p, ctr, device)), step)
-                window_started = time.perf_counter()
+                # Leave evaluation time out of the training throughput window.
+                window_started += time.perf_counter() - eval_started
         train_seconds = time.perf_counter() - started
 
         metrics = {**prefixed("validation", evaluate(model, validation, p, ctr, device)),
@@ -187,7 +189,6 @@ def main():
                    "train_ctr": ctr, "train_steps": total_steps, "train_seconds": train_seconds}
         log(rank, metrics, total_steps)
 
-        dist.barrier()
         # Each rank writes only its own shards; gathering every table onto one GPU would not fit.
         dcp.save(model.state_dict(), checkpoint_id=str(output_dir / "checkpoint"))
         if rank == 0:

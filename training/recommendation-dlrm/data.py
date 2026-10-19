@@ -3,6 +3,8 @@
 import json
 import os
 import shutil
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -15,10 +17,25 @@ DENSE_COLUMNS = [f"integer_feature_{i}" for i in range(1, 14)]
 SPARSE_COLUMNS = [f"categorical_feature_{i}" for i in range(1, 27)]
 
 
+def with_retries(fetch, attempts=3):
+    """Retry transient network errors; a rank that fails here leaves the others waiting."""
+    for attempt in range(attempts):
+        try:
+            return fetch()
+        except OSError:  # URLError, HTTPError, and socket timeouts
+            if attempt == attempts - 1:
+                raise
+            time.sleep(5 * 2 ** attempt)
+
+
 def list_day_files(repo, day):
     url = f"https://huggingface.co/api/datasets/{repo}/tree/main/data/{day}"
-    with urllib.request.urlopen(url, timeout=60) as response:
-        entries = json.load(response)
+
+    def fetch():
+        with urllib.request.urlopen(url, timeout=60) as response:
+            return json.load(response)
+
+    entries = with_retries(fetch)
     return sorted(entry["path"] for entry in entries if entry["path"].endswith(".parquet"))
 
 
@@ -47,8 +64,12 @@ def download(repo, path, data_root):
         # Ranks on the same node fetch the same eval files, so each writes its own temp file.
         temporary = target.with_name(f"{target.name}.{os.getpid()}.partial")
         url = f"https://huggingface.co/datasets/{repo}/resolve/main/{path}"
-        with urllib.request.urlopen(url, timeout=300) as response, temporary.open("wb") as out:
-            shutil.copyfileobj(response, out)
+
+        def fetch():
+            with urllib.request.urlopen(url, timeout=300) as response, temporary.open("wb") as out:
+                shutil.copyfileobj(response, out)
+
+        with_retries(fetch)
         temporary.replace(target)
     return target
 
