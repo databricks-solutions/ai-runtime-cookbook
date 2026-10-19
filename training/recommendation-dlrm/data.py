@@ -1,6 +1,7 @@
 """List, download, and preprocess Criteo click-log Parquet files for DLRM training."""
 
 import json
+import os
 import shutil
 import urllib.request
 from pathlib import Path
@@ -43,7 +44,8 @@ def download(repo, path, data_root):
     target = Path(data_root) / path
     if not target.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_suffix(".partial")
+        # Ranks on the same node fetch the same eval files, so each writes its own temp file.
+        temporary = target.with_name(f"{target.name}.{os.getpid()}.partial")
         url = f"https://huggingface.co/datasets/{repo}/resolve/main/{path}"
         with urllib.request.urlopen(url, timeout=300) as response, temporary.open("wb") as out:
             shutil.copyfileobj(response, out)

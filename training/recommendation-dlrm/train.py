@@ -66,7 +66,7 @@ def log(rank, metrics, step=None):
 @torch.no_grad()
 def evaluate(model, split, p, ctr, device):
     model.eval()
-    steps = min_across_ranks(data.num_steps(len(split[2]), p["batch_size"]), device)
+    steps = data.num_steps(min_across_ranks(len(split[2]), device), p["batch_size"])
     auroc = torchmetrics.AUROC(task="binary").to(device)
     totals = torch.zeros(3, dtype=torch.float64, device=device)  # model loss, baseline loss, rows
     baseline_logit = torch.logit(torch.tensor(ctr, device=device))
@@ -107,7 +107,7 @@ def main():
     if rank == 0:
         output_dir.mkdir(parents=True, exist_ok=True)
 
-    # One process per node, so each rank downloads its own files to node-local storage.
+    # Each rank downloads its own files to node-local storage.
     train_names, validation_names, test_names = data.split_files(
         data.list_day_files(p["dataset_repo"], p["train_day"]),
         data.list_day_files(p["dataset_repo"], p["eval_day"]), p, rank, world)
@@ -144,7 +144,8 @@ def main():
     )
     optimizer = CombinedOptimizer([model.fused_optimizer, dense_optimizer])
 
-    steps_per_epoch = min_across_ranks(data.num_steps(len(train[2]), p["batch_size"]), device)
+    # Reduce row counts before checking them so a short rank fails on every rank instead of hanging.
+    steps_per_epoch = data.num_steps(min_across_ranks(len(train[2]), device), p["batch_size"])
     total_steps = steps_per_epoch * p["epochs"]
     if p["max_train_steps"] > 0:
         total_steps = min(total_steps, p["max_train_steps"])
