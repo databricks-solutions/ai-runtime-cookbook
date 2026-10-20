@@ -24,12 +24,16 @@ timeout_minutes: 30
 
 parameters:
   model_name: Qwen/Qwen3-Embedding-0.6B
+  # Downloads the full LangChain collection (about 71 MB compressed) before sampling.
   dataset_name: freshstack/corpus-oct-2024
   dataset_config: langchain
   dataset_split: train
   max_documents: 2000
+  # Select the same sample on each run of this dataset version.
   sample_seed: 42
+  # Documents encoded at once; reduce this if GPU memory is tight.
   batch_size: 16
+  # Token limit for each document or question; saved document text stays complete.
   max_seq_length: 512
   top_k: 5
   queries:
