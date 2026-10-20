@@ -15,7 +15,7 @@ The Volume and source MLflow run ID form the handoff between stages, so registra
 ## Before you run
 
 - Set `parameters.output_root` in `workload.yaml` to an existing writable Unity Catalog Volume directory.
-- Set the catalog, schema, and model defaults in `databricks.yml`. You need `USE CATALOG`, `USE SCHEMA`, and `CREATE MODEL` on the target.
+- Set the catalog, schema, and model defaults in `databricks.yml`. The bundle passes these values to `register_job.py`; its widget defaults apply only to interactive runs. You need `USE CATALOG`, `USE SCHEMA`, and `CREATE MODEL` on the target.
 - Confirm that you can create Model Serving endpoints and use `GPU_MEDIUM` workloads.
 - The Alpaca dataset is licensed CC BY-NC 4.0. Use data with suitable rights for your application.
 
@@ -48,6 +48,8 @@ Pass the successful AIR run ID to the registration job:
 databricks bundle run register_qwen_sft -t dev --profile <PROFILE> \
   --params source_training_run_id=<MLFLOW_RUN_ID>
 ```
+
+Registration uses the training run's `merged_model_path` tag, so an `output_root` override during training carries through automatically. For runs without that tag, it uses `<output_root>/<MLFLOW_RUN_ID>/merged` from the current `workload.yaml`.
 
 The job returns the exact registered model version. Each registration run creates a new version, so retrying after registration succeeds can create a duplicate version for the same AIR run.
 

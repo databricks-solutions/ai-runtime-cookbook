@@ -182,7 +182,11 @@ def register_model(
     client = MlflowClient()
     training_run = client.get_run(training_run_id)
 
-    source = Path(output_root) / training_run_id / "merged"
+    merged_model_path = training_run.data.tags.get("merged_model_path")
+    if merged_model_path:
+        source = Path(merged_model_path)
+    else:
+        source = Path(output_root) / training_run_id / "merged"
     if not (source / "config.json").is_file():
         raise FileNotFoundError(f"Merged model not found at {source}")
 
