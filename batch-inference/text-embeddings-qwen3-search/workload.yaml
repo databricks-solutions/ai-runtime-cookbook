@@ -3,6 +3,7 @@ experiment_name: air-text-embeddings-qwen3-search
 environment:
   version: "5"
   dependencies:
+    - torch==2.14.1
     - sentence-transformers==5.1.2
     - transformers==4.57.1
     - datasets==4.2.0
@@ -13,6 +14,10 @@ compute:
 
 code_source:
   root_path: .
+
+env_variables:
+  # Use the Hub's standard downloader without the optional legacy hf_transfer package.
+  HF_HUB_ENABLE_HF_TRANSFER: "0"
 
 command: python "$CODE_SOURCE_PATH/embed_search.py"
 
