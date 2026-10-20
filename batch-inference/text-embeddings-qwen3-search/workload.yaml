@@ -7,6 +7,8 @@ environment:
     - sentence-transformers==5.1.2
     - transformers==4.57.1
     - datasets==4.2.0
+    # AIR enables the Hub's optional fast downloader.
+    - hf_transfer==0.1.9
 
 compute:
   num_accelerators: 1
@@ -14,10 +16,6 @@ compute:
 
 code_source:
   root_path: .
-
-env_variables:
-  # Use the Hub's standard downloader without the optional legacy hf_transfer package.
-  HF_HUB_ENABLE_HF_TRANSFER: "0"
 
 command: python "$CODE_SOURCE_PATH/embed_search.py"
 
