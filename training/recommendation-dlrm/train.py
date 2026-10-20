@@ -97,10 +97,10 @@ def main():
     if p["hash_size"] < 2 or min(p["batch_size"], p["epochs"], p["log_every_steps"], p["eval_every_steps"]) < 1:
         raise ValueError("hash_size must be at least 2; batch_size, epochs, and step intervals must be positive")
 
-    dist.init_process_group(backend="nccl")
-    rank, world = dist.get_rank(), dist.get_world_size()
     device = torch.device("cuda", int(os.environ["LOCAL_RANK"]))
     torch.cuda.set_device(device)
+    dist.init_process_group(backend="nccl", device_id=device)
+    rank, world = dist.get_rank(), dist.get_world_size()
     torch.manual_seed(p["seed"])
     run_id = os.environ["MLFLOW_RUN_ID"]
     output_dir = Path(p["output_root"]) / run_id
