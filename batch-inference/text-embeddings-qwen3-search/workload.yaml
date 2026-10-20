@@ -1,0 +1,37 @@
+experiment_name: air-text-embeddings-qwen3-search
+
+environment:
+  version: "5"
+  dependencies:
+    - sentence-transformers==5.1.2
+    - transformers==4.57.1
+    - datasets==4.2.0
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/embed_search.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  model_name: Qwen/Qwen3-Embedding-0.6B
+  dataset_name: freshstack/corpus-oct-2024
+  dataset_config: langchain
+  dataset_split: train
+  max_documents: 2000
+  sample_seed: 42
+  batch_size: 16
+  max_seq_length: 512
+  top_k: 5
+  queries:
+    - How can I split documents into overlapping chunks before embedding them?
+    - How can I filter a Chroma vector search using document metadata?
+    - How do I include chat history when answering questions with retrieval?
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/text-embeddings-qwen3-search
