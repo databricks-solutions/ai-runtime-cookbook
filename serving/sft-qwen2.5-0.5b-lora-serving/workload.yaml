@@ -18,8 +18,6 @@ max_retries: 0
 timeout_minutes: 30
 
 parameters:
-  # Requires this existing writable volume. Change it to another existing volume if needed.
-  output_root: /Volumes/main/default/air_examples/sft-qwen2.5-0.5b-lora-serving
   model_name: Qwen/Qwen2.5-0.5B-Instruct
   dataset_name: tatsu-lab/alpaca
   train_examples: 64
@@ -30,3 +28,5 @@ parameters:
   max_length: 1024
   per_device_train_batch_size: 4
   gradient_accumulation_steps: 1
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/sft-qwen2.5-0.5b-lora-serving

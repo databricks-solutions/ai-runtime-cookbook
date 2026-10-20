@@ -1,4 +1,4 @@
-"""Single-A10 LoRA SFT; save merged Hugging Face weights for vLLM serving."""
+"""Fine-tune Qwen2.5-0.5B with LoRA and save merged weights to a Volume."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import mlflow
+import torch
 import yaml
 from datasets import load_dataset
 from peft import LoraConfig, TaskType
@@ -17,7 +18,7 @@ from trl import SFTConfig, SFTTrainer
 
 
 class LossToMlflow(TrainerCallback):
-    """Record Trainer step metrics in AIR's MLflow run."""
+    """Record Trainer metrics in the AIR-managed MLflow run."""
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         if state.is_world_process_zero and logs:
@@ -31,11 +32,11 @@ class LossToMlflow(TrainerCallback):
 
 
 class TrainTimeBudget(TrainerCallback):
-    """Stop optimization at the budget; evaluation and saving follow normally."""
+    """Stop optimization at the time budget; evaluation and saving still run."""
 
     def __init__(self, minutes: float):
         self.seconds = minutes * 60
-        self.started = None
+        self.started: float | None = None
 
     def on_train_begin(self, args, state, control, **kwargs):
         self.started = time.monotonic()
@@ -45,30 +46,18 @@ class TrainTimeBudget(TrainerCallback):
             control.should_training_stop = True
 
 
-def main(params: dict | None = None, run_id: str | None = None) -> None:
-    if params is None:
-        with open(os.environ["HYPERPARAMETERS_PATH"], encoding="utf-8") as handle:
-            params = yaml.safe_load(handle)
-
+def train(params: dict, run_dir: Path) -> dict:
     model_name = params["model_name"]
-    output_root = Path(params["output_root"])
-    # AIR creates the run and exposes its ID. Resume it explicitly rather than
-    # creating a second training run with disconnected metrics and artifacts.
-    if run_id is None:
-        run_id = os.environ.pop("MLFLOW_RUN_ID")
-    run_dir = output_root / run_id
-    run_dir.mkdir(parents=True, exist_ok=False)
-    print(f"MLflow run ID: {run_id}", flush=True)
-
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    total = int(params["train_examples"]) + int(params["eval_examples"])
+    train_examples = int(params["train_examples"])
+    eval_examples = int(params["eval_examples"])
     source = load_dataset(params["dataset_name"], split="train")
-    source = source.shuffle(seed=42).select(range(total))
-    split = source.train_test_split(test_size=int(params["eval_examples"]), seed=42)
+    source = source.shuffle(seed=42).select(range(train_examples + eval_examples))
+    split = source.train_test_split(test_size=eval_examples, seed=42)
 
     def format_example(row: dict) -> dict:
         request = row["instruction"]
@@ -84,7 +73,7 @@ def main(params: dict | None = None, run_id: str | None = None) -> None:
     train_data = split["train"].map(format_example, remove_columns=source.column_names)
     eval_data = split["test"].map(format_example, remove_columns=source.column_names)
 
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.bfloat16)
     lora = LoraConfig(
         r=8,
         lora_alpha=16,
@@ -120,13 +109,9 @@ def main(params: dict | None = None, run_id: str | None = None) -> None:
         peft_config=lora,
         callbacks=[LossToMlflow(), TrainTimeBudget(float(params["max_train_minutes"]))],
     )
-    with mlflow.start_run(run_id=run_id):
-        mlflow.set_tags({
-            "recipe": "sft-qwen2.5-0.5b-lora-serving",
-            "training_method": "LoRA SFT",
-            "serving_artifact": "merged Hugging Face weights in Unity Catalog Volume",
-        })
-        mlflow.log_params({
+
+    mlflow.log_params(
+        {
             "base_model": model_name,
             "dataset": params["dataset_name"],
             "train_examples": len(train_data),
@@ -140,54 +125,73 @@ def main(params: dict | None = None, run_id: str | None = None) -> None:
             "lora_rank": lora.r,
             "lora_alpha": lora.lora_alpha,
             "max_length": config.max_length,
-        })
-        mlflow.log_artifact(__file__, artifact_path="source")
-
-        # LoRA leaves the base weights unchanged. Disable the adapter to score
-        # the untouched model on exactly the same held-out examples.
-        with trainer.model.disable_adapter():
-            baseline = trainer.evaluate(metric_key_prefix="base")
-        baseline_loss = baseline["base_loss"]
-        mlflow.log_metric("base_eval_loss", baseline_loss, step=0)
-
-        training = trainer.train()
-        metrics = trainer.evaluate()
-        eval_loss = metrics["eval_loss"]
-        mlflow.log_metrics({
-            "final_train_loss": training.metrics["train_loss"],
-            "final_eval_loss": eval_loss,
-            "eval_loss_improvement": baseline_loss - eval_loss,
-            "train_runtime_seconds": training.metrics["train_runtime"],
-        }, step=trainer.state.global_step)
-        print(f"Base evaluation loss: {baseline_loss:.4f}", flush=True)
-        print(f"Fine-tuned evaluation loss: {eval_loss:.4f}", flush=True)
-
-        # The adapter is small enough to keep as an MLflow artifact. The
-        # full merged weights remain on the volume for custom vLLM serving.
-        adapter_dir = run_dir / "lora_adapter"
-        trainer.model.save_pretrained(adapter_dir, safe_serialization=True)
-        mlflow.log_artifacts(str(adapter_dir), artifact_path="lora_adapter")
-
-        merged = trainer.model.merge_and_unload()
-        final_dir = run_dir / "merged"
-        merged.save_pretrained(final_dir, safe_serialization=True)
-        tokenizer.save_pretrained(final_dir)
-        result = {
-            "mlflow_run_id": run_id,
-            "model_name": model_name,
-            "dataset_name": params["dataset_name"],
-            "train_steps": trainer.state.global_step,
-            "train_loss": training.metrics["train_loss"],
-            "base_eval_loss": baseline_loss,
-            "eval_loss": eval_loss,
-            "eval_loss_improvement": baseline_loss - eval_loss,
-            "model_path": str(final_dir),
         }
+    )
+    mlflow.log_artifact(__file__, artifact_path="source")
+
+    with trainer.model.disable_adapter():
+        base_eval_loss = float(trainer.evaluate(metric_key_prefix="base")["base_loss"])
+    mlflow.log_metric("base_eval_loss", base_eval_loss, step=0)
+
+    training = trainer.train()
+    eval_loss = float(trainer.evaluate()["eval_loss"])
+    train_loss = float(training.metrics["train_loss"])
+    mlflow.log_metrics(
+        {
+            "final_train_loss": train_loss,
+            "final_eval_loss": eval_loss,
+            "eval_loss_improvement": base_eval_loss - eval_loss,
+            "train_runtime_seconds": float(training.metrics["train_runtime"]),
+        },
+        step=trainer.state.global_step,
+    )
+    print(f"Base evaluation loss: {base_eval_loss:.4f}", flush=True)
+    print(f"Fine-tuned evaluation loss: {eval_loss:.4f}", flush=True)
+
+    adapter_dir = run_dir / "lora_adapter"
+    trainer.model.save_pretrained(adapter_dir, safe_serialization=True)
+    mlflow.log_artifacts(str(adapter_dir), artifact_path="lora_adapter")
+
+    merged = trainer.model.merge_and_unload()
+    merged_model_dir = run_dir / "merged"
+    merged.save_pretrained(merged_model_dir, safe_serialization=True)
+    tokenizer.save_pretrained(merged_model_dir)
+    print(f"Merged model: {merged_model_dir}", flush=True)
+
+    return {
+        "base_model": model_name,
+        "train_steps": trainer.state.global_step,
+        "train_loss": train_loss,
+        "base_eval_loss": base_eval_loss,
+        "eval_loss": eval_loss,
+        "eval_loss_improvement": base_eval_loss - eval_loss,
+        "merged_model_path": str(merged_model_dir),
+    }
+
+
+def main() -> None:
+    with open(os.environ["HYPERPARAMETERS_PATH"], encoding="utf-8") as handle:
+        params = yaml.safe_load(handle)
+
+    run_id = os.environ.pop("MLFLOW_RUN_ID")
+    run_dir = Path(params["output_root"]) / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    print(f"MLflow run ID: {run_id}", flush=True)
+
+    with mlflow.start_run(run_id=run_id):
+        mlflow.set_tags(
+            {
+                "recipe": "sft-qwen2.5-0.5b-lora-serving",
+                "training_method": "LoRA SFT",
+                "serving_handoff": "merged Hugging Face weights in a Unity Catalog Volume",
+            }
+        )
+        result = {"mlflow_run_id": run_id, **train(params, run_dir)}
         result_path = run_dir / "result.json"
         result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
         mlflow.log_artifact(str(result_path))
-        mlflow.set_tag("merged_model_path", str(final_dir))
-        print(f"Merged model: {final_dir}", flush=True)
+        mlflow.set_tag("merged_model_path", result["merged_model_path"])
+        print("TRAINING_RESULT=" + json.dumps(result, sort_keys=True), flush=True)
 
 
 if __name__ == "__main__":
