@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -88,9 +89,48 @@ def validate_runtime() -> None:
         raise RuntimeError("The ninja executable is required by vLLM's FlashInfer JIT.")
 
 
+def cuda_driver_env() -> dict[str, str]:
+    """Select CUDA library paths for the registration vLLM subprocess."""
+    # An older CUDA compatibility library can shadow the host driver (Error 803).
+    # Use the adjusted search path for vLLM only if a GPU probe succeeds;
+    # older hosts may still need the compatibility library.
+    env = os.environ.copy()
+    library_dirs = env.get("LD_LIBRARY_PATH", "").split(os.pathsep)
+    native_dirs = [
+        directory
+        for directory in library_dirs
+        if not Path(directory).match("cuda/compat")
+        and not Path(directory).match("cuda-*/compat")
+    ]
+    if native_dirs == library_dirs:
+        return env
+
+    native_env = env | {"LD_LIBRARY_PATH": os.pathsep.join(native_dirs)}
+    if not native_dirs:
+        del native_env["LD_LIBRARY_PATH"]
+    try:
+        # Probe in a fresh process: loaded CUDA libraries cannot be switched safely.
+        subprocess.run(
+            [sys.executable, "-c", "import torch; torch.ones(1, device='cuda').item()"],
+            env=native_env,
+            capture_output=True,
+            check=True,
+            timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError):
+        print(
+            "Native CUDA probe failed; retaining CUDA compatibility libraries.", flush=True
+        )
+        return env
+
+    print("Using the native CUDA driver for the registration vLLM smoke test.", flush=True)
+    return native_env
+
+
 def smoke_test_vllm(work_dir: Path, artifact_name: str, served_model_name: str) -> str:
     port = 3080
     log_path = work_dir / "vllm.log"
+    env = cuda_driver_env()
     with log_path.open("w", encoding="utf-8") as log:
         server = subprocess.Popen(
             vllm_command(
@@ -100,6 +140,7 @@ def smoke_test_vllm(work_dir: Path, artifact_name: str, served_model_name: str) 
             ),
             stdout=log,
             stderr=subprocess.STDOUT,
+            env=env,
         )
         try:
             wait_for_vllm(server, log_path, port)
