@@ -55,7 +55,7 @@ def main():
         model = SentenceTransformer(
             p["model_name"],
             device="cuda",
-            model_kwargs={"torch_dtype": torch.bfloat16, "attn_implementation": "sdpa"},
+            model_kwargs={"dtype": torch.bfloat16, "attn_implementation": "sdpa"},
             tokenizer_kwargs={"padding_side": "left"},
         )
         model.max_seq_length = p["max_seq_length"]
