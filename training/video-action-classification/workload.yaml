@@ -1,0 +1,47 @@
+experiment_name: air-video-action-classification
+
+environment:
+  version: "5"
+  dependencies:
+    # Keep PyTorch and torchvision versions compatible.
+    - torch==2.9.0
+    - torchvision==0.24.0
+    - av==16.0.1  # Linux wheels include the FFmpeg libraries used for decoding.
+    - timm==1.0.30
+    - scikit-learn==1.6.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/train.py"
+
+env_variables:
+  # Use standard Hub downloads without the optional hf_transfer package.
+  HF_HUB_ENABLE_HF_TRANSFER: "0"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  # Public archive with 405 videos across 10 UCF101 actions (about 163 MB).
+  dataset_name: sayakpaul/ucf101-subset
+  dataset_file: UCF101_subset.tar.gz
+  model_name: hf-hub:timm/resnet18.a1_in1k  # Frozen ImageNet frame encoder.
+  frames_per_video: 16
+  hidden_size: 128
+  epochs: 20
+  batch_size: 32
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  # Fractions apply to video groups within each class, not individual clips.
+  validation_fraction: 0.2
+  test_fraction: 0.2
+  seed: 42
+  cpu_threads: 4
+  data_root: /tmp/video-action-classification
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/video-action-classification
