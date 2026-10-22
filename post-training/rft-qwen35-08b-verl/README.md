@@ -1,8 +1,43 @@
-# How to set up a reinforcement learning task on AI Runtime
+# Reinforcement fine-tuning Qwen3.5-0.8B with verl
+
+Fine-tune [`Qwen/Qwen3.5-0.8B`](https://huggingface.co/Qwen/Qwen3.5-0.8B) on GSM8K with verl's Group Relative Policy Optimization (GRPO). This CLI example runs five training steps on one 8xH100 node with FSDP2 and vLLM, then compares greedy validation responses before and after training; five steps demonstrate the training loop and do not establish a benchmark result.
+
+## Before you run
+
+- Set `parameters.output_root` in [workload.yaml](workload.yaml) to a folder in an existing writable Unity Catalog volume. The default is `/Volumes/main/default/air_examples/rft-qwen35-08b-verl`.
+- Allow network access to PyPI and Hugging Face. The public model and dataset do not require a Hugging Face token.
+- Keep the AI v6 environment and pinned dependencies in `workload.yaml`. The OpenCV wheel URL selects the manylinux2014 build: the other wheel of the same release can abort on AIR hosts.
+
+## Run
+
+From this recipe's directory:
+
+```bash
+databricks air run -f workload.yaml
+```
+
+Add `--watch` to stream logs. Training settings live in the YAML `parameters` block. The defaults use 256 training prompts, 32 validation prompts, 32 prompts per step, four rollouts per prompt, and 512-token prompt and response limits. Each step scores 32 × 4 = 128 responses. Increase `train_examples` along with `training_steps` when extending the run.
+
+For task design, rollouts, rewards, and evaluation, see [How to set up a reinforcement learning task](#how-to-set-up-a-reinforcement-learning-task-on-ai-runtime).
+
+## Results
+
+Metrics are logged to AIR's MLflow run, including `critic/score/mean`, `response_length/mean`, and the final `accuracy_before` and `accuracy_after`. verl also logs validation accuracy under `val-core/openai/gsm8k/acc/mean@1` (`@1` appears as `_at_1` in MLflow).
+
+Each attempt writes to `<output_root>/<MLFLOW_RUN_ID>/`:
+
+- `train.parquet`, `validation.parquet`, and the resolved verl `config.yaml`.
+- `rollouts/<step>.jsonl` and `validation/0.jsonl` / `validation/5.jsonl`, containing sampled and greedy responses with rewards.
+- `validation_summary.json` and `validation_comparison.jsonl`, containing accuracy and paired responses before and after training.
+- `checkpoints/global_step_5/actor/huggingface/`, containing the model export, alongside training-state checkpoints. The step number follows `training_steps`.
+
+Validation responses and the summary are also logged as MLflow artifacts. The script checks that every training step reached MLflow, recomputes the validation rewards, and verifies that the exported weights exist. Accuracy can rise, stay flat, or fall after five steps. Load the export with `AutoModelForImageTextToText.from_pretrained(export_dir)` to try it, and remove the attempt's volume folder when you no longer need its checkpoint.
+
+## How to set up a reinforcement learning task on AI Runtime
 
 Reinforcement learning can help a language model answer questions and use tools more reliably by training on feedback from its own attempts. AI Runtime lets you run that training loop on managed GPUs alongside your data and MLflow experiments.
 
-This article explains how to prepare a reinforcement learning (RL) task for a language model on AI Runtime: what RL is, what you need to define before training, and how the [example notebook](#example-notebook-grpo-on-gsm8k) puts the pieces together with verl.
+This guide explains how to prepare a reinforcement learning (RL) task for a language model on AI Runtime: what RL is, what you need to define before training, and how the [CLI example](#cli-example-grpo-on-gsm8k) puts the pieces together with verl.
 
 ## What is reinforcement learning?
 
@@ -34,7 +69,7 @@ task prompt -> rollout -> reward -> policy update -> next rollout
 4. **Update the policy.** Adjust the model's weights so that higher-reward behavior becomes more likely.
 5. **Repeat** with new prompts and the updated model. Scoring responses without updating the policy is evaluation, not training.
 
-**Group Relative Policy Optimization (GRPO)**, introduced in [DeepSeekMath](https://arxiv.org/abs/2402.03300), is the RL algorithm used in the example notebook. It implements step 4: for each prompt it samples several rollouts and compares each reward with the group's average. Rollouts above the average are reinforced, rollouts below it are discouraged. For example, rewards `[1, 0, 1, 0]` average `0.5`, so the two correct attempts are reinforced and the two incorrect ones discouraged. If all rewards in a group are equal, there is nothing to compare, and that prompt contributes no learning signal in that step.
+**Group Relative Policy Optimization (GRPO)**, introduced in [DeepSeekMath](https://arxiv.org/abs/2402.03300), is the RL algorithm used in the CLI example. It implements step 4: for each prompt it samples several rollouts and compares each reward with the group's average. Rollouts above the average are reinforced, rollouts below it are discouraged. For example, rewards `[1, 0, 1, 0]` average `0.5`, so the two correct attempts are reinforced and the two incorrect ones discouraged. If all rewards in a group are equal, there is nothing to compare, and that prompt contributes no learning signal in that step.
 
 You define the task and the reward function; GRPO decides how rewards change the model. See [verl's GRPO guide](https://verl.readthedocs.io/en/latest/algo/grpo.html) for details.
 
@@ -83,7 +118,7 @@ Keep what the model sees separate from what the scorer uses:
 }
 ```
 
-Your framework defines the exact format. verl reads Parquet files with a `prompt` field of chat messages and a `reward_model.ground_truth` field for the reference, as shown in the [example notebook](#example-notebook-grpo-on-gsm8k).
+Your framework defines the exact format. verl reads Parquet files with a `prompt` field of chat messages and a `reward_model.ground_truth` field for the reference, as shown in the [CLI example](#cli-example-grpo-on-gsm8k).
 
 Create separate training, validation, and test sets with no duplicates across them. Use validation data to tune the reward and pick checkpoints, and reserve the test set for the final comparison. Store data and models in Unity Catalog volumes, with separate paths for versions you need to reproduce. See [Load data on AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/dataloading).
 
@@ -132,7 +167,7 @@ If you use an LLM judge for training:
 >
 > Databricks-hosted MLflow LLM judges are intended for evaluation. Their outputs should not be used to train, improve, or fine-tune an LLM. For a training reward, use a programmatic verifier or a separately supplied judge whose permitted uses include model training. See [Scorers and LLM judges](https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/concepts/scorers#information-about-the-models-powering-llm-judges).
 
-For training rewards, one option is `Qwen/Qwen2.5-7B-Instruct`, an open-weight model whose [Apache 2.0 license](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/blob/main/LICENSE) does not restrict using outputs for training. Run it inside the RL job or serve it with [Custom LLM Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/serve-custom-llms) (Public Preview); check any additional hosting terms.
+For training rewards, one option is `Qwen/Qwen3.5-9B`, an open-weight model whose [Apache 2.0 license](https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE) does not restrict using outputs for training. Run it inside the RL job or serve it with [Custom LLM Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/serve-custom-llms) (Public Preview); check any additional hosting terms.
 
 ### 5. Validate the reward and establish a baseline
 
@@ -152,48 +187,58 @@ RL frameworks such as verl run rollout generation and policy updates in GPU work
 - **Use a notebook.** Connect to an 8xH100 node, start Ray with `ray_init()` from the `serverless_gpu` package, and launch the trainer from the notebook. Don't wrap it in the `@distributed` decorator: the framework starts its own workers. See [Ray on AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/ray).
 - **Use the Databricks CLI.** Define a workload YAML that starts Ray across one or more nodes and runs the trainer. Use this for multi-node training and scheduled runs. See [Databricks CLI quickstart for AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/quickstart).
 
+This CLI example uses one node and starts local Ray from Python. A multi-node job also needs to start Ray workers on the other nodes.
+
 Write checkpoints to Unity Catalog volumes so they outlive the run. See [Improve training performance and resiliency on AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/guides/performance-and-resiliency).
 
 Track the run in MLflow: the training reward and its components, validation success, response length, truncated rollouts, tool and judge errors, and the model, data, reward, and judge versions. Save sample trajectories as well. A rising reward curve alone can't distinguish real improvement from *reward hacking*, where the model exploits a weakness in the scorer. See [Experiment tracking and observability](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/tracking-observability).
 
 To evaluate, compare checkpoints with the starting model under identical conditions: the same data, prompts, tools, scoring rules, sampling settings, and limits. Select a checkpoint on validation data, then confirm it on the test set; the last checkpoint isn't always the best. Measure task success separately from the training reward, and check for regressions in important task categories and for changes in response length, latency, and tool use.
 
-## Example notebook: GRPO on GSM8K
+## CLI example: GRPO on GSM8K
 
-The notebook [Reinforcement learning with verl on AI Runtime](verl_hello_world.py) runs the complete loop on one 8xH100 node. It fine-tunes `Qwen/Qwen2.5-0.5B-Instruct` on grade-school math problems (GSM8K) with GRPO and a programmatic reward: the model must solve a word problem and end its response with `#### <number>`. It is a smoke test of the training loop, not a benchmark, and uses no tools or LLM judge. The walkthrough follows the notebook's sections; the code excerpts are trimmed from the notebook.
+[rft_qwen35_08b_verl.py](rft_qwen35_08b_verl.py) runs the complete loop on one 8xH100 node. It fine-tunes `Qwen/Qwen3.5-0.8B` on grade-school math problems (GSM8K) with GRPO and a programmatic reward: the model must solve a word problem and end its response with `#### <number>`. It is a smoke test of the training loop, not a benchmark, and uses no tools or LLM judge. The walkthrough follows the script's functions; the code excerpts show the relevant parts of the configuration and training loop.
+
+Qwen3.5-0.8B includes a vision encoder and hybrid attention. This recipe uses text-only prompts in the model's default non-thinking mode; its Hugging Face export loads with `AutoModelForImageTextToText`.
 
 ### Connect to compute and install dependencies
 
-Attach the notebook to Serverless GPU with the **AI v6** environment and an **8xH100** accelerator. Then install pinned versions of `verl[vllm]`, Ray, MLflow, and supporting packages, and restart Python. If you previously used another dependency stack, reset the environment to defaults first.
+[workload.yaml](workload.yaml) selects the **AI v6** environment and one **8xH100** accelerator. AIR installs the pinned versions of `verl[vllm]`, Ray, MLflow, and supporting packages before starting the Python entry point. The OpenCV wheel URL selects the compatible manylinux2014 build.
+
+vLLM compiles Qwen3.5 attention kernels on first use, so allow extra startup time. With these dependency pins, the Transformers policy uses a PyTorch fallback for its optional hybrid-attention kernels.
+
+For notebook execution, attach to Serverless GPU with the same AI v6 environment and 8xH100 accelerator, install the same pinned packages, and restart Python. If you previously used another dependency stack, reset the environment to defaults first.
 
 ### Configure the run
 
-Set the `volume_path` widget to a folder in an existing writable Unity Catalog volume. The default is `/Volumes/main/default/air_examples/rft-qwen25-05b-verl`; replace it if you use another volume. Each run gets its own subfolder for data, responses, and checkpoints. The cell checks that the installed PyTorch, vLLM, verl, and Transformers versions match AI v6 and that eight GPUs are visible. The rollout settings from step 3 are plain constants:
+Set `parameters.output_root` in `workload.yaml` to a folder in an existing writable Unity Catalog volume. The default is `/Volumes/main/default/air_examples/rft-qwen35-08b-verl`; replace it if you use another volume. Each AIR attempt gets its own `<MLFLOW_RUN_ID>` subfolder for data, responses, and checkpoints. In a notebook adaptation, the equivalent `volume_path` widget should point to this existing writable volume.
 
-```python
-MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
-TRAIN_EXAMPLES = 256  # Prompts sampled from the GSM8K train split
-VAL_EXAMPLES = 32  # Prompts sampled from the GSM8K test split
-PROMPTS_PER_STEP = 32  # Prompts in each training step
-ROLLOUTS_PER_PROMPT = 4  # Sampled responses per prompt, compared by GRPO
-TRAINING_STEPS = 5
-MAX_PROMPT_TOKENS = 512
-MAX_RESPONSE_TOKENS = 512
+The script checks that the installed PyTorch, vLLM, verl, and Transformers versions match AI v6, that PyTorch uses CUDA 13.0, and that eight GPUs are visible. The rollout settings from step 3 live in the YAML `parameters` block:
+
+```yaml
+model_id: Qwen/Qwen3.5-0.8B
+train_examples: 256  # Prompts sampled from the GSM8K training split
+validation_examples: 32  # Held out from that training split; the test split stays untouched
+prompts_per_step: 32  # Prompts in each training step
+rollouts_per_prompt: 4  # Sampled responses per prompt, compared by GRPO
+training_steps: 5
+max_prompt_tokens: 512
+max_response_tokens: 512
 ```
 
-Each training step scores 32 × 4 = 128 rollouts, and GRPO compares the 4 rollouts of each prompt with each other.
+Each training step scores 32 × 4 = 128 rollouts, and GRPO compares the 4 rollouts of each prompt with each other. The script reads these settings from the file AIR provides through `HYPERPARAMETERS_PATH` and downloads the model to this node's local cache.
 
 ### Prepare prompts and reference answers
 
 This section covers step 2. Each row holds the prompt the model sees and, in `reward_model.ground_truth`, the reference answer used only for scoring. The GSM8K worked solution never reaches the model; only its final number is extracted as the reference:
 
 ```python
-INSTRUCTION = 'Solve the problem step by step. End with "#### " followed by only the final numeric answer.'
+instruction = 'Solve the problem step by step. End with "#### " followed by only the final numeric answer.'
 
 reference = extract_solution(example["answer"], method="strict")
-prompt = [{"role": "user", "content": f"{example['question']}\n\n{INSTRUCTION}"}]
+prompt = [{"role": "user", "content": f"{example['question']}\n\n{instruction}"}]
 rows.append({
-    "data_source": DATASET_ID,
+    "data_source": params["dataset_id"],
     "prompt": prompt,
     "ability": "math",
     "reward_model": {"style": "rule", "ground_truth": reference},
@@ -201,13 +246,14 @@ rows.append({
 })
 ```
 
-`data_source` selects verl's built-in GSM8K scorer. Training prompts come from the GSM8K train split and validation prompts from the test split; the notebook asserts that they don't overlap and writes both sets as Parquet files to the run folder.
+`data_source: openai/gsm8k` selects verl's built-in GSM8K scorer. The script holds out 32 examples from GSM8K's training split for validation and samples 256 other examples for training, reserving the official test split for final evaluation. It filters prompts that exceed the token limit, checks that training and validation prompts don't overlap, and writes both sets as Parquet files to the run folder.
 
 ### Inspect the reward
 
-This section covers steps 4 and 5 in miniature. The reward is verl's GSM8K scorer: it reads the last `#### <number>` in the response, removes thousands separators, and compares the number with the reference. A correct number without the `#### ` marker scores `0`, so the reward teaches the output format as well as correctness. The notebook tests it on known cases before training:
+This section covers steps 4 and 5 in miniature. The reward is verl's GSM8K scorer: it reads the last `#### <number>` in the response, removes thousands separators, and compares the number with the reference. A correct number without the `#### ` marker scores `0`, so the reward teaches the output format as well as correctness. The script tests it on known cases before training; the same checks can be inspected in a DataFrame:
 
 ```python
+import pandas as pd
 from verl.utils.reward_score.gsm8k import compute_score, extract_solution
 
 reward_examples = pd.DataFrame([
@@ -222,28 +268,40 @@ assert reward_examples["reward"].tolist() == reward_examples["expected"].tolist(
 
 ### Configure rollouts and training
 
-The notebook builds verl's `ppo_trainer` configuration with Hydra overrides. The ones that correspond to this article select GRPO, set the data limits, and set the number of rollouts per prompt:
+The script builds verl's `ppo_trainer` configuration with Hydra overrides. The ones that correspond to this guide select GRPO, set the data limits, and set the number of rollouts per prompt:
 
 ```python
 config = compose(config_name="ppo_trainer", overrides=[
     "algorithm.adv_estimator=grpo",
     "actor_rollout_ref.actor.use_kl_loss=False",  # No KL penalty, so no reference model
-    f"data.train_batch_size={PROMPTS_PER_STEP}",
-    f"data.max_prompt_length={MAX_PROMPT_TOKENS}",
-    f"data.max_response_length={MAX_RESPONSE_TOKENS}",
+    f"data.train_batch_size={params['prompts_per_step']}",
+    f"data.max_prompt_length={params['max_prompt_tokens']}",
+    f"data.max_response_length={params['max_response_tokens']}",
     "actor_rollout_ref.rollout.name=vllm",
-    f"actor_rollout_ref.rollout.n={ROLLOUTS_PER_PROMPT}",
-    f"trainer.total_training_steps={TRAINING_STEPS}",
+    f"actor_rollout_ref.rollout.n={params['rollouts_per_prompt']}",
+    f"trainer.total_training_steps={params['training_steps']}",
     "trainer.logger=[console,mlflow]",
     # ...
 ])
 ```
 
-The V1 trainer alternates vLLM generation and FSDP2 policy updates on the same eight GPUs; training steps are synchronous and on-policy. Validation generates one greedy response per question before training and after the last step with identical settings, and the final checkpoint includes a Hugging Face export of the model. The resolved configuration is saved to the run folder and logged to MLflow.
+The V1 trainer alternates vLLM generation and FSDP2 policy updates on the same eight GPUs; training steps are synchronous and on-policy. SDPA attention, eager generation, and disabled model compilation keep this short run simple. Validation generates one greedy response per question before training and after the last step with identical settings, and the final checkpoint includes a Hugging Face export of the model. The resolved configuration is saved to the run folder and logged to MLflow.
 
 ### Train
 
-This section covers step 6, run from a notebook. The notebook starts an MLflow run, passes the run ID to the Ray workers so that verl logs to the same run, starts Ray, and launches the trainer directly, without the `@distributed` decorator:
+This section covers step 6. AIR starts an MLflow run and supplies `MLFLOW_RUN_ID`. The script attaches to that run, passes its ID and session credentials to the Ray workers through their runtime environment, starts Ray, and launches the trainer directly. Credentials are never saved in `config.yaml`.
+
+```python
+import ray
+from verl.trainer.main_ppo import TaskRunnerV1, run_ppo
+
+ray.init(num_gpus=8, runtime_env=runtime_env)
+run_ppo(config, task_runner_class=TaskRunnerV1)
+```
+
+A single Python process starts local Ray and verl allocates its own GPU workers. Launch the entry point with the YAML command, without `torchrun` or the `@distributed` decorator.
+
+In a notebook adaptation, start an MLflow run and pass its run ID to the workers in the same way, then use AI Runtime's Ray initialization helper:
 
 ```python
 from serverless_gpu import ray_init
@@ -253,34 +311,36 @@ ray_init(runtime_env=runtime_env)
 run_ppo(config, task_runner_class=TaskRunnerV1)
 ```
 
-A short Ray task first checks that the workers can import the native libraries and reach MLflow. Ray is shut down in a `finally` block so the workers stop even if training fails. Watch these metrics:
+A short Ray task first checks that the workers can import the native libraries, execute CUDA operations, and reach MLflow. Ray is shut down in a `finally` block so the workers stop even if training fails. The script checks that every expected training step reached MLflow. Watch these metrics:
 
 - `critic/score/mean`: Mean reward of the training rollouts in the step.
 - `response_length/mean`: Mean response length in tokens.
-- `val-core/openai/gsm8k/acc/mean@1`: Validation accuracy, reported before training and after the last step.
+- `val-core/openai/gsm8k/acc/mean@1`: Validation accuracy, reported before training and after the last step (`@1` appears as `_at_1` in MLflow).
 
 ### Compare responses before and after training
 
-verl saves the validation responses as `0.jsonl` (before training) and `5.jsonl` (after the last step). The notebook merges them per prompt, recomputes every score with the same reward function, and summarizes accuracy:
+verl saves the validation responses as `0.jsonl` (before training) and `5.jsonl` (after the last step). The script merges them per prompt, checks that both files cover the same questions, recomputes every score with the same reward function, and summarizes accuracy:
 
 ```python
+training_steps = params["training_steps"]
 before = pd.read_json(validation_dir / "0.jsonl", lines=True, dtype={"gts": str})
-after = pd.read_json(validation_dir / f"{TRAINING_STEPS}.jsonl", lines=True, dtype={"gts": str})
+after = pd.read_json(validation_dir / f"{training_steps}.jsonl", lines=True, dtype={"gts": str})
 summary = pd.DataFrame([
     {"model": "Before training", "accuracy": before["score"].mean()},
-    {"model": f"After {TRAINING_STEPS} steps", "accuracy": after["score"].mean()},
+    {"model": f"After {training_steps} steps", "accuracy": after["score"].mean()},
 ])
 ```
 
-After five steps, accuracy can go up, stay flat, or go down. Read the responses and check per-prompt reward variation in `rollouts/<step>.jsonl` before increasing the budget. The notebook also verifies that the Hugging Face export exists under `checkpoints/global_step_5/actor/huggingface`.
+After five steps, accuracy can go up, stay flat, or go down. Read the responses and check per-prompt reward variation in `rollouts/<step>.jsonl` before increasing the budget. The script also verifies that the Hugging Face export exists under `checkpoints/global_step_5/actor/huggingface`.
 
 ### Clean up and next steps
 
-Disconnect from GPU compute when you finish, and delete the run folder if you don't need the checkpoint, which is several gigabytes. To go further, increase `TRAINING_STEPS` and `TRAIN_EXAMPLES`, use a larger validation set for model selection, and load the export with `AutoModelForCausalLM.from_pretrained(export_dir)` to test it.
+AIR releases the CLI workload's GPU compute when it finishes. For notebook execution, disconnect from GPU compute when you finish. Delete the run folder if you don't need the checkpoint, which is several gigabytes. To go further, increase `training_steps` and `train_examples`, use a larger validation set for model selection, and load the export with `AutoModelForImageTextToText.from_pretrained(export_dir)` to test it. Keep the test split untouched until final evaluation.
 
 ## Next steps
 
-- [Reinforcement learning with verl on AI Runtime](verl_hello_world.py): Run the example notebook.
-- [Large language models (LLMs)](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/examples/gpu-llms): Explore more fine-tuning and reinforcement learning examples.
-- [Databricks CLI quickstart for AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/quickstart): Submit training as a workload from your local machine.
+- [Reinforcement learning with verl on AI Runtime](rft_qwen35_08b_verl.py): Inspect the CLI entry point and run it with `workload.yaml`.
+- [verl's GRPO guide](https://verl.readthedocs.io/en/latest/algo/grpo.html): Explore the algorithm and its configuration.
+- [Large language models on AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/examples/gpu-llms): Explore more fine-tuning and reinforcement learning examples.
+- [Databricks CLI quickstart for AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/quickstart): Submit and monitor workloads.
 - [Custom LLM Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/serve-custom-llms): Log and register the exported model in Unity Catalog from an AI Runtime notebook, then serve it with vLLM on a GPU endpoint (Public Preview).

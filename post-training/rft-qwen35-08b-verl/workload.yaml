@@ -1,0 +1,58 @@
+experiment_name: rft-qwen35-08b-verl
+
+environment:
+  # AI v6 provides PyTorch 2.11.0 / CUDA 13 and vLLM 0.24.0.
+  version: databricks_ai_v6
+  dependencies:
+    - verl[vllm]==0.9.1
+    - transformers==5.9.0
+    - TransferQueue==0.1.10
+    - xgrammar==0.2.3
+    - cupy-cuda13x==14.0.1
+    - liger-kernel==0.8.2
+    - torchcodec==0.11.0
+    - ray[default]==2.56.0
+    - mlflow-skinny==3.13.0
+    - datasets==4.8.5
+    - peft==0.19.1
+    - numpy==2.3.4
+    - pandas==2.3.3
+    - hydra-core==1.3.2
+    # The manylinux_2_28 wheel of the same release can abort on AIR hosts.
+    - https://files.pythonhosted.org/packages/92/ce/bd17ff5772938267fd49716e94ca24f616ff4cb1ff4c6be13085108037be/opencv_python_headless-4.13.0.92-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl#sha256=0525a3d2c0b46c611e2130b5fdebc94cf404845d8fa64d2f3a3b679572a5bd22
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  type: snapshot
+  snapshot:
+    root_path: .
+
+command: python "$CODE_SOURCE_PATH/rft_qwen35_08b_verl.py"
+
+env_variables:
+  PYTHONUNBUFFERED: '1'
+  HF_HOME: /local_disk0/huggingface
+  MLFLOW_TRACKING_URI: databricks
+  NCCL_SOCKET_IFNAME: eth0
+  UV_EXCLUDE_NEWER: '2026-10-01'
+
+max_retries: 0
+timeout_minutes: 60
+
+parameters:
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/rft-qwen35-08b-verl
+  model_id: Qwen/Qwen3.5-0.8B
+  dataset_id: openai/gsm8k
+  train_examples: 256
+  validation_examples: 32
+  prompts_per_step: 32
+  rollouts_per_prompt: 4
+  training_steps: 5
+  max_prompt_tokens: 512
+  max_response_tokens: 512
+  learning_rate: 0.000001
+  seed: 42
