@@ -12,23 +12,22 @@ Each recipe should demonstrate one focused AI Runtime use case through the CLI. 
 
 ### Layout and naming
 
-Place each recipe in a leaf directory under the appropriate workload:
+Place each recipe in a leaf directory under the domain that best describes the workload:
 
 ```text
-<workload>/<example>/
+<domain>/<example>/
 ```
 
-Ray recipes use:
+Use an existing top-level domain when it accurately describes the recipe. Create a new domain only when the recipe represents a distinct area that does not fit an existing one.
 
-```text
-ray/<workload>/<example>/
-```
+Place an end-to-end recipe under `serving` when its distinguishing purpose is deploying a trained model to a serving endpoint rather than demonstrating a single training or inference workload.
 
-Naming and reuse:
+For Ray recipes, prefix the example directory with the primary Ray library: `ray-core-`, `ray-data-`, `ray-train-`, or `ray-tune-`, place it under its domain, and add it to the corresponding section of `ray/README.md`. Place introductory Ray library examples under `getting-started/ray/<library>/`.
 
-- Reuse an existing workload directory when it fits.
+Naming:
+
 - Use kebab-case for directories and snake_case for Python files.
-- Give the leaf recipe directory a descriptive, unambiguous name within its workload path.
+- Give the leaf recipe directory a descriptive, unambiguous name within its domain path.
 
 Each recipe must include:
 
