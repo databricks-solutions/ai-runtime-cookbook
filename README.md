@@ -38,6 +38,8 @@ cd getting-started/air-cli
 databricks air run -f workload.yaml
 ```
 
+To build and run an AIR workload from a custom container, see the [custom Docker image recipe](getting-started/custom-docker-image/README.md).
+
 ## Contribute
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidance on adding and validating recipes.

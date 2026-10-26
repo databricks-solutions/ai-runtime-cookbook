@@ -1,0 +1,21 @@
+experiment_name: air-custom-image-river
+
+compute:
+  # AIR allocates a GPU; this small River example runs on CPU.
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+environment:
+  # Replace the catalog and schema after pushing the image (see README).
+  unity_catalog_image: your_catalog.your_schema.air_river_demo:v1
+
+code_source:
+  root_path: .
+  include_paths:
+    - train.py
+
+# The script is baked into the image, so use an absolute path.
+command: python /app/train.py
+
+timeout_minutes: 10
+max_retries: 0
