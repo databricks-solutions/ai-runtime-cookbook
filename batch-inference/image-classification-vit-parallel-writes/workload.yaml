@@ -1,0 +1,37 @@
+experiment_name: air-image-classification-vit-parallel-writes
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - transformers==4.57.1
+    - datasets==4.2.0
+    # AIR enables the Hub's optional fast downloader.
+    - hf_transfer==0.1.9
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: python "$CODE_SOURCE_PATH/classify_images.py"
+
+max_retries: 0
+timeout_minutes: 45
+
+parameters:
+  model_name: google/vit-base-patch16-224
+  dataset_name: timm/oxford-iiit-pet
+  dataset_split: test
+  # 0 processes the whole split. Set a small value for a quick smoke test.
+  max_images: 0
+  batch_size: 64
+  # Loader workers that decode and preprocess images for the GPU.
+  loader_workers: 6
+  # Threads that annotate and save JPEGs. Set to 1 for the serial baseline.
+  write_workers: 32
+  jpeg_quality: 90
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/image-classification-vit-parallel-writes
