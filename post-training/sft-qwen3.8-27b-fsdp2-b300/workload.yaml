@@ -1,0 +1,72 @@
+# Qwen3.8-27B SFT fine-tuning on one 8xB300 node -- plain torch, no training framework.
+#
+# Self-contained torch + HF transformers + FSDP2 training loop (launched via
+# torchrun): load pretrained weights -> shard + data prep + one full pass over the
+# dataset + teardown. The training loop reports its wall time and time per step on rank 0.
+#
+# Model:  HF transformers Qwen3.8-27B (VLM-style model_type qwen3_5). Every rank loads
+#         the pretrained checkpoint and FSDP2 shards it across ranks (see train.py). Model
+#         and dataset revisions are pinned so runs stay comparable as HF repos move.
+# Data:   UltraChat 200k (SFT) streamed from the HF hub, chat-templated + tokenized
+#         with the Qwen3.8 tokenizer into seq-32768 blocks (response-only loss).
+# Image:  databricks_ai_v6 -- the "v6" AI Runtime environment version (a CUDA 13 base) with a
+#         Blackwell-ready torch and FlashAttention-2. We build causal-conv1d from source against
+#         that torch, and install transformers + fla.
+#
+# Run it directly on a workspace with 8xB300 access:
+#   databricks air run -f workload.yaml
+
+experiment_name: air-b300-qwen3-8-27b-sft
+
+environment:
+  version: databricks_ai_v6
+  dependencies: []
+
+compute:
+  accelerator_type: GPU_8xB300
+  num_accelerators: 8
+
+env_variables:
+  PYTORCH_ALLOC_CONF: "expandable_segments:True"
+
+code_source:
+  # Snapshot this dir so the launched job has train.py.
+  root_path: "."
+
+max_retries: 0
+timeout_minutes: 240
+
+command: |
+  set -eux
+  cd "$CODE_SOURCE_PATH"
+
+  export HF_HOME=/tmp/.hf
+  export NCCL_DEBUG=WARN
+  # Build the kernels below for Blackwell (sm_100) only.
+  export TORCH_CUDA_ARCH_LIST="10.0"
+
+  # === ---- Env Set up ---------------------------------------------------- ===
+  #
+  echo "Env Setup"
+
+  # The fused causal-conv1d (for the gated-delta layers), built from the upstream Dao-AILab
+  # source against the environment's torch. torch and FlashAttention-2 come from the image.
+  python -m pip install --no-cache-dir ninja==1.13.0 packaging==25.0
+
+  # causal_conv1d, tag v1.6.2.
+  git clone --depth 1 --branch v1.6.2 https://github.com/Dao-AILab/causal-conv1d.git /tmp/causal-conv1d
+  CAUSAL_CONV1D_FORCE_BUILD=TRUE python -m pip install --no-cache-dir --no-build-isolation /tmp/causal-conv1d
+
+  # transformers with Qwen3.8 support (newer than the image's baked version).
+  python -m pip install --no-cache-dir transformers==5.16.1
+  # flash-linear-attention: the fused gated-delta kernel the model uses (installing it is enough).
+  python -m pip install --no-cache-dir flash-linear-attention==0.5.2
+  # datasets: train.py streams the training data from the HF hub.
+  python -m pip install --no-cache-dir datasets==4.8.5
+
+  # === ---- Run Main Training Loop ---------------------------------------- ===
+  #
+  echo "Run Main Training Loop"
+
+  # One process per GPU on the single node.
+  python -m torch.distributed.run --nproc_per_node=8 train.py
