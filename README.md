@@ -6,17 +6,12 @@ Each recipe focuses on a specific use case and includes an AIR workload configur
 
 ## Repository organization
 
-Recipes are organized by workload directly under the repository root:
+Recipes are grouped into top-level directories by domain.
 
-```text
-<workload>/<example>/
-```
+There are two exceptions:
 
-Ray is the exception: its recipes are organized by Ray library under `ray/`, with introductory recipes in `ray/getting-started/`:
-
-```text
-ray/<library>/<example>/
-```
+- [Ray](ray/) is an index of Ray recipes across the repository. Each recipe remains in its domain directory and uses a `ray-core-`, `ray-data-`, `ray-train-`, or `ray-tune-` prefix.
+- [Serving](serving/) contains end-to-end examples that train, register, and deploy a model. Other domain directories generally contain examples for a single training or inference workload.
 
 ## Run a recipe
 
