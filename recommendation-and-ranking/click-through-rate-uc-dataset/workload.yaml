@@ -1,0 +1,29 @@
+experiment_name: air-click-through-rate-uc-dataset
+
+environment:
+  version: databricks_ai_v6
+  dependencies:
+    - databricks-uc-dataset==0.0.1b1
+
+compute:
+  num_accelerators: 2
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+# AI Runtime runs this command on each node. torchrun starts one process per GPU and sets the RANK
+# that UCDataset uses to pick each process's share of the table.
+command: |
+  torchrun --nnodes=$NUM_NODES --node_rank=$NODE_RANK --nproc_per_node=$LOCAL_WORLD_SIZE \
+    --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 30
+
+parameters:
+  # Created by create_table.sql. Point it at another table with the same columns to train on your data.
+  table: main.default.air_examples_ctr_features
+  epochs: 3
+  batch_size: 4096
+  learning_rate: 0.001
