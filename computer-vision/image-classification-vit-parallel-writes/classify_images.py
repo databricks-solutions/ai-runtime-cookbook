@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Classify images with ViT on one GPU and write an annotated JPEG for each one."""
 
+import functools
 import io
 import json
 import os
@@ -32,7 +33,7 @@ class EncodedImages(Dataset):
 
     def __getitem__(self, index):
         image = Image.open(io.BytesIO(self.encoded[index])).convert("RGB")
-        return self.processor(image, return_tensors="pt")["pixel_values"][0], index
+        return self.processor(image, return_tensors="pt")["pixel_values"][0]
 
 
 def annotate(encoded, label, score, destination, quality):
@@ -97,18 +98,18 @@ def main():
         )
         torch.cuda.synchronize()
         started = time.perf_counter()
-        batched_logits, batched_indexes = [], []
+        batched_logits = []
         with torch.no_grad():
-            for pixel_values, indexes in loader:
+            for pixel_values in loader:
                 pixel_values = pixel_values.to("cuda", non_blocking=True)
                 with torch.autocast("cuda", dtype=torch.float16):
                     logits = model(pixel_values=pixel_values).logits
                 batched_logits.append(logits.float().cpu())
-                batched_indexes.append(indexes)
         torch.cuda.synchronize()
         inference_seconds = time.perf_counter() - started
 
-        logits = torch.cat(batched_logits)[torch.cat(batched_indexes).argsort()]
+        # shuffle=False, so the loader returns batches in dataset order.
+        logits = torch.cat(batched_logits)
         if not torch.isfinite(logits).all():
             raise ValueError("The model returned non-finite logits")
         scores, predictions = torch.softmax(logits, dim=-1).max(dim=-1)
@@ -117,18 +118,12 @@ def main():
 
         # The GPU is idle for this whole phase, so its duration is billed GPU time
         # spent on object-store writes. Threads overlap those writes.
+        relative_paths = [f"annotated/{index:06d}.jpg" for index in range(num_images)]
+        write = functools.partial(annotate, quality=p["jpeg_quality"])
         started = time.perf_counter()
         with ThreadPoolExecutor(max_workers=p["write_workers"]) as pool:
-            list(
-                pool.map(
-                    annotate,
-                    encoded,
-                    labels,
-                    scores,
-                    [annotated_dir / f"{index:06d}.jpg" for index in range(num_images)],
-                    [p["jpeg_quality"]] * num_images,
-                )
-            )
+            list(pool.map(write, encoded, labels, scores,
+                          [output_dir / name for name in relative_paths]))
         write_seconds = time.perf_counter() - started
 
         written = sum(1 for _ in annotated_dir.glob("*.jpg"))
@@ -141,13 +136,15 @@ def main():
                 "image_id": image_ids,
                 "label": labels,
                 "score": scores,
-                "annotated_path": [f"annotated/{index:06d}.jpg" for index in range(num_images)],
+                "annotated_path": relative_paths,
             }),
             output_dir / "predictions.parquet",
         )
         total_seconds = model_load_seconds + data_load_seconds + inference_seconds + write_seconds
         metrics = {
             "images": num_images,
+            "model_load_seconds": model_load_seconds,
+            "data_load_seconds": data_load_seconds,
             "inference_seconds": inference_seconds,
             "write_seconds": write_seconds,
             "total_seconds": total_seconds,
