@@ -13,11 +13,11 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import yaml
+from databricks.air.data import DataLoader
 from databricks.uc_dataset.beta import UCDataset
 from databricks.uc_dataset.beta.dataframe import col, table
 from torch.distributed.algorithms.join import Join
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader
 
 FEATURES = ["user_age", "user_tenure_days", "item_price", "user_ctr_7d", "item_views_7d"]
 # Rough scale of each feature, so the model's inputs land in similar ranges.
