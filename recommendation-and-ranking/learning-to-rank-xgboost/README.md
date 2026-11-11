@@ -15,7 +15,7 @@ Review the dataset's usage terms on the linked page. The archive downloads autom
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

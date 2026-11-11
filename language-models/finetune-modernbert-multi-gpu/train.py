@@ -10,7 +10,7 @@ to Unity Catalog (a new version per run). Config comes from the workload ``param
 
 Run from this recipe's directory:
 
-    databricks air run -f workload.yaml
+    databricks air run -f workload.yaml --watch
 """
 
 import logging

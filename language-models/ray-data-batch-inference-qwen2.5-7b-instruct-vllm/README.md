@@ -9,7 +9,7 @@ Set `OUTPUT_PATH` in `workload.yaml` to an existing writable Unity Catalog volum
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

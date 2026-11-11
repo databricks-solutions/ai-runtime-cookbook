@@ -21,7 +21,9 @@ writes to its own subdirectory, named after the run's MLflow run ID.
 
 import base64
 import json
+import logging
 import os
+import tempfile
 import time
 
 import pyarrow.parquet as pq
@@ -143,14 +145,38 @@ def postprocess(row):
 
 
 def check_output_volume(path):
-    """Fail fast, before loading any model, if OUTPUT_PATH's Unity Catalog volume is missing."""
+    """Fail before loading any model if OUTPUT_PATH's UC volume is unavailable."""
     parts = path.rstrip("/").split("/")
     if path.startswith("/Volumes/") and len(parts) >= 5 and not os.path.isdir("/".join(parts[:5])):
-        raise SystemExit(
-            f"OUTPUT_PATH is on volume {'.'.join(parts[2:5])}, which does not exist or is not "
-            "accessible. Create it (CREATE VOLUME) or set OUTPUT_PATH in workload.yaml to a "
-            "writable Unity Catalog volume path."
+        volume = ".".join(parts[2:5])
+        message = (
+            f"OUTPUT_PATH={path!r}: Unity Catalog volume {volume} does not exist or is not "
+            "accessible. Ask a volume owner to create it (CREATE VOLUME) or grant access, "
+            "or set OUTPUT_PATH in workload.yaml to an existing writable Unity Catalog "
+            "volume path, then rerun the workload."
         )
+        logging.error(message)
+        raise RuntimeError(message)
+
+
+def prepare_output_directory(path, run_path):
+    """Validate the volume and write access before Ray or model initialization."""
+    check_output_volume(path)
+    try:
+        os.makedirs(run_path, exist_ok=True)
+        # Check existing directories too: makedirs(exist_ok=True) alone does not
+        # verify write access. The temporary file is removed as soon as it closes.
+        with tempfile.TemporaryFile(dir=run_path):
+            pass
+    except OSError as exc:
+        message = (
+            f"Cannot write to OUTPUT_PATH={path!r} (run directory {run_path!r}): {exc}. "
+            "Check Unity Catalog volume permissions and available storage, or set "
+            "OUTPUT_PATH in workload.yaml to an existing writable Unity Catalog "
+            "volume path, then rerun the workload."
+        )
+        logging.error(message)
+        raise RuntimeError(message) from exc
 
 
 def log_to_mlflow(params, metrics, tables):
@@ -170,18 +196,23 @@ def log_to_mlflow(params, metrics, tables):
 
 
 def main():
-    check_output_volume(OUTPUT_PATH)
-    # Creating the run directory now also fails fast if the volume isn't writable.
-    os.makedirs(RUN_OUTPUT_PATH, exist_ok=True)
+    prepare_output_directory(OUTPUT_PATH, RUN_OUTPUT_PATH)
     ray.init(address="auto")
     # Derive replicas from the live cluster so the example scales when nodes are added.
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
-    print(f"Ray cluster ready: {total_gpus} GPU(s)", flush=True)
+    if total_gpus < 1:
+        raise RuntimeError("No GPUs found in the Ray cluster; cannot run vLLM inference.")
+    print(
+        f"Ray cluster ready: {total_gpus} GPU(s); starting {total_gpus} vLLM replicas "
+        "with one GPU each (tensor_parallel_size=1)",
+        flush=True,
+    )
 
     ds = load_images()
 
-    # vLLM engine config. concurrency = number of replicas Ray Data runs in parallel;
-    # one per GPU in the cluster here. engine_kwargs are passed through to the vLLM engine.
+    # Ray 2.56.1 treats an integer concurrency as an autoscaling range from 1 to n.
+    # Equal lower/upper bounds start one replica per GPU, including on short runs.
+    # engine_kwargs are passed through to the vLLM engine.
     config = vLLMEngineProcessorConfig(
         model_source=MODEL_SOURCE,
         engine_kwargs={
@@ -196,7 +227,7 @@ def main():
         },
         # Decodes the base64 images and builds the vision inputs for each request.
         prepare_multimodal_stage={"enabled": True},
-        concurrency=total_gpus,
+        concurrency=(total_gpus, total_gpus),
         batch_size=32,
     )
     processor = build_processor(config, preprocess=preprocess, postprocess=postprocess)
@@ -207,6 +238,8 @@ def main():
     start = time.time()
     out = processor(ds).materialize()
     elapsed = time.time() - start
+    # Include operator/actor execution statistics for diagnosing uneven GPU activity.
+    print(out.stats(), flush=True)
     # Overwrite so a re-run into the same directory replaces it instead of appending to it.
     out.drop_columns(["completed_at"]).write_parquet(RUN_OUTPUT_PATH, mode="overwrite")
 

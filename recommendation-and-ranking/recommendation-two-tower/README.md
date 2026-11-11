@@ -22,7 +22,7 @@ Review the MovieLens license on the dataset page. It restricts redistribution an
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

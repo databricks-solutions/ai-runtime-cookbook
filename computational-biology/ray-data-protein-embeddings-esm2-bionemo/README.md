@@ -13,13 +13,13 @@ To skip the TE build on later runs, set `TE_WHEEL_CACHE` to a volume directory. 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 For a quick test on one GPU:
 
 ```bash
-databricks air run -f workload.yaml \
+databricks air run -f workload.yaml --watch \
   --override compute.accelerator_type=GPU_1xH100 --override compute.num_accelerators=1 \
   --override env_variables.NUM_SEQUENCES=2000
 ```

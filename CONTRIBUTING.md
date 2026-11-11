@@ -70,6 +70,8 @@ Never include the following. For values that have no established cookbook defaul
 - Make distributed downloads, logging, checkpoints, and other side effects rank-safe.
 - Set `max_retries` explicitly. When retries are enabled, ensure reruns do not corrupt outputs. For long-running or costly training, save checkpoints and restore them on restart when practical.
 
+For recipes using Hugging Face Hub 1.x, unset an inherited `HF_HUB_ENABLE_HF_TRANSFER` in the workload command before starting Python or distributed workers. Hub 1.x uses Xet and warns when the obsolete setting is enabled. Leave warnings enabled, and keep `hf_transfer` dependencies in recipes that still use Hub 0.x or frameworks that require it.
+
 ### MLflow and model lifecycle
 
 AIR creates an MLflow run for each attempt and provides its ID in `MLFLOW_RUN_ID`. When a recipe adds custom MLflow tracking, log to that run.
@@ -115,7 +117,7 @@ Use this structure:
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

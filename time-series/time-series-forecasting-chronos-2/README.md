@@ -13,7 +13,7 @@ Set `parameters.output_root` to an existing writable Unity Catalog volume direct
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

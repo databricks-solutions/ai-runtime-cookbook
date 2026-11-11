@@ -10,7 +10,7 @@ come from the workload YAML ``parameters:`` block, which ``air`` materializes to
 
 Run from this recipe's directory:
 
-    databricks air run -f workload.yaml
+    databricks air run -f workload.yaml --watch
 """
 
 import logging

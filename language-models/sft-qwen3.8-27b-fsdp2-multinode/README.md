@@ -5,5 +5,5 @@ This recipe uses plain PyTorch and FSDP2 to supervised-fine-tune `Qwen/Qwen3.8-2
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```

@@ -10,8 +10,10 @@ Set `parameters.output_dir` to an existing writable Unity Catalog volume if the 
 
 ## Run
 
+[Select and verify your workspace profile](../../README.md#select-a-workspace-profile) before submitting. Keep that profile selected when [checking status or logs](../../README.md#submit-and-monitor).
+
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

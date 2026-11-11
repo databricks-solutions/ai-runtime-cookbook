@@ -1,5 +1,5 @@
 # Nemotron 3.5 Lightning LoRA fine-tuning with NVIDIA NeMo AutoModel on one 8x H100 node.
-# Run from this directory: databricks air run -f workload.yaml
+# Run from this directory: databricks air run -f workload.yaml --watch
 
 experiment_name: air-nemotron-lightning-hellaswag-lora
 

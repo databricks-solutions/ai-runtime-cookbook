@@ -19,19 +19,51 @@ Each recipe is designed to run from its own directory using the same command.
 
 Before running a recipe, set up the Databricks CLI for a workspace with access to AI Runtime:
 
-- Configure the Databricks CLI with AI Runtime ([AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/)).
+- Configure the Databricks CLI with AI Runtime ([AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/)).
 - Authenticate to your workspace with `databricks auth login` ([AWS](https://docs.databricks.com/aws/en/dev-tools/cli/authentication) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/authentication)).
+
+### Select a workspace profile
+
+Select an existing workspace profile for the current shell, replacing `<profile-name>` with its name:
+
+```bash
+databricks auth profiles
+export DATABRICKS_CONFIG_PROFILE="<profile-name>"
+databricks auth describe
+```
+
+Check the host in `auth describe` before submitting a workload. Keep this variable set so submit, status, and log commands use the same workspace. Without a selected profile, the CLI uses the `DEFAULT` profile. See [configuration profiles](https://docs.databricks.com/aws/en/dev-tools/cli/profiles) for profile setup.
+
+To override this selection, pass `--profile <profile-name>`. Use the same override when monitoring that run:
+
+```bash
+databricks auth describe --profile <profile-name>
+databricks air run -f workload.yaml --watch --profile <profile-name>
+```
+
+### Submit and monitor
 
 1. `cd` into the recipe directory.
 1. Review `workload.yaml` for values that you need to configure. Recipes with `secrets.HF_TOKEN` require [Hugging Face token](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/).
-1. Run the workload with `databricks air run -f workload.yaml`.
+1. Run the workload with `databricks air run -f workload.yaml --watch`.
 
 For example:
 
 ```bash
 cd getting-started/air-cli
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
+
+`--watch` streams logs until the run completes. To submit in the background, omit `--watch`, save the job run ID printed by `air run`, and use it to inspect the run or follow its logs:
+
+```bash
+databricks air run -f workload.yaml
+RUN_ID="<job-run-id>"
+databricks air get "$RUN_ID"
+databricks air logs "$RUN_ID"
+```
+
+These commands use the selected profile. If you submitted with `--profile`, include the same flag on both monitoring commands. `air logs` follows an active run until completion and fetches logs for a completed run. Both monitoring commands also work after a watched command exits.
 
 ## Contribute
 

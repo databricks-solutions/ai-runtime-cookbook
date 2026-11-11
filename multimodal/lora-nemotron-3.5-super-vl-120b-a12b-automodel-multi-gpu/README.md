@@ -10,36 +10,43 @@ Workload execution takes about 12 minutes. For the first run, the one-time image
 
 ## Before you run
 
-Enable the necessary previews in your workspace (a workspace admin does this) by following the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/docker-images).
+Complete these steps from this recipe's directory.
 
-Install Docker and start it on your machine. Choose a Unity Catalog schema where you have permission to push images. This example uses `main.default`. See the guide above for the required Artifact Registry privileges.
+1. Configure and authenticate the CLI using the [cookbook setup instructions](../../README.md#run-a-recipe). Ask a workspace admin to enable the custom-image previews: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/docker-images).
 
-The Dockerfile's base image `nvcr.io/nvidia/nemo-automodel:26.08.00` is public, and it fetches the AutoModel source from public GitHub. You therefore do not need an NGC account, API key, or Docker login to build it. If you switch to an NGC image that requires authentication, run `docker login nvcr.io` first. Use `$oauthtoken` as the username and your NGC API key as the password.
+2. Install [Docker Engine on Linux](https://docs.docker.com/engine/install/) or [Docker Desktop on macOS](https://docs.docker.com/desktop/setup/install/mac-install/) and start it. Keep Docker running through the build and push. On macOS, choose the installer for your chip. AIR requires `linux/amd64`, including on Apple silicon.
 
-Build the Super VL image for `linux/amd64` and push it into Unity Catalog:
+3. Choose an existing Unity Catalog schema where you can push images; this example uses `main.default`. See the custom-image guide above for privileges. Set `ADAPTER_OUTPUT_ROOT` in `workload.yaml` to a directory in an existing writable volume. Its default is:
 
-```bash
-docker build --platform linux/amd64 -t nemo-automodel-vl:26.08.00 .
-databricks air images push -s nemo-automodel-vl:26.08.00 \
-  --catalog main --schema default --artifact nemo-automodel-vl:26.08.00
-```
+   ```text
+   /Volumes/main/default/air_examples/lora-nemotron-3.5-super-vl-120b-a12b-automodel-multi-gpu
+   ```
 
-`--artifact` names the destination so it matches `environment.unity_catalog_image` below. The container is large (several GB), so the build and push take a while.
+4. Check the CLI and Docker engine before building:
 
-This command creates `main.default.nemo-automodel-vl:26.08.00`. To use a different catalog or schema, change `--catalog`/`--schema` above and update `environment.unity_catalog_image` in `workload.yaml` to match.
+   ```bash
+   databricks air images push --help
+   docker info
+   ```
 
-Check `env_variables.ADAPTER_OUTPUT_ROOT` in `workload.yaml`. The recipe saves the final adapter under this path by default:
+   `docker info` should show a `Server` section without a connection error. If it cannot connect, start Docker and wait for the engine to be ready.
 
-```text
-/Volumes/main/default/air_examples/lora-nemotron-3.5-super-vl-120b-a12b-automodel-multi-gpu
-```
+5. Build and push the image. Allow disk space and time for the several-GB image:
 
-The volume must already exist and be writable. To use another location, update `ADAPTER_OUTPUT_ROOT` to a directory in another existing writable volume.
+   ```bash
+   docker build --platform linux/amd64 -t nemo-automodel-vl:26.08.00 .
+   databricks air images push -s nemo-automodel-vl:26.08.00 \
+     --catalog main --schema default --artifact nemo-automodel-vl:26.08.00
+   ```
+
+   The destination is `main.default.nemo-automodel-vl:26.08.00`. If you change the catalog or schema, update `environment.unity_catalog_image` in `workload.yaml` to match.
+
+The base image and AutoModel source are public; no NGC login is required.
 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results
