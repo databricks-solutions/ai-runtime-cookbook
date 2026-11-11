@@ -38,6 +38,8 @@ max_retries: 0
 timeout_minutes: 240
 
 command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
   set -eux
   cd "$CODE_SOURCE_PATH"
 
