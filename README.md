@@ -23,7 +23,7 @@ Before running a recipe, set up the Databricks CLI for a workspace with access t
 - Authenticate to your workspace with `databricks auth login` ([AWS](https://docs.databricks.com/aws/en/dev-tools/cli/authentication) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/authentication)).
 
 1. `cd` into the recipe directory.
-1. Review `workload.yaml` for values that you need to configure. Recipes with `secrets.HF_TOKEN` require [Hugging Face token and Databricks secret setup](docs/hugging-face-secrets.md).
+1. Review `workload.yaml` for values that you need to configure. Recipes with `secrets.HF_TOKEN` require [Hugging Face token](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/).
 1. Run the workload with `databricks air run -f workload.yaml`.
 
 For example:

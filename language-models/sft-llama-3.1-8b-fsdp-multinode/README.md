@@ -4,7 +4,7 @@ This recipe uses PyTorch FSDP to supervised-fine-tune `meta-llama/Llama-3.1-8B` 
 
 ## Before you run
 
-Complete the [Hugging Face token and Databricks secret setup](../../docs/hugging-face-secrets.md) for your target workspace. Obtain access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) for the token owner's account, and configure `secrets.HF_TOKEN` in `workload.yaml` with the secret reference (default: `my_scope/hf_token`).
+Complete the [Hugging Face token](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/) for your target workspace. Obtain access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) for the token owner's account, and configure `secrets.HF_TOKEN` in `workload.yaml` with the secret reference (default: `my_scope/hf_token`).
 
 Set `parameters.output_dir` to an existing writable Unity Catalog volume if the default location is unsuitable.
 
