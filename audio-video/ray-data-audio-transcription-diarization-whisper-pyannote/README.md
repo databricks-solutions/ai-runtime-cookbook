@@ -17,8 +17,10 @@ no separate prep step is needed.
    - https://huggingface.co/pyannote/speaker-diarization-3.1
    - https://huggingface.co/pyannote/segmentation-3.0
 
-   Store the token in a Databricks secret, then set `secrets.HF_TOKEN` in
-   `workload.yaml` to that `scope/key`.
+   Follow the [Hugging Face token and Databricks secret setup](../../docs/hugging-face-secrets.md)
+   for your target workspace, then set `secrets.HF_TOKEN` in `workload.yaml`
+   to the secret reference (default: `my_scope/hf_token`). The token owner must
+   have access to both models.
 
 ## Run
 
