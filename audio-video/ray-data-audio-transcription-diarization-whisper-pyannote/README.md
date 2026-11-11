@@ -19,9 +19,9 @@ no separate prep step is needed.
 
    Store the token in a Databricks secret, then set `secrets.HF_TOKEN` in
    `workload.yaml` to that `scope/key` (default `my_scope/hf_token`). Follow the
-   [token, workspace secret, and preflight instructions](../../docs/hugging-face-preflight.md)
-   before your first run in a workspace or with these models. Repeat the checks
-   after changing the profile, token, model, or run-as identity.
+   [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/)
+   before your first run in a workspace or with these models. Agents can follow the
+   [preflight guide](../../docs/agents/hugging-face-preflight.md).
 
 ## Run
 

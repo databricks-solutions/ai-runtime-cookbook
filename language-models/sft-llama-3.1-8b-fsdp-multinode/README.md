@@ -4,7 +4,7 @@ This recipe uses PyTorch FSDP to supervised-fine-tune `meta-llama/Llama-3.1-8B` 
 
 ## Before you run
 
-Request access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) with the token owner's account and wait for approval. Follow the [token, workspace secret, and preflight instructions](../../docs/hugging-face-preflight.md) before your first run in a workspace or with this model. Repeat the checks after changing the profile, token, model, or run-as identity. For an ungated model, use the separate [Qwen2.5 TorchTrainer recipe](../ray-train-sft-qwen2.5-3b-torchtrainer/).
+Request access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) with the token owner's account and wait for approval. Follow the [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/) before your first run in a workspace or with this model. Agents can follow the [preflight guide](../../docs/agents/hugging-face-preflight.md). For an ungated model, use the separate [Qwen2.5 TorchTrainer recipe](../ray-train-sft-qwen2.5-3b-torchtrainer/).
 
 Set `secrets.HF_TOKEN` in `workload.yaml` to the secret containing the checked token (default `my_scope/hf_token`). Set `parameters.output_dir` to an existing writable Unity Catalog volume if the default location is unsuitable.
 
