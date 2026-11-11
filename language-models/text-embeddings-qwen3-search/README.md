@@ -15,7 +15,7 @@ The model and data download automatically without a Hugging Face token. The mode
 From this recipe directory:
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 Edit `parameters.queries` in `workload.yaml` to ask your own questions. Use `max_documents` to change the sample size and `top_k` to change the number of matches.

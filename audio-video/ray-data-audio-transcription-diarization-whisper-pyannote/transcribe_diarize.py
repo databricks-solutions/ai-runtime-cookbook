@@ -31,12 +31,42 @@ os.environ.setdefault("HF_DATASETS_CACHE", "/tmp/hf_home/datasets")
 
 MODEL_SOURCE = os.environ.get("WHISPER_MODEL", "large-v3")
 DIARIZATION_MODEL = "pyannote/speaker-diarization-3.1"
+SEGMENTATION_MODEL = "pyannote/segmentation-3.0"
 NUM_CLIPS = int(os.environ.get("NUM_CLIPS", "24"))
 TARGET_SR = 16000
 # Shared UC volume paths. Set these in workload.yaml; the volumes must exist.
 INPUT_DIR = os.environ.get("INPUT_DIR", "/Volumes/main/default/air_examples/voxconverse_wavs")
 OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/audio_diarization_results")
 HF_TOKEN = os.environ.get("HF_TOKEN")
+
+
+def model_access_error():
+    return RuntimeError(
+        "Unable to access the required Hugging Face models. "
+        "Sign in to Hugging Face and accept the terms for BOTH "
+        f"https://huggingface.co/{DIARIZATION_MODEL} and "
+        f"https://huggingface.co/{SEGMENTATION_MODEL}. "
+        "Create a read token from that same account with access to both gated repositories, "
+        "store it in the Databricks secret referenced by secrets.HF_TOKEN in workload.yaml, "
+        "then rerun databricks air run -f workload.yaml."
+    )
+
+
+def check_model_access():
+    """Check both gated configs before staging audio or starting GPU actors."""
+    from huggingface_hub import get_hf_file_metadata, hf_hub_url
+    from huggingface_hub.utils import HfHubHTTPError
+
+    if not HF_TOKEN:
+        raise model_access_error()
+    for repository in (DIARIZATION_MODEL, SEGMENTATION_MODEL):
+        try:
+            # A HEAD request checks the current token even if files are cached.
+            get_hf_file_metadata(hf_hub_url(repository, "config.yaml"), token=HF_TOKEN)
+        except HfHubHTTPError as error:
+            if error.response is not None and error.response.status_code in (401, 403, 404):
+                raise model_access_error() from error
+            raise
 
 
 def stage_audio() -> list:
@@ -88,15 +118,13 @@ class WhisperDiarizer:
     def __init__(self):
         import torch
         from faster_whisper import BatchedInferencePipeline, WhisperModel
+        from huggingface_hub.utils import HfHubHTTPError
         from pyannote.audio import Pipeline as DiarPipeline
 
         # Actors run in their own process (and, on multi-node, other hosts), so
         # re-check the token here rather than trusting the driver-only guard.
         if not HF_TOKEN:
-            raise RuntimeError(
-                "HF_TOKEN is not set in this actor's environment; ensure the "
-                "workload secret is injected on every node."
-            )
+            raise model_access_error()
 
         self.asr = BatchedInferencePipeline(
             WhisperModel(MODEL_SOURCE, device="cuda", compute_type="float16")
@@ -107,11 +135,19 @@ class WhisperDiarizer:
         _orig_load = torch.load
         torch.load = lambda *a, **k: _orig_load(*a, **{**k, "weights_only": False})
         try:
-            self.diarizer = DiarPipeline.from_pretrained(
+            diarizer = DiarPipeline.from_pretrained(
                 DIARIZATION_MODEL, use_auth_token=HF_TOKEN
-            ).to(torch.device("cuda"))
+            )
+        except HfHubHTTPError as error:
+            if error.response is not None and error.response.status_code in (401, 403, 404):
+                raise model_access_error() from error
+            raise
         finally:
             torch.load = _orig_load
+        # pyannote can print an access warning and return None instead of raising.
+        if diarizer is None:
+            raise model_access_error()
+        self.diarizer = diarizer.to(torch.device("cuda"))
 
     def __call__(self, batch: dict) -> dict:
         # batch_size=1 -> one clip per call; columns arrive as length-1 arrays.
@@ -139,13 +175,7 @@ class WhisperDiarizer:
 
 
 def main():
-    if not HF_TOKEN:
-        raise SystemExit(
-            "HF_TOKEN is not set. Provide a Hugging Face token (via a Databricks "
-            "secret in workload.yaml) that has accepted the terms for "
-            f"{DIARIZATION_MODEL}."
-        )
-
+    check_model_access()
     ray.init(address="auto")
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
     if total_gpus < 1:

@@ -18,6 +18,8 @@ code_source:
   root_path: .
 
 command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
   cd $CODE_SOURCE_PATH
   torchrun \
     --nnodes="$NUM_NODES" \

@@ -17,7 +17,7 @@ The video archive and ResNet-18 weights download automatically without a Hugging
 From this recipe directory:
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 Change `epochs` or `hidden_size` under `parameters` to adjust classifier training. `frames_per_video` controls how much of each clip the model sees; more frames require more decoding work and GPU memory.

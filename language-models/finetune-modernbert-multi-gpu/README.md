@@ -9,7 +9,7 @@ Set `parameters.uc_catalog` / `parameters.uc_schema` to a Unity Catalog location
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

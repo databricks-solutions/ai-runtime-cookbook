@@ -1,5 +1,5 @@
 # Fine-tune NVIDIA Kumo-Anomaly for time-series anomaly detection on one A10 GPU.
-# Run from this directory: databricks air run -f workload.yaml
+# Run from this directory: databricks air run -f workload.yaml --watch
 
 experiment_name: air-kumo-anomaly-finetune
 

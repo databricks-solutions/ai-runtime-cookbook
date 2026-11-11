@@ -5,5 +5,5 @@ These recipes share `ray_bootstrap.sh`, which starts and coordinates a multi-nod
 Run each recipe from its leaf directory with the standard command:
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```

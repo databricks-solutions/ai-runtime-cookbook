@@ -17,7 +17,7 @@ The dataset downloads automatically and is licensed under ODC-BY. Review its usa
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

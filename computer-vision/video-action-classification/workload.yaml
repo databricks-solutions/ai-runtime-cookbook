@@ -17,11 +17,10 @@ compute:
 code_source:
   root_path: .
 
-command: python "$CODE_SOURCE_PATH/train.py"
-
-env_variables:
+command: |
   # Use standard Hub downloads without the optional hf_transfer package.
-  HF_HUB_ENABLE_HF_TRANSFER: "0"
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
 
 max_retries: 0
 timeout_minutes: 30

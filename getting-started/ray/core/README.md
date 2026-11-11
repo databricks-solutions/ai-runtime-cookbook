@@ -5,5 +5,5 @@ This recipe starts a Ray cluster on two A10 GPUs and schedules one Ray Core task
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```

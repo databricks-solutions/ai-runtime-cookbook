@@ -16,7 +16,7 @@ block of `workload.yaml` at another writable volume if you cannot use that defau
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 Configure the model, dataset, LoRA rank/alpha, and training hyperparameters in the

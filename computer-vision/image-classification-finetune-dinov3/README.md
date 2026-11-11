@@ -11,7 +11,7 @@ Review the weights' [DINOv3 license](https://ai.meta.com/resources/models-and-li
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

@@ -5,5 +5,5 @@ This recipe uses Ray Train to supervised-fine-tune `Qwen/Qwen2.5-3B` on the firs
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```

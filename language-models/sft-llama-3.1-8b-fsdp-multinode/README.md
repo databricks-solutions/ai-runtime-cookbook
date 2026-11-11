@@ -10,6 +10,8 @@ Set `secrets.HF_TOKEN` in `workload.yaml` to the secret containing the checked t
 
 ## Run
 
+[Select and verify your workspace profile](../../README.md#select-a-workspace-profile) before submitting. Keep that profile selected when [checking status or logs](../../README.md#submit-and-monitor).
+
 ```bash
 python ../../scripts/hf_preflight.py --profile "<profile-name>" \
   --model meta-llama/Llama-3.1-8B

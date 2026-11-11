@@ -13,7 +13,7 @@ In `workload.yaml`, set `parameters.output_root` to an existing Unity Catalog vo
 From the recipe directory, run:
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 For a quick test, set `max_images` to a small number. To compare parallel and serial writes, run once with the default `write_workers` of 32 and again with `write_workers` set to 1. Keep the other settings the same and compare `write_seconds`.
