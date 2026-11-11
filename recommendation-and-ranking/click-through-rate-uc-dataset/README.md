@@ -11,7 +11,7 @@ Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`. `train.py` and the command don't change.

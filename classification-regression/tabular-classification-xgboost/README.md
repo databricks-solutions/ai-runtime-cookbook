@@ -9,7 +9,7 @@ In `workload.yaml`, set `parameters.uc_catalog` and `parameters.uc_schema` to a 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

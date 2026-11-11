@@ -39,7 +39,7 @@ The volume must already exist and be writable. To use another location, update `
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

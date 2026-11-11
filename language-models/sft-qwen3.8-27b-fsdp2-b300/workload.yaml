@@ -14,7 +14,7 @@
 #         that torch, and install transformers + fla.
 #
 # Run it directly on a workspace with 8xB300 access:
-#   databricks air run -f workload.yaml
+#   databricks air run -f workload.yaml --watch
 
 experiment_name: air-b300-qwen3-8-27b-sft
 

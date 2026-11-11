@@ -4,6 +4,8 @@ This is the runnable example corresponding to the [AI Runtime CLI quickstart](ht
 
 ## Run
 
+[Select and verify your workspace profile](../../README.md#select-a-workspace-profile) before submitting. Keep that profile selected when [checking status or logs](../../README.md#submit-and-monitor).
+
 ```bash
 databricks air run --file workload.yaml --watch
 ```

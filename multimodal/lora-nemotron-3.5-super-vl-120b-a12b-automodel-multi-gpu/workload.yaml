@@ -1,5 +1,5 @@
 # Nemotron Super VL LoRA fine-tuning with NVIDIA NeMo AutoModel on one 8x H100 node.
-# Run from this directory: databricks air run -f workload.yaml
+# Run from this directory: databricks air run -f workload.yaml --watch
 
 experiment_name: air-nemotron-super-vl-cord-lora
 

@@ -27,7 +27,7 @@ Full-weight SFT of `Qwen/Qwen3-8B` for invoice/receipt entity extraction — TRL
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 Set `max_steps` to a small positive value for a quick end-to-end smoke test. Sweep by

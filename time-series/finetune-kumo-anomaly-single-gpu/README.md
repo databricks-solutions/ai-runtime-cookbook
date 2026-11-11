@@ -19,7 +19,7 @@ The workload downloads the upstream code, Python packages, model weights, and da
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

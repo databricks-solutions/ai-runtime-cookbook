@@ -11,7 +11,7 @@ selection), and registered to Unity Catalog (a new version per run).
 Hyperparameters/config come from the workload ``parameters:`` block (``$HYPERPARAMETERS_PATH``).
 Run from this recipe's directory:
 
-    databricks air run -f workload.yaml
+    databricks air run -f workload.yaml --watch
 """
 
 import os

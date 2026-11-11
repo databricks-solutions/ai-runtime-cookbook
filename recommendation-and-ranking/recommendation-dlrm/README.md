@@ -22,7 +22,7 @@ The default tables (`hash_size: 1000000`, 64 dimensions) total about 7 GB, so sh
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results

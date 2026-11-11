@@ -5,5 +5,5 @@ This recipe starts a four-GPU Ray cluster and uses Ray Tune with ASHA to search 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```

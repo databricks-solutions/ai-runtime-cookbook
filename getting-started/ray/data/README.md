@@ -5,5 +5,5 @@ This recipe starts a two-node Ray cluster and runs a distributed Ray Data pipeli
 ## Run
 
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```

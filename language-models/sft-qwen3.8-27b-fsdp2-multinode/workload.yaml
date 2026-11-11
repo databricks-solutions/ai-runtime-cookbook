@@ -15,7 +15,7 @@
 #         for its CUDA-13 driver.
 #
 # Run it directly on a 32xH100 (4-node) workspace:
-#   databricks air run -f workload.yaml
+#   databricks air run -f workload.yaml --watch
 
 experiment_name: air-multinode-qwen3-8-27b-sft
 

@@ -147,7 +147,10 @@ def main():
     if len(train_check):
         for msg in train_check[0]["prompt"] + train_check[0]["completion"]:
             print(f"  [{msg['role']}]: {msg['content'][:200]}...")
-    print("\nDone. Data is staged and ready for `databricks air run -f workload.yaml`.")
+    print(
+        "\nDone. Data is staged and ready for "
+        "`databricks air run -f workload.yaml --watch`."
+    )
 
 
 if __name__ == "__main__":

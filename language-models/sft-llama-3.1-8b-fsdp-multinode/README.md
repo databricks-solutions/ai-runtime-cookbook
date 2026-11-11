@@ -8,8 +8,10 @@ Set `HF_TOKEN` in `workload.yaml` to a Databricks secret containing a Hugging Fa
 
 ## Run
 
+[Select and verify your workspace profile](../../README.md#select-a-workspace-profile) before submitting. Keep that profile selected when [checking status or logs](../../README.md#submit-and-monitor).
+
 ```bash
-databricks air run -f workload.yaml
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results
