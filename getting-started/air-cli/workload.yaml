@@ -1,13 +1,11 @@
 experiment_name: python-quickstart
 
 environment:
-  version: 6
-  dependencies:
-    - torch==2.11.0
+  version: databricks_ai_v6
 
 compute:
   num_accelerators: 1
-  accelerator_type: GPU_1xH100
+  accelerator_type: GPU_1xA10
 
 code_source:
   root_path: .
