@@ -44,7 +44,7 @@ databricks air run -f workload.yaml --watch --profile <profile-name>
 ### Submit and monitor
 
 1. `cd` into the recipe directory.
-1. Review `workload.yaml` for values that you need to configure.
+1. Review `workload.yaml` for values that you need to configure. Recipes with `secrets.HF_TOKEN` require [Hugging Face token](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/).
 1. Run the workload with `databricks air run -f workload.yaml --watch`.
 
 For example:
