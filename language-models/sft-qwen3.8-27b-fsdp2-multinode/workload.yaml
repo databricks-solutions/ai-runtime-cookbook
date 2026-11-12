@@ -37,6 +37,17 @@ code_source:
 max_retries: 0
 timeout_minutes: 240
 
+parameters:
+  # Set to a step count, for example 200, to save a resumable checkpoint (model and optimizer state)
+  # every that many steps and at the end of training. Most of each save overlaps with training;
+  # turning this on adds about 5 minutes to the run.
+  checkpoint_every_steps: 0
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  # Checkpoints go under <output_root>/<MLFLOW_RUN_ID>/step-<N>, and only the newest is kept.
+  output_root: /Volumes/main/default/air_examples/sft-qwen3.8-27b-fsdp2-multinode
+  # To resume, set this to a checkpoint directory from an earlier run.
+  resume_from: ""
+
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
