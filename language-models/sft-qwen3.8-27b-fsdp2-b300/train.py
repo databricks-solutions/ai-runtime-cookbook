@@ -7,7 +7,7 @@ A torch + HF-transformers + FSDP2 training loop, one process per GPU via torchru
   - data:   stream UltraChat 200k (SFT), chat-template + tokenize with a response-only loss
             mask (loss on the assistant turns only), and pack into fixed seq-len blocks
   - train:  one full pass over the dataset, logging to the AIR MLflow run, with optional
-            resumable checkpoints (see AsyncCheckpointer)
+            resumable checkpoints
 
 Packing is block-diagonal: examples are concatenated into SEQ_LEN blocks, but no token
 attends across an example boundary. _pack_block derives the per-block signals (position_ids,
@@ -20,7 +20,6 @@ See workload.yaml for the matching environment.
 import logging
 import os
 import shutil
-import threading
 import time
 
 import mlflow
@@ -34,7 +33,6 @@ from datasets import load_dataset
 from datasets.distributed import split_dataset_by_node
 from transformers import AutoModelForImageTextToText, AutoTokenizer
 
-from torch.distributed.checkpoint.staging import DefaultStager, StagingOptions
 from torch.distributed.checkpoint.state_dict import StateDictOptions, get_state_dict, set_state_dict
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
@@ -214,82 +212,12 @@ def build_sharded_model() -> torch.nn.Module:
     return model
 
 
-class AsyncCheckpointer:
-    """Saves resumable checkpoints (this rank's model and optimizer shards) with dcp.async_save,
-    so that most of the cost hides behind training.
-
-    A save first copies the shards from GPU to pinned host memory on a side stream, while the next
-    step's forward and backward run. It then writes them to storage in a background thread while
-    training continues. Only the newest complete checkpoint is kept.
-    """
-
-    def __init__(self, model: torch.nn.Module, opt: torch.optim.Optimizer, root: str):
-        self.model, self.opt, self.root = model, opt, root
-        # The background writes coordinate across ranks over their own CPU (gloo) group, so they
-        # never interleave with the training loop's NCCL collectives.
-        self.group = dist.new_group(backend="gloo")
-        self.stager = None
-        self.staging = None  # future: shards copied to host
-        self.upload = None  # future: checkpoint written to storage
-        self.pending_dir = None  # checkpoint being written
-        self.saved_dir = None  # newest complete checkpoint
-        self.cleanup = None
-
-    def save(self, step: int) -> None:
-        """Start saving the state after `step` steps. Call only after that step has finished on the
-        GPU: the side stream doesn't wait for the compute stream on its own."""
-        self.wait_for_upload()  # one save in flight at a time bounds the host memory used
-        model_sd, optim_sd = get_state_dict(self.model, self.opt)
-        self.pending_dir = f"{self.root}/step-{step}"
-        # A fresh stager per save: torch 2.11's stager can't be reused after it has staged once.
-        self.stager = DefaultStager(
-            StagingOptions(
-                use_pinned_memory=True, use_shared_memory=False, use_async_staging=True, use_non_blocking_copy=True
-            )
-        )
-        response = dcp.async_save(
-            {"model": model_sd, "optim": optim_sd, "step": torch.tensor(step)},
-            checkpoint_id=self.pending_dir,
-            async_stager=self.stager,
-            process_group=self.group,
-        )
-        self.staging, self.upload = response.staging_completion, response.upload_completion
-
-    def before_optimizer_step(self) -> None:
-        """opt.step() updates in place the tensors being copied, so wait for the copy first."""
-        if self.staging is not None:
-            self.staging.result()
-            self.staging = None
-
-    def wait_for_upload(self) -> None:
-        self.before_optimizer_step()
-        if self.upload is None:
-            return
-        self.upload.result()
-        self.upload = None
-        self.stager.close()
-        if RANK == 0:
-            log.info(f"[checkpoint] saved {self.pending_dir}")
-            if self.saved_dir is not None:
-                if self.cleanup is not None:
-                    self.cleanup.join()
-                self.cleanup = threading.Thread(target=shutil.rmtree, args=(self.saved_dir,))
-                self.cleanup.start()
-        self.saved_dir = self.pending_dir
-
-    def close(self) -> None:
-        self.wait_for_upload()
-        if self.cleanup is not None:
-            self.cleanup.join()
-
-
 def load_checkpoint(model: torch.nn.Module, opt: torch.optim.Optimizer, path: str) -> int:
-    """Load a checkpoint saved by AsyncCheckpointer in place and return its step count."""
+    """Load a checkpoint saved by run_training_loop in place and return its step count."""
     # get_state_dict also creates the optimizer state, so the load has tensors to fill.
     model_sd, optim_sd = get_state_dict(model, opt)
-    # Parameters that never get a gradient (here, the vision tower: training is text-only) have
-    # no optimizer state in the checkpoint. Leave them out, so they stay stateless as before;
-    # strict=False lets set_state_dict accept that. dcp.load still requires every model weight.
+    # Training is text-only, so the vision tower never gets a gradient or optimizer state, and
+    # the checkpoint has none for it. Leave it out of the load (and let set_state_dict allow that).
     saved = dcp.FileSystemReader(path).read_metadata().state_dict_metadata
     optim_sd["state"] = {fqn: s for fqn, s in optim_sd["state"].items() if f"optim.state.{fqn}.step" in saved}
     state = {"model": model_sd, "optim": optim_sd, "step": torch.tensor(0)}
@@ -313,10 +241,31 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
     checkpoint_every = int(params.get("checkpoint_every_steps", 0))
     resume_from = params.get("resume_from") or None
     start_step = load_checkpoint(model, opt, resume_from) if resume_from else 0
-    ckpt = None
-    if checkpoint_every > 0:
-        run_id = os.environ.get("MLFLOW_RUN_ID", "local")
-        ckpt = AsyncCheckpointer(model, opt, f"{params['output_root']}/{run_id}")
+    checkpoint_dir = f"{params.get('output_root')}/{os.environ.get('MLFLOW_RUN_ID', 'local')}"
+    pending_save, pending_dir, saved_dir = None, None, None
+
+    def save_checkpoint(step: int) -> None:
+        nonlocal pending_save, pending_dir
+        wait_for_pending_save()  # one save in flight at a time bounds host memory
+        pending_dir = f"{checkpoint_dir}/step-{step}"
+        # async_save copies the state to host memory before it returns, then writes it to
+        # storage in the background while training continues.
+        model_sd, optim_sd = get_state_dict(model, opt)
+        pending_save = dcp.async_save(
+            {"model": model_sd, "optim": optim_sd, "step": torch.tensor(step)}, checkpoint_id=pending_dir
+        )
+
+    def wait_for_pending_save() -> None:
+        nonlocal pending_save, saved_dir
+        if pending_save is None:
+            return
+        pending_save.result()
+        if RANK == 0:
+            log.info(f"[checkpoint] saved {pending_dir}")
+            if saved_dir is not None:
+                shutil.rmtree(saved_dir)  # keep only the newest complete checkpoint
+        pending_save, saved_dir = None, pending_dir
+
     if RANK == 0 and resume_from:
         log.info(f"resumed from {resume_from}; skipping the first {start_step} blocks")
 
@@ -335,7 +284,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
         )
 
     loss = None
-    saved_step = start_step
     loop_start = time.perf_counter()
     for step, (batch, ran_out) in enumerate(data):
         exhausted = bool(ran_out)  # this rank's own flag; its final all-masked block has a NaN loss
@@ -368,8 +316,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             seq_idx=seq_idx,
         )
         out.loss.backward()
-        if ckpt is not None:
-            ckpt.before_optimizer_step()
         opt.step()
         opt.zero_grad(set_to_none=True)
         if not exhausted:
@@ -379,13 +325,11 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             if use_mlflow:
                 mlflow.log_metric("train_loss", loss.item(), step=step + 1)
 
+        if checkpoint_every > 0 and (step + 1) % checkpoint_every == 0:
+            save_checkpoint(step + 1)
         # .item() is a sync point, so check it at the end rather than before the step.
         if ran_out.item():
             break
-        # After the .item() sync, so this step's optimizer update is already on the GPU.
-        if ckpt is not None and (step + 1) % checkpoint_every == 0:
-            ckpt.save(step + 1)
-            saved_step = step + 1
     torch.cuda.synchronize()  # let all queued GPU work finish before we stop the clock
     elapsed = time.perf_counter() - loop_start
     trained = step + 1 - start_step
@@ -397,11 +341,9 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             mlflow.log_metrics(
                 {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
             )
-    if ckpt is not None:
-        # Nothing is left to overlap with, so the final save is the largest cost checkpointing adds.
-        if saved_step != step + 1:
-            ckpt.save(step + 1)
-        ckpt.close()
+    if checkpoint_every > 0 and (step + 1) % checkpoint_every != 0:
+        save_checkpoint(step + 1)  # the final state, unless the last step just saved it
+    wait_for_pending_save()
     if use_mlflow:
         mlflow.end_run()
 
@@ -409,7 +351,8 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
 def main() -> None:
     torch.cuda.set_device(LOCAL_RANK)
     torch.manual_seed(0)
-    dist.init_process_group("nccl")
+    # async_save writes in the background over the CPU (gloo) backend.
+    dist.init_process_group("cpu:gloo,cuda:nccl")
     try:
         model = build_sharded_model()
         tokenizer = AutoTokenizer.from_pretrained(MODEL, revision=MODEL_REVISION)
