@@ -4,16 +4,19 @@ This recipe uses PyTorch FSDP to supervised-fine-tune `meta-llama/Llama-3.1-8B` 
 
 ## Before you run
 
-Complete the [Hugging Face token](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/) for your target workspace. Obtain access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) for the token owner's account, and configure `secrets.HF_TOKEN` in `workload.yaml` with the secret reference (default: `my_scope/hf_token`).
+Request access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) with the token owner's account and wait for approval. Follow the [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/) before your first run in a workspace or with this model. Agents can follow the [preflight guide](../../docs/agents/hugging-face-preflight.md). For an ungated model, use the separate [Qwen2.5 TorchTrainer recipe](../ray-train-sft-qwen2.5-3b-torchtrainer/).
 
-Set `parameters.output_dir` to an existing writable Unity Catalog volume if the default location is unsuitable.
+Set `secrets.HF_TOKEN` in `workload.yaml` to the secret containing the checked token (default `my_scope/hf_token`). Set `parameters.output_dir` to an existing writable Unity Catalog volume if the default location is unsuitable.
 
 ## Run
 
 [Select and verify your workspace profile](../../README.md#select-a-workspace-profile) before submitting. Keep that profile selected when [checking status or logs](../../README.md#submit-and-monitor).
 
 ```bash
-databricks air run -f workload.yaml --watch
+python ../../scripts/hf_preflight.py --profile "<profile-name>" \
+  --model meta-llama/Llama-3.1-8B
+# Submit only after the checks pass and run-as secret access is confirmed.
+databricks air run -f workload.yaml --watch --profile "<profile-name>"
 ```
 
 ## Results

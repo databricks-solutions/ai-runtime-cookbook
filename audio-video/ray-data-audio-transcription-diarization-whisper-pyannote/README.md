@@ -17,15 +17,20 @@ no separate prep step is needed.
    - https://huggingface.co/pyannote/speaker-diarization-3.1
    - https://huggingface.co/pyannote/segmentation-3.0
 
-   Follow the [Hugging Face token](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/)
-   for your target workspace, then set `secrets.HF_TOKEN` in `workload.yaml`
-   to the secret reference (default: `my_scope/hf_token`). The token owner must
-   have access to both models.
+   Store the token in a Databricks secret, then set `secrets.HF_TOKEN` in
+   `workload.yaml` to that `scope/key` (default `my_scope/hf_token`). Follow the
+   [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/)
+   before your first run in a workspace or with these models. Agents can follow the
+   [preflight guide](../../docs/agents/hugging-face-preflight.md).
 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml --watch
+python ../../scripts/hf_preflight.py --profile "<profile-name>" \
+  --model pyannote/speaker-diarization-3.1 \
+  --model pyannote/segmentation-3.0
+# Submit only after both model checks pass and run-as secret access is confirmed.
+databricks air run -f workload.yaml --watch --profile "<profile-name>"
 ```
 
 Configure `WHISPER_MODEL`, `NUM_CLIPS`, `INPUT_DIR`, `OUTPUT_PATH`, and the `HF_TOKEN` secret in

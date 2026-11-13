@@ -9,7 +9,7 @@ Before the first run in a workspace, or after changing profiles, models, tokens,
 3. Check `secrets.HF_TOKEN` in `workload.yaml`. The cookbook default is `my_scope/hf_token`; use another accessible existing reference if needed. AIR injects the referenced value as `HF_TOKEN`.
 4. List key metadata with `databricks secrets list-secrets my_scope --profile <profile>` (substitute the configured scope). Missing keys require secret setup in that workspace; permission errors require the scope owner's help.
 5. Confirm the workload run-as identity has scope `READ` access. Preserve existing `WRITE` or `MANAGE` grants when adjusting permissions; grants cover every secret in the scope.
-6. Confirm the stored token is valid and has model access before submitting the recipe. Metadata checks establish key existence and the CLI identity's ability to list keys; they do not validate the token or another run-as identity's access.
+6. Follow the [preflight guide](hugging-face-preflight.md) to validate the token and every required model before submitting the recipe. Supply the same token stored in Databricks. Metadata checks establish key existence and the CLI identity's ability to list keys; they do not validate the token or another run-as identity's access.
 
 Keep credentials out of source files, YAML, command arguments, shell history, and output. Have the user enter tokens through the hidden `databricks secrets put-secret` prompt; coordinate before replacing a shared key. A local model-access check must use the same token stored in the workspace secret.
 
