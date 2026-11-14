@@ -1,9 +1,10 @@
-"""Create or update a Custom LLM Serving endpoint without waiting."""
+"""Create or update a Custom LLM Serving endpoint, optionally waiting until it serves."""
 
 from __future__ import annotations
 
 import argparse
 import json
+from datetime import timedelta
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import ResourceDoesNotExist
@@ -13,15 +14,23 @@ from databricks.sdk.service.serving import (
     ServingModelWorkloadType,
 )
 
-DEFAULT_ENDPOINT_NAME = "air-cookbook-qwen05b-lora-serving"
+# New GPU endpoints are usually ready within minutes; GPU capacity can take longer.
+WAIT_TIMEOUT = timedelta(minutes=45)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name", required=True, help="Three-level Unity Catalog model name")
     parser.add_argument("--model-version", required=True, help="Exact numeric model version")
-    parser.add_argument("--endpoint-name", default=DEFAULT_ENDPOINT_NAME)
+    parser.add_argument(
+        "--endpoint-name", required=True, help="Serving endpoint name, unique in the workspace"
+    )
     parser.add_argument("--profile", help="Databricks CLI profile")
+    parser.add_argument(
+        "--wait",
+        action="store_true",
+        help="Wait until the endpoint is ready and serves the requested version",
+    )
     return parser.parse_args()
 
 
@@ -96,6 +105,20 @@ def submit_endpoint(client, endpoint_name: str, desired: ServedEntityInput) -> s
     return action
 
 
+def wait_until_serving(client, endpoint_name: str, desired: ServedEntityInput) -> None:
+    # Raises if the update fails, is canceled, or exceeds WAIT_TIMEOUT.
+    endpoint = client.serving_endpoints.wait_get_serving_endpoint_not_updating(
+        endpoint_name, timeout=WAIT_TIMEOUT
+    )
+    current = served_entities(endpoint.config)
+    ready = enum_value(endpoint.state.ready) if endpoint.state else None
+    if ready != "READY" or len(current) != 1 or not entity_matches(current[0], desired):
+        raise RuntimeError(
+            f"Endpoint {endpoint_name} stopped updating without serving "
+            f"{desired.entity_name} version {desired.entity_version}."
+        )
+
+
 def main() -> None:
     args = parse_args()
     desired = ServedEntityInput(
@@ -114,11 +137,15 @@ def main() -> None:
         "model_name": args.model_name,
         "model_version": str(args.model_version),
     }
-    print("DEPLOYMENT_SUBMITTED=" + json.dumps(result, sort_keys=True))
-    print(
-        f"Check readiness with: databricks serving-endpoints get {args.endpoint_name}"
-        + (f" --profile {args.profile}" if args.profile else "")
-    )
+    print("DEPLOYMENT_SUBMITTED=" + json.dumps(result, sort_keys=True), flush=True)
+    if args.wait:
+        wait_until_serving(client, args.endpoint_name, desired)
+        print(f"Endpoint {args.endpoint_name} is ready and serves version {args.model_version}.")
+    else:
+        print(
+            f"Check readiness with: databricks serving-endpoints get {args.endpoint_name}"
+            + (f" --profile {args.profile}" if args.profile else "")
+        )
 
 
 if __name__ == "__main__":

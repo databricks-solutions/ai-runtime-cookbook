@@ -55,28 +55,25 @@ The job returns the exact registered model version. Each registration run create
 
 ### 3. Deploy and query the endpoint
 
-Submit the endpoint create or update using the exact registered version:
+Create or update the endpoint with the exact registered version. Choose an endpoint name that no one else uses in the workspace:
 
 ```bash
 python deploy_endpoint.py \
   --model-name <CATALOG>.<SCHEMA>.<MODEL> \
   --model-version <VERSION> \
   --endpoint-name <ENDPOINT_NAME> \
-  --profile <PROFILE>
+  --profile <PROFILE> \
+  --wait
 ```
 
-The script exits after submitting the change. Check readiness separately:
+With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
 
-```bash
-databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>
-```
-
-Wait until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress. Then send a sample request:
+Send a sample request. It uses the registration smoke-test prompt, so you can compare the answer with `local_vllm_response`:
 
 ```bash
 databricks serving-endpoints query <ENDPOINT_NAME> \
   --profile <PROFILE> \
-  --json '{"messages":[{"role":"user","content":"Explain LoRA in one sentence."}],"max_tokens":64}'
+  --json '{"messages":[{"role":"user","content":"In machine learning, explain Low-Rank Adaptation in one sentence."}],"max_tokens":64}'
 ```
 
 ## Results
