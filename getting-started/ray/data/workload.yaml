@@ -23,3 +23,9 @@ command: |
 
 max_retries: 0
 timeout_minutes: 15
+
+env_variables:
+  # Ray Data's default cluster autoscaler reports no resources until its coordinator
+  # first responds, so short pipelines run one task at a time and warn that they may
+  # hang. V1 sizes the pipeline from the resources of the running cluster.
+  RAY_DATA_CLUSTER_AUTOSCALER: "V1"

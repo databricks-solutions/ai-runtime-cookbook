@@ -1,10 +1,8 @@
 experiment_name: ray-train-hello-world
 
+# databricks_ai_v6 provides Ray 2.56 (with the default, Train, and Tune extras) and PyTorch.
 environment:
-  version: "5"
-  dependencies:
-    - "ray[train]==2.56.1"
-    - torch==2.14.1
+  version: databricks_ai_v6
 
 compute:
   num_accelerators: 2
@@ -24,6 +22,3 @@ command: |
 
 max_retries: 0
 timeout_minutes: 15
-
-env_variables:
-  NCCL_DEBUG: INFO
