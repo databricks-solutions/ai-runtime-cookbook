@@ -25,6 +25,11 @@ dbutils.widgets.text("uc_model_name", "qwen2_5_0_5b_sft")
 training_run_id = dbutils.widgets.get("source_training_run_id").strip()
 if not training_run_id:
     raise ValueError("Set source_training_run_id to a successful AIR MLflow run ID.")
+if training_run_id.isdigit():
+    raise ValueError(
+        f"source_training_run_id {training_run_id} is a job run ID. Pass the MLflow run ID "
+        "instead: mlflow_run_id in the TRAINING_RESULT line of the training logs."
+    )
 
 registered_model_name = ".".join(
     [

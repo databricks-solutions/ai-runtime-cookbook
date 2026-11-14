@@ -38,11 +38,17 @@ From this directory, run:
 databricks air run -f workload.yaml --watch --profile <PROFILE>
 ```
 
-The final `TRAINING_RESULT` contains the MLflow run ID and merged-model path. The weights are saved at `<output_root>/<MLFLOW_RUN_ID>/merged`.
+The final `TRAINING_RESULT` line contains `mlflow_run_id`, which the next stage needs, and the merged-model path. The weights are saved at `<output_root>/<MLFLOW_RUN_ID>/merged`.
+
+The MLflow run ID is a 32-character hexadecimal string. It is not the numeric job run ID that `air run` prints. If you submitted without `--watch`, print the line from the job run's logs:
+
+```bash
+databricks air logs <JOB_RUN_ID> --profile <PROFILE> | grep TRAINING_RESULT
+```
 
 ### 2. Register the model
 
-Pass the successful AIR run ID to the registration job:
+Pass the training run's MLflow run ID to the registration job:
 
 ```bash
 databricks bundle run register_qwen_sft -t dev --profile <PROFILE> \

@@ -15,6 +15,7 @@ import mlflow
 import ninja
 import requests
 from mlflow import MlflowClient
+from mlflow.exceptions import MlflowException
 from mlflow.pyfunc.model import ChatCompletionResponse, ChatModel
 from packaging.version import Version
 
@@ -189,6 +190,15 @@ def register_model(
         source = Path(output_root) / training_run_id / "merged"
     if not (source / "config.json").is_file():
         raise FileNotFoundError(f"Merged model not found at {source}")
+
+    # mlflow.register_model creates the registered model last, after the smoke test and
+    # artifact upload. Creating it first surfaces a missing CREATE MODEL privilege before
+    # any GPU work; register_model then reuses the existing entry.
+    try:
+        client.create_registered_model(registered_model_name)
+    except MlflowException as error:
+        if error.error_code not in ("RESOURCE_ALREADY_EXISTS", "ALREADY_EXISTS"):
+            raise
 
     artifact_name = "qwen_sft"
     served_model_name = registered_model_name.rsplit(".", 1)[-1]
