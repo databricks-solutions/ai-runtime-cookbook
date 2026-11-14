@@ -4,9 +4,25 @@ This recipe trains a click-through-rate model in PyTorch on two nodes with one A
 
 ## Before you run
 
-Create the sample table by running `create_table.sql` once in the SQL editor or a notebook. It writes 1 million synthetic rows to `main.default.air_examples_ctr_features`. To use another catalog or schema, change the table name in `create_table.sql` and `parameters.table` in `workload.yaml`.
+Create the sample table by running `create_table.sql` once. From the CLI, run:
 
-Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` privileges. Reading it requires `USE CATALOG`, `USE SCHEMA`, and `SELECT`. In the Beta, UCDataset reads Delta tables only. It can't read views, materialized views, streaming tables, or tables with row filters or column masks.
+```bash
+databricks experimental aitools tools query --file create_table.sql
+```
+
+The command uses a running SQL warehouse; add `--warehouse <warehouse-id>` to choose one. You can also run the file in the SQL editor or a notebook. It writes 1 million synthetic rows to `main.default.air_examples_ctr_features`. To use another catalog or schema, change the table name in `create_table.sql` and `parameters.table` in `workload.yaml`.
+
+Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` privileges. The workload reads the table as you, which requires `USE CATALOG`, `USE SCHEMA`, and `SELECT`. In the Beta, UCDataset reads Delta tables only. It can't read views, materialized views, streaming tables, or tables with row filters or column masks.
+
+Before you submit, check that you can read the table, so that a wrong name or a missing privilege fails in seconds instead of after the GPUs start:
+
+```bash
+databricks experimental aitools tools query "SELECT COUNT(*) FROM main.default.air_examples_ctr_features"
+```
+
+Unity Catalog reports a table that you can't access as not found, so `TABLE_OR_VIEW_NOT_FOUND` from this check, or `TABLE_DOES_NOT_EXIST` from the run, can also mean a missing privilege.
+
+UCDataset can't read tables in workspaces that restrict serverless network access, even when this check succeeds. In those workspaces, the run fails with `PERMISSION_DENIED: Serverless python and scala notebooks are prohibited from retrieving temporary storage credentials from Unity Catalog in network restricted workspaces`. A workspace admin controls this setting.
 
 ## Run
 
@@ -14,7 +30,7 @@ Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` 
 databricks air run -f workload.yaml --watch
 ```
 
-To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`. `train.py` and the command don't change.
+To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`, and set `parameters.batch_size` to `512` so that each optimizer step still covers 8,192 rows. `train.py` and the command don't change. With 4,096 rows per GPU, each step covers 65,536 rows, the run takes about a sixth as many steps, and `test_loss` ends near the baseline.
 
 ## Results
 
