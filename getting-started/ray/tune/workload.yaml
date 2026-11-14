@@ -11,12 +11,10 @@ compute:
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: ..
-    include_paths:
-      - ray_bootstrap.sh
-      - tune
+  root_path: ..
+  include_paths:
+    - ray_bootstrap.sh
+    - tune
 
 command: |
   cd "$CODE_SOURCE_PATH"
