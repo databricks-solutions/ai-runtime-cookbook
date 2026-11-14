@@ -19,11 +19,12 @@ The Volume and source MLflow run ID form the handoff between stages, so registra
 - Confirm that you can create Model Serving endpoints and use `GPU_MEDIUM` workloads.
 - The Alpaca dataset is licensed CC BY-NC 4.0. Use data with suitable rights for your application.
 
-Deploy the registration job and install the local deployment dependencies once:
+Deploy the registration job and install the local deployment dependencies into a virtual environment once:
 
 ```bash
 databricks bundle deploy -t dev --profile <PROFILE>
-python -m pip install -r requirements-deploy.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-deploy.txt
 ```
 
 Redeploy the bundle after changing its job configuration or registration code.
@@ -58,7 +59,7 @@ The job returns the exact registered model version. Each registration run create
 Submit the endpoint create or update using the exact registered version:
 
 ```bash
-python deploy_endpoint.py \
+.venv/bin/python deploy_endpoint.py \
   --model-name <CATALOG>.<SCHEMA>.<MODEL> \
   --model-version <VERSION> \
   --endpoint-name <ENDPOINT_NAME> \
