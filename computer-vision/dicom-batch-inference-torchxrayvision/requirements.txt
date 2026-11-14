@@ -1,0 +1,10 @@
+mlflow-skinny==3.13.0
+databricks-sdk-air[data]==0.1.2
+# The manylinux_2_28 wheel can abort with a FIPS self-test error on AIR.
+opencv-python-headless@https://files.pythonhosted.org/packages/de/06/14c8c5d331bc72738683a9b227966aceaa4c6d08752f33d64578aebcb6f8/opencv_python_headless-4.14.0.94-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+pydicom==3.0.2
+pylibjpeg==2.1.0
+pylibjpeg-libjpeg==2.5.0
+pylibjpeg-openjpeg==2.6.0
+pyarrow==26.0.1
+torchxrayvision==1.5.7
