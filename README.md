@@ -21,6 +21,7 @@ Before running a recipe, set up the Databricks CLI for a workspace with access t
 
 - Configure the Databricks CLI with AI Runtime ([AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/)).
 - Authenticate to your workspace with `databricks auth login` ([AWS](https://docs.databricks.com/aws/en/dev-tools/cli/authentication) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/cli/authentication)).
+- If you use a coding agent, install the AI Runtime agent skill: `databricks aitools install --skills-only --skills databricks-ai-runtime` ([source](https://github.com/databricks/databricks-agent-skills/tree/main/skills/databricks-ai-runtime)).
 
 ### Select a workspace profile
 
