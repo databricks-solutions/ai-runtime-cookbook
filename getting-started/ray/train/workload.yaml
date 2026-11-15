@@ -1,6 +1,6 @@
 experiment_name: ray-train-hello-world
 
-# databricks_ai_v6 provides Ray 2.56 (with the default, Train, and Tune extras) and PyTorch.
+# databricks_ai_v6 provides Ray 2.56 (with the default, Train, and Tune extras) and PyTorch 2.11 (CUDA 13).
 environment:
   version: databricks_ai_v6
 

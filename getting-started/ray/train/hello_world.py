@@ -51,7 +51,7 @@ def train_loop_per_worker(config):
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-        metrics = {"epoch": epoch, "loss": epoch_loss / len(loader)}
+        metrics = {"epoch": epoch + 1, "loss": epoch_loss / len(loader)}
         ray.train.report(metrics)
     return metrics
 

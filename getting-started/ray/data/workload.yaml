@@ -3,7 +3,8 @@ experiment_name: ray-data-hello-world
 environment:
   version: "5"
   dependencies:
-    - "ray[data]==2.56.1"
+    # Ray Data 2.56 warns that every short pipeline may hang forever; 2.57 warns only after 60 s.
+    - "ray[data]==2.57.1"
 
 compute:
   num_accelerators: 2
@@ -23,10 +24,3 @@ command: |
 
 max_retries: 0
 timeout_minutes: 15
-
-env_variables:
-  # Ray 2.56's default Ray Data autoscaler reports no resources until its coordinator
-  # first responds, so short pipelines run one task at a time and warn that they may
-  # hang. V1 avoids that, but it is deprecated and prints a RayDeprecationWarning;
-  # remove this setting when upgrading Ray past 2.56.1.
-  RAY_DATA_CLUSTER_AUTOSCALER: "V1"
