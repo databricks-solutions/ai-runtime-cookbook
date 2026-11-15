@@ -59,9 +59,10 @@ Registration uses the training run's `merged_model_path` tag, so an `output_root
 
 The job returns the exact registered model version. Each registration run creates a new version, so retrying after registration succeeds can create a duplicate version for the same AIR run.
 
-The job creates the registered model before the smoke test, so a failed run can leave an empty registered model in Unity Catalog. A rerun reuses it. Deleting a registered model also deletes all of its versions, so confirm that it has none before you remove it:
+The job creates the registered model before the smoke test, so a failed run can leave an empty registered model in Unity Catalog. Your rerun reuses it, but only a model's owner can add versions to it, so each user needs their own `model_name` in `databricks.yml`. Deleting a registered model also deletes all of its versions, so list them first and delete the model only if it has none:
 
 ```bash
+databricks model-versions list <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
 databricks registered-models delete <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
 ```
 

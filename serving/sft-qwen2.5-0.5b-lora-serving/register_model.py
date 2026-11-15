@@ -192,7 +192,8 @@ def register_model(
         raise FileNotFoundError(f"Merged model not found at {source}")
 
     # mlflow.register_model creates the registered model first, but this recipe calls it
-    # after the smoke test and upload. Creating it here fails fast without CREATE MODEL.
+    # after the smoke test and upload. Creating it here fails fast without CREATE MODEL,
+    # and the later call accepts the existing model.
     try:
         client.create_registered_model(registered_model_name)
         print(f"Created registered model: {registered_model_name}", flush=True)
