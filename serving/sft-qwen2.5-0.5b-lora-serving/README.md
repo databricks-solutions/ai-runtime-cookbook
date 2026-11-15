@@ -66,7 +66,7 @@ python deploy_endpoint.py \
   --wait
 ```
 
-With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
+With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. It waits up to 45 minutes; if it stops while the update is still in progress, rerun the same command to resume waiting. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
 
 Send a sample request. It uses the registration smoke-test prompt, whose answer appears as `local_vllm_response` in the result that the registration job printed. Sampling is not fixed, so the wording can differ, but the answer should be about Low-Rank Adaptation and comparable to that one:
 

@@ -30,7 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--wait",
         action="store_true",
-        help="Wait until the endpoint is ready and serves the requested version",
+        help="Wait up to 45 minutes for the endpoint to serve the requested version; "
+        "rerunning the same command resumes the wait",
     )
     return parser.parse_args()
 
@@ -168,7 +169,7 @@ def main() -> None:
     if args.wait:
         try:
             wait_until_serving(client, args.endpoint_name, desired, action)
-        except Exception:
+        except (Exception, KeyboardInterrupt):
             # Giving up on the wait doesn't stop the update, and a rerun waits for it again.
             print(readiness_hint, file=sys.stderr)
             print(
