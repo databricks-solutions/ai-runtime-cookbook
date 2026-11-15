@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import timedelta
 
 from databricks.sdk import WorkspaceClient
@@ -52,6 +53,15 @@ def entity_matches(entity, desired: ServedEntityInput) -> bool:
 
 def served_entities(config) -> list:
     return list(config.served_entities or []) if config else []
+
+
+def describe_entity(entity) -> str:
+    scale_to_zero = "on" if entity.scale_to_zero_enabled else "off"
+    return (
+        f"{entity.entity_name} version {entity.entity_version} "
+        f"({enum_value(entity.workload_type)} {entity.workload_size}, "
+        f"scale to zero {scale_to_zero})"
+    )
 
 
 def submit_endpoint(client, endpoint_name: str, desired: ServedEntityInput) -> str:
@@ -105,17 +115,30 @@ def submit_endpoint(client, endpoint_name: str, desired: ServedEntityInput) -> s
     return action
 
 
-def wait_until_serving(client, endpoint_name: str, desired: ServedEntityInput) -> None:
-    # Raises if the update fails, is canceled, or exceeds WAIT_TIMEOUT.
-    endpoint = client.serving_endpoints.wait_get_serving_endpoint_not_updating(
-        endpoint_name, timeout=WAIT_TIMEOUT
-    )
+def wait_until_serving(client, endpoint_name: str, desired: ServedEntityInput, action: str) -> None:
+    # The waiter fails whenever the endpoint reports a failed or canceled update, even one from
+    # before this run, so wait only for an update this run submitted or found in progress.
+    if action == "unchanged":
+        endpoint = client.serving_endpoints.get(endpoint_name)
+    else:
+        endpoint = client.serving_endpoints.wait_get_serving_endpoint_not_updating(
+            endpoint_name, timeout=WAIT_TIMEOUT
+        )
     current = served_entities(endpoint.config)
     ready = enum_value(endpoint.state.ready) if endpoint.state else None
-    if ready != "READY" or len(current) != 1 or not entity_matches(current[0], desired):
+    expected = describe_entity(desired)
+    if len(current) != 1:
         raise RuntimeError(
-            f"Endpoint {endpoint_name} stopped updating without serving "
-            f"{desired.entity_name} version {desired.entity_version}."
+            f"Endpoint {endpoint_name} has {len(current)} active served entities; "
+            f"expected only {expected}."
+        )
+    if not entity_matches(current[0], desired):
+        raise RuntimeError(
+            f"Endpoint {endpoint_name} serves {describe_entity(current[0])}; expected {expected}."
+        )
+    if ready != "READY":
+        raise RuntimeError(
+            f"Endpoint {endpoint_name} serves {expected}, but its state.ready is {ready}."
         )
 
 
@@ -138,14 +161,24 @@ def main() -> None:
         "model_version": str(args.model_version),
     }
     print("DEPLOYMENT_SUBMITTED=" + json.dumps(result, sort_keys=True), flush=True)
+    readiness_hint = (
+        f"Check readiness with: databricks serving-endpoints get {args.endpoint_name}"
+        + (f" --profile {args.profile}" if args.profile else "")
+    )
     if args.wait:
-        wait_until_serving(client, args.endpoint_name, desired)
+        try:
+            wait_until_serving(client, args.endpoint_name, desired, action)
+        except Exception:
+            # Giving up on the wait doesn't stop the update, and a rerun waits for it again.
+            print(readiness_hint, file=sys.stderr)
+            print(
+                "If the update is still in progress, rerun the same command to resume waiting.",
+                file=sys.stderr,
+            )
+            raise
         print(f"Endpoint {args.endpoint_name} is ready and serves version {args.model_version}.")
     else:
-        print(
-            f"Check readiness with: databricks serving-endpoints get {args.endpoint_name}"
-            + (f" --profile {args.profile}" if args.profile else "")
-        )
+        print(readiness_hint)
 
 
 if __name__ == "__main__":

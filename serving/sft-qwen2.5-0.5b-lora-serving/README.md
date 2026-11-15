@@ -8,7 +8,7 @@ The workflow has three separately runnable stages:
 
 1. The AIR CLI runs training and saves merged Hugging Face weights to a Unity Catalog Volume.
 2. A registration-only AI Runtime GPU job loads those weights, smoke-tests them with vLLM, and packages and registers an exact model version.
-3. A local script asynchronously creates or updates a GPU endpoint. Standard Databricks CLI commands report readiness and query the endpoint.
+3. A local script creates or updates a GPU endpoint and, with `--wait`, returns once it serves the requested version. A Databricks CLI command queries the endpoint.
 
 The Volume and source MLflow run ID form the handoff between stages, so registration or deployment can be retried without repeating training.
 
@@ -68,7 +68,7 @@ python deploy_endpoint.py \
 
 With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
 
-Send a sample request. It uses the registration smoke-test prompt, so you can compare the answer with `local_vllm_response`:
+Send a sample request. It uses the registration smoke-test prompt, whose answer appears as `local_vllm_response` in the result that the registration job printed. Sampling is not fixed, so the wording can differ, but the answer should be about Low-Rank Adaptation and comparable to that one:
 
 ```bash
 databricks serving-endpoints query <ENDPOINT_NAME> \
