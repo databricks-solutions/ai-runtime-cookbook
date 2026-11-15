@@ -48,7 +48,7 @@ databricks air logs <JOB_RUN_ID> --profile <PROFILE> | grep TRAINING_RESULT
 
 ### 2. Register the model
 
-Pass the training run's MLflow run ID to the registration job:
+Pass the MLflow run ID of a successful training run to the registration job:
 
 ```bash
 databricks bundle run register_qwen_sft -t dev --profile <PROFILE> \
@@ -58,6 +58,12 @@ databricks bundle run register_qwen_sft -t dev --profile <PROFILE> \
 Registration uses the training run's `merged_model_path` tag, so an `output_root` override during training carries through automatically. For runs without that tag, it uses `<output_root>/<MLFLOW_RUN_ID>/merged` from the current `workload.yaml`.
 
 The job returns the exact registered model version. Each registration run creates a new version, so retrying after registration succeeds can create a duplicate version for the same AIR run.
+
+The job creates the registered model before the smoke test, so a failed run can leave an empty registered model in Unity Catalog. A rerun reuses it. Deleting a registered model also deletes all of its versions, so confirm that it has none before you remove it:
+
+```bash
+databricks registered-models delete <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
+```
 
 ### 3. Deploy and query the endpoint
 

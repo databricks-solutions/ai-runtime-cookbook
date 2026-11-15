@@ -191,11 +191,11 @@ def register_model(
     if not (source / "config.json").is_file():
         raise FileNotFoundError(f"Merged model not found at {source}")
 
-    # mlflow.register_model creates the registered model last, after the smoke test and
-    # artifact upload. Creating it first surfaces a missing CREATE MODEL privilege before
-    # any GPU work; register_model then reuses the existing entry.
+    # mlflow.register_model creates the registered model first, but this recipe calls it
+    # after the smoke test and upload. Creating it here fails fast without CREATE MODEL.
     try:
         client.create_registered_model(registered_model_name)
+        print(f"Created registered model: {registered_model_name}", flush=True)
     except MlflowException as error:
         if error.error_code not in ("RESOURCE_ALREADY_EXISTS", "ALREADY_EXISTS"):
             raise
