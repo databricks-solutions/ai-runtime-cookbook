@@ -6,7 +6,6 @@ Ray Train's TorchTrainer. Ray Train places the workers across the cluster
 uses `ray.train.torch` helpers to move the model/data to the right device.
 """
 
-import logging
 import os
 
 import ray
@@ -42,6 +41,7 @@ def train_loop_per_worker(config):
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
     loss_fn = nn.CrossEntropyLoss()
 
+    metrics = None
     for epoch in range(config["epochs"]):
         model.train()
         epoch_loss = 0.0
@@ -53,12 +53,7 @@ def train_loop_per_worker(config):
             epoch_loss += loss.item()
         metrics = {"epoch": epoch, "loss": epoch_loss / len(loader)}
         ray.train.report(metrics)
-
-    # Result.metrics only holds metrics reported with a checkpoint, so the rank 0
-    # worker logs the final metrics itself. Ray Train echoes print() output from
-    # workers twice, so this uses logging instead.
-    if ray.train.get_context().get_world_rank() == 0:
-        logging.getLogger(__name__).info("Final metrics: %s", metrics)
+    return metrics
 
 
 trainer = TorchTrainer(
@@ -67,7 +62,9 @@ trainer = TorchTrainer(
     scaling_config=ScalingConfig(num_workers=total_gpus, use_gpu=True),
 )
 
-trainer.fit()
-print("\nTraining finished.")
+# Result.metrics only holds metrics reported with a checkpoint, so the final metrics
+# come from the rank 0 worker's return value.
+result = trainer.fit()
+print(f"\nTraining finished. Final metrics: {result.return_value}")
 
 ray.shutdown()

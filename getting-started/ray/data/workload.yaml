@@ -25,7 +25,8 @@ max_retries: 0
 timeout_minutes: 15
 
 env_variables:
-  # Ray Data's default cluster autoscaler reports no resources until its coordinator
+  # Ray 2.56's default Ray Data autoscaler reports no resources until its coordinator
   # first responds, so short pipelines run one task at a time and warn that they may
-  # hang. V1 sizes the pipeline from the resources of the running cluster.
+  # hang. V1 avoids that, but it is deprecated and prints a RayDeprecationWarning;
+  # remove this setting when upgrading Ray past 2.56.1.
   RAY_DATA_CLUSTER_AUTOSCALER: "V1"
