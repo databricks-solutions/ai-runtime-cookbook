@@ -33,7 +33,7 @@ export DATABRICKS_CONFIG_PROFILE="<profile-name>"
 databricks auth describe
 ```
 
-Check the host in `auth describe` before submitting a workload. Keep this variable set so submit, status, and log commands use the same workspace. Without a selected profile, the CLI uses the `DEFAULT` profile. See [configuration profiles](https://docs.databricks.com/aws/en/dev-tools/cli/profiles) for profile setup.
+Check the host in `auth describe` before submitting a workload. Keep this variable set so submit, status, and log commands use the same workspace. Without a selected profile, the CLI uses your default profile, which `databricks auth profiles` marks as `(Default)`. It is the `DEFAULT` profile unless you changed it with `databricks auth switch`. See [configuration profiles](https://docs.databricks.com/aws/en/dev-tools/cli/profiles) for profile setup.
 
 To override this selection, pass `--profile <profile-name>`. Use the same override when monitoring that run:
 
