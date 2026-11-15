@@ -14,7 +14,7 @@ fi
 ENTRYPOINT_PATH="$CODE_SOURCE_PATH/$RAY_ENTRYPOINT"
 if [ ! -f "$ENTRYPOINT_PATH" ] && [ ! -f "$ENTRYPOINT_PATH/__main__.py" ]; then
   echo "RAY_ENTRYPOINT file not found: $ENTRYPOINT_PATH" >&2
-  echo "Set RAY_ENTRYPOINT to a file that code_source packages (check root_path and include_paths)," >&2
+  echo "Set RAY_ENTRYPOINT to a file, or a directory with __main__.py, that code_source packages (check root_path and include_paths)," >&2
   echo "and pass arguments after the script: RAY_ENTRYPOINT=<file> bash ray_bootstrap.sh --arg value" >&2
   exit 1
 fi
