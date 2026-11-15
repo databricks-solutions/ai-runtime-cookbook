@@ -20,9 +20,7 @@ Before you submit, check that you can read the table, so that a wrong name or a 
 databricks experimental aitools tools query "SELECT COUNT(*) FROM main.default.air_examples_ctr_features"
 ```
 
-Unity Catalog reports a table that you can't access as not found, so `TABLE_OR_VIEW_NOT_FOUND` from this check, or `TABLE_DOES_NOT_EXIST` from the run, can also mean a missing privilege.
-
-UCDataset can't read tables in workspaces that restrict serverless network access, even when this check succeeds. In those workspaces, the run fails with `PERMISSION_DENIED: Serverless python and scala notebooks are prohibited from retrieving temporary storage credentials from Unity Catalog in network restricted workspaces`. A workspace admin controls this setting.
+UCDataset can't read tables in workspaces that restrict serverless network access, even when this check succeeds. In those workspaces, the run fails with `PERMISSION_DENIED: Serverless python and scala notebooks are prohibited from retrieving temporary storage credentials from Unity Catalog in network restricted workspaces`. An account admin controls this through the workspace's serverless network policy.
 
 ## Run
 
