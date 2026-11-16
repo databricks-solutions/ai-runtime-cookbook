@@ -1,0 +1,56 @@
+# Preference tuning (DPO) then GRPO reinforcement learning with Hugging Face TRL on one A10.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-trl-dpo-grpo-qwen25-05b
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - transformers==5.22.2
+    - trl==1.17.1
+    - peft==0.21.2
+    - accelerate==1.15.0
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10   # any single GPU works; use GPU_1xH100 for larger models
+
+code_source:
+  root_path: .
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 120
+
+parameters:
+  model_name: Qwen/Qwen2.5-0.5B-Instruct   # public; no Hugging Face token needed
+  lora_r: 16
+  # Stage 1: DPO on UltraFeedback preference pairs.
+  dpo_samples: 2000
+  dpo_batch_size: 4
+  dpo_grad_accum: 4
+  dpo_learning_rate: 0.00005
+  dpo_beta: 0.1
+  dpo_max_length: 1024
+  # Stage 2: GRPO on GSM8K with a correctness + format reward.
+  grpo_samples: 2000
+  grpo_steps: 40
+  grpo_batch_size: 16          # completions per step; must be divisible by grpo_num_generations
+  grpo_num_generations: 8      # completions sampled per prompt (the "group" in GRPO)
+  grpo_learning_rate: 0.00002
+  grpo_loss_type: dapo         # TRL also supports grpo, dr_grpo and bnpo
+  max_completion_length: 320
+  # GSM8K test questions used for the before/after accuracy check.
+  eval_samples: 200
+  eval_batch_size: 50
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/trl-dpo-grpo-qwen2.5-0.5b
