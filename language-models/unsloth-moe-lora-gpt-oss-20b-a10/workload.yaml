@@ -1,0 +1,50 @@
+# QLoRA fine-tuning of gpt-oss-20b (a 21B-parameter mixture-of-experts model) on one 24 GB A10
+# with Unsloth. Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-unsloth-gpt-oss-20b-qlora
+
+environment:
+  version: "5"
+  dependencies:
+    # Unsloth pins its own compatible transformers, TRL and datasets ranges.
+    - torch==2.14.1
+    - unsloth==2026.11.4
+    - unsloth_zoo==2026.11.4
+    # Unsloth needs datasets < 5. These versions work together with it.
+    - datasets==4.8.5
+    - huggingface_hub==1.33.0
+    - fsspec==2026.2.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+env_variables:
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 90
+
+parameters:
+  model_name: unsloth/gpt-oss-20b   # public; no Hugging Face token needed
+  max_seq_length: 1024
+  lora_r: 8
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  dataset_name: HuggingFaceH4/Multilingual-Thinking
+  batch_size: 1
+  grad_accum: 4
+  max_steps: 30
+  learning_rate: 0.0002
+  sample_prompt: "Solve x^5 + 3x^4 - 10 = 3."
+  save_adapter: false
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/unsloth-moe-lora-gpt-oss-20b-a10
