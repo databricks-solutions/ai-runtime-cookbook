@@ -1,0 +1,45 @@
+# Mixture-of-experts pretraining with expert parallelism (EP) + FSDP using torchtitan on one
+# 8xH100 node. Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-torchtitan-qwen3-moe-ep
+
+environment:
+  version: "5"
+  dependencies:
+    # torchtitan 0.4.0 is aligned with PyTorch 2.15.
+    - torch==2.15.0
+    - torchtitan==0.4.0
+    # torchtitan needs datasets < 4.8. These versions work together with it.
+    - datasets==4.7.0
+    - huggingface_hub==1.33.0
+    - fsspec==2026.2.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  root_path: .
+
+env_variables:
+  PYTORCH_ALLOC_CONF: "expandable_segments:True"
+  # Each GPU holds 128 / 8 = 16 of each layer's experts; tokens are exchanged with all-to-all.
+  EXPERT_PARALLEL_DEGREE: "8"
+  TENSOR_PARALLEL_DEGREE: "1"
+  # 12 of the 48 Qwen3-30B-A3B layers: 8.1B total and 1.0B active parameters.
+  NUM_LAYERS: "12"
+  SEQ_LEN: "4096"
+  MICRO_BATCH_SIZE: "2"
+  STEPS: "100"
+  LEARNING_RATE: "0.0003"
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  OUTPUT_ROOT: /Volumes/main/default/air_examples/torchtitan-moe-expert-parallel-8xh100
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  bash "$CODE_SOURCE_PATH/train.sh"
+
+max_retries: 0
+timeout_minutes: 90
