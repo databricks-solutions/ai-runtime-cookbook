@@ -19,7 +19,6 @@ See workload.yaml for the matching environment.
 
 import logging
 import os
-import shutil
 import time
 
 import mlflow
@@ -242,29 +241,7 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
     resume_from = params.get("resume_from") or None
     start_step = load_checkpoint(model, opt, resume_from) if resume_from else 0
     checkpoint_dir = f"{params.get('output_root')}/{os.environ.get('MLFLOW_RUN_ID', 'local')}"
-    pending_save, pending_dir, saved_dir = None, None, None
-
-    def save_checkpoint(step: int) -> None:
-        nonlocal pending_save, pending_dir
-        wait_for_pending_save()  # one save in flight at a time bounds host memory
-        pending_dir = f"{checkpoint_dir}/step-{step}"
-        # async_save copies the state to host memory before it returns, then writes it to
-        # storage in the background while training continues.
-        model_sd, optim_sd = get_state_dict(model, opt)
-        pending_save = dcp.async_save(
-            {"model": model_sd, "optim": optim_sd, "step": torch.tensor(step)}, checkpoint_id=pending_dir
-        )
-
-    def wait_for_pending_save() -> None:
-        nonlocal pending_save, saved_dir
-        if pending_save is None:
-            return
-        pending_save.result()
-        if RANK == 0:
-            log.info(f"[checkpoint] saved {pending_dir}")
-            if saved_dir is not None:
-                shutil.rmtree(saved_dir)  # keep only the newest complete checkpoint
-        pending_save, saved_dir = None, pending_dir
+    pending_save = None
 
     if RANK == 0 and resume_from:
         log.info(f"resumed from {resume_from}; skipping the first {start_step} blocks")
@@ -325,10 +302,19 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             if use_mlflow:
                 mlflow.log_metric("train_loss", loss.item(), step=step + 1)
 
-        if checkpoint_every > 0 and (step + 1) % checkpoint_every == 0:
-            save_checkpoint(step + 1)
         # .item() is a sync point, so check it at the end rather than before the step.
-        if ran_out.item():
+        done = bool(ran_out.item())
+        if checkpoint_every > 0 and ((step + 1) % checkpoint_every == 0 or done):
+            if done and pending_save is not None:
+                pending_save.result()  # the last periodic save may be only a few steps back
+            # async_save copies the state to host memory before it returns, then writes it to
+            # storage in the background while training continues.
+            model_sd, optim_sd = get_state_dict(model, opt)
+            pending_save = dcp.async_save(
+                {"model": model_sd, "optim": optim_sd, "step": torch.tensor(step + 1)},
+                checkpoint_id=f"{checkpoint_dir}/step-{step + 1}",
+            )
+        if done:
             break
     torch.cuda.synchronize()  # let all queued GPU work finish before we stop the clock
     elapsed = time.perf_counter() - loop_start
@@ -341,9 +327,8 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             mlflow.log_metrics(
                 {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
             )
-    if checkpoint_every > 0 and (step + 1) % checkpoint_every != 0:
-        save_checkpoint(step + 1)  # the final state, unless the last step just saved it
-    wait_for_pending_save()
+    if pending_save is not None:
+        pending_save.result()  # don't exit before the final checkpoint is fully written
     if use_mlflow:
         mlflow.end_run()
 
