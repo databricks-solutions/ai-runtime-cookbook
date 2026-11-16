@@ -1,0 +1,58 @@
+# Compare bf16, FP8 and NVFP4 (4-bit) training throughput and loss with NVIDIA Transformer
+# Engine on one 8xB300 node. Each precision trains the same 2B-parameter Llama-style model on
+# its own GPU, in parallel. Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-te-fp8-nvfp4-b300
+
+environment:
+  # B300 requires environment version 6 or later (CUDA 13, Blackwell-ready PyTorch).
+  version: databricks_ai_v6
+  dependencies: []
+
+compute:
+  accelerator_type: GPU_8xB300
+  num_accelerators: 8
+
+code_source:
+  root_path: .
+
+env_variables:
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+  # The cuDNN fused-attention kernel fails on B300 with the cuDNN in this environment, so
+  # TE uses FlashAttention instead. Attention runs in bf16 for every precision either way.
+  NVTE_FUSED_ATTN: "0"
+  NVTE_FLASH_ATTN: "1"
+  # One precision per GPU. NVFP4 and MXFP8 need Blackwell; on H100 use "bf16 fp8_current".
+  PRECISIONS: "bf16 fp8_current mxfp8 nvfp4"
+  # Optional: a volume directory that caches the compiled TE binding between runs.
+  TE_WHEEL_CACHE: /Volumes/main/default/air_examples/transformer-engine-fp8-nvfp4-b300/te_wheels
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  set -e
+  cd "$CODE_SOURCE_PATH"
+  bash install_transformer_engine.sh
+  # The environment's transformers needs huggingface_hub < 2; these versions work with it.
+  python -m pip install --no-cache-dir datasets==4.8.5 huggingface_hub==1.33.0 fsspec==2026.2.0
+  bash run_all.sh
+
+max_retries: 0
+timeout_minutes: 120
+
+parameters:
+  # Llama-style decoder, about 2.2B parameters including embeddings.
+  hidden_size: 4096
+  ffn_hidden_size: 14336
+  num_heads: 32
+  num_kv_heads: 8
+  num_layers: 8
+  vocab_size: 50304
+  tokenizer: openai-community/gpt2
+  seq_len: 4096
+  micro_batch_size: 4
+  warmup_steps: 10   # excluded from timing (kernel selection, allocator warm-up)
+  steps: 200
+  learning_rate: 0.0003
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/transformer-engine-fp8-nvfp4-b300
