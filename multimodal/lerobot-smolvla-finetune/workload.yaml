@@ -1,0 +1,42 @@
+# Fine-tune SmolVLA, a 450M-parameter vision-language-action (VLA) robot policy, on SO-100
+# pick-and-place demonstrations with Hugging Face LeRobot on one H100.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-lerobot-smolvla-so100
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - lerobot[smolvla,dataset]==0.7.0
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+    # LeRobot needs opencv-python-headless < 4.14. Its manylinux_2_28 wheels bundle an
+    # OpenSSL build that aborts with "FATAL FIPS SELFTEST FAILURE" on AI Runtime,
+    # so pin the x86_64 manylinux2014 wheel, which bundles a compatible OpenSSL.
+    - opencv-python-headless@https://files.pythonhosted.org/packages/92/ce/bd17ff5772938267fd49716e94ca24f616ff4cb1ff4c6be13085108037be/opencv_python_headless-4.13.0.92-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xH100   # SmolVLA also fits a 24 GB A10 with a smaller batch_size
+
+code_source:
+  root_path: .
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  bash "$CODE_SOURCE_PATH/train.sh"
+
+max_retries: 0
+timeout_minutes: 90
+
+parameters:
+  policy_path: lerobot/smolvla_base            # public pretrained VLA; no token needed
+  dataset_repo_id: lerobot/svla_so100_pickplace  # 50 teleoperated SO-100 arm episodes
+  batch_size: 64
+  steps: 2000
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/lerobot-smolvla-finetune
