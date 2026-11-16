@@ -312,7 +312,9 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
     torch.cuda.synchronize()  # let all queued GPU work finish before we stop the clock
     elapsed = time.perf_counter() - loop_start
     trained = step + 1 - start_step
-    if RANK == 0:
+    if RANK == 0 and trained == 0:
+        log.info(f"[train] {resume_from} is already at the end of the data; nothing left to train")
+    elif RANK == 0:
         log.info(
             f"[train] {trained} steps in {elapsed:.2f}s ({elapsed / trained:.2f}s/step), final loss={loss.item():.3f}"
         )
