@@ -1,0 +1,59 @@
+# DreamBooth LoRA fine-tuning of the Z-Image text-to-image model on one H100, then batch image
+# generation with and without the LoRA. Run from this directory:
+#   databricks air run -f workload.yaml --watch
+
+experiment_name: air-z-image-dreambooth-lora
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - torchvision==0.29.2
+    - diffusers==0.42.1
+    - transformers==5.22.2
+    - accelerate==1.15.0
+    - peft==0.21.2
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - tensorboard==2.21.0
+    - ftfy==6.3.1
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xH100
+
+code_source:
+  root_path: .
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  bash "$CODE_SOURCE_PATH/train.sh"
+
+max_retries: 0
+timeout_minutes: 90
+
+parameters:
+  model_name: Tongyi-MAI/Z-Image   # public 6B model; no Hugging Face token needed
+  diffusers_tag: v0.42.1           # training script version; keep in step with diffusers above
+  instance_prompt: a photo of sks dog
+  resolution: 768
+  lora_rank: 16
+  learning_rate: 0.0001
+  max_train_steps: 300
+  # Batch generation after training.
+  batch_size: 4
+  num_inference_steps: 30
+  generation_guidance_scale: 4.0
+  prompts:
+    - "{subject} sitting in a red bucket"
+    - "{subject} wearing a tiny astronaut helmet on the moon"
+    - "a watercolor painting of {subject} in a garden"
+    - "{subject} sleeping on a couch, cinematic lighting"
+    - "{subject} running on a beach at sunset"
+    - "a pencil sketch of {subject}"
+    - "{subject} as a knight in shining armor"
+    - "{subject} in a snowy forest"
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/diffusion-lora-z-image-batch-generation

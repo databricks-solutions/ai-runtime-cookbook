@@ -1,0 +1,47 @@
+# PDF -> Markdown document OCR with olmOCR 2 and vLLM offline batch inference on one H100.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-olmocr2-pdf-to-markdown
+
+environment:
+  version: "5"
+  dependencies:
+    - vllm==0.33.0
+    - transformers==5.20.2
+    - pypdfium2==5.15.2
+    - huggingface_hub==2.4.0
+    - mlflow-skinny==3.8.1
+    # vllm needs opencv-python-headless>=4.13. Its manylinux_2_28 wheels bundle an
+    # OpenSSL build that aborts with "FATAL FIPS SELFTEST FAILURE" on AI Runtime,
+    # so pin the x86_64 manylinux2014 wheel, which bundles a compatible OpenSSL.
+    - opencv-python-headless@https://files.pythonhosted.org/packages/de/06/14c8c5d331bc72738683a9b227966aceaa4c6d08752f33d64578aebcb6f8/opencv_python_headless-4.14.0.94-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xH100
+
+code_source:
+  root_path: .
+
+env_variables:
+  # Use vLLM's PyTorch sampler. The default FlashInfer sampler JIT-compiles a CUDA
+  # kernel at startup and needs CUDA headers (curand.h) that this environment lacks.
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/ocr.py"
+
+max_retries: 0
+timeout_minutes: 60
+
+parameters:
+  model_name: allenai/olmOCR-2-7B-1025-FP8   # public; FP8 runs natively on H100
+  # Sample PDFs from the public olmOCR-Bench dataset (one page each).
+  pdf_categories: [tables, multi_column, old_scans]
+  max_pdfs: 300
+  target_longest_image_dim: 1288   # olmOCR 2's training resolution
+  max_tokens: 8000
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/document-ocr-olmocr2-vllm
