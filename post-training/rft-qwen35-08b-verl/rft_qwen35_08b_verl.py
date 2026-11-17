@@ -1,7 +1,7 @@
 """CLI example of GRPO with Qwen3.5-0.8B, verl, and vLLM on one 8xH100 node.
 
 Run with databricks air run -f workload.yaml. AIR supplies HYPERPARAMETERS_PATH
-and MLFLOW_RUN_ID; this script logs to that attempt's run.
+and MLFLOW_RUN_ID, and this script logs to that attempt's run.
 """
 
 import json
@@ -191,7 +191,7 @@ def train(config, run_id, training_steps):
 
     runtime_env = get_ppo_ray_runtime_env(config)
     runtime_env["py_executable"] = sys.executable
-    # Pass session credentials only to workers; never persist them in config.yaml.
+    # Pass session credentials to the workers only. Never save them in config.yaml.
     runtime_env["env_vars"].update(get_databricks_env_vars("databricks"))
     runtime_env["env_vars"].update({
         "MLFLOW_TRACKING_URI": "databricks",
@@ -200,11 +200,11 @@ def train(config, run_id, training_steps):
         "MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING": "false",
     })
     try:
-        # A single CLI process starts local Ray; verl allocates its own GPU workers.
+        # One CLI process starts local Ray, and verl allocates its own GPU workers.
         ray.init(num_gpus=8, runtime_env=runtime_env)
         gpu_count = ray.cluster_resources().get("GPU", 0)
         if gpu_count != 8:
-            raise RuntimeError(f"Ray sees {gpu_count} GPUs; expected 8.")
+            raise RuntimeError(f"Ray sees {gpu_count} GPUs, but this recipe needs 8.")
         print("Ray worker check:", ray.get(check_worker_environment.remote(run_id)), flush=True)
         run_ppo(config, task_runner_class=TaskRunnerV1)
         history = mlflow.MlflowClient().get_metric_history(run_id, "critic/score/mean")
@@ -267,10 +267,13 @@ def main():
         len(output_root.parts) < 5 or output_root.parts[:2] != ("/", "Volumes")
         or ".." in output_root.parts or any(char in str(output_root) for char in "<>")
     ):
-        raise ValueError("Set output_root to a folder in an existing Unity Catalog volume.")
+        raise ValueError("Set parameters.output_root in workload.yaml to a folder in a Unity Catalog volume.")
     volume_root = Path(*output_root.parts[:5])
     if not volume_root.is_dir():
-        raise ValueError(f"Volume not accessible: {volume_root}. Check the path and your permissions.")
+        raise ValueError(
+            f"Volume not accessible: {volume_root}. Set parameters.output_root in workload.yaml "
+            "to a Unity Catalog volume that exists and that you can write to."
+        )
 
     run_id = os.environ["MLFLOW_RUN_ID"]
     run_dir = output_root / run_id
@@ -298,7 +301,7 @@ def main():
                 try:
                     mlflow.log_artifacts(str(run_dir / "validation"), artifact_path="validation")
                 except Exception as error:
-                    print(f"Could not upload validation artifacts; they remain in {run_dir}: {error}", flush=True)
+                    print(f"Could not upload validation artifacts. They remain in {run_dir}: {error}", flush=True)
 
 
 if __name__ == "__main__":
