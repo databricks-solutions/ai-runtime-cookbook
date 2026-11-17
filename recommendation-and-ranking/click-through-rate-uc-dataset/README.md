@@ -4,9 +4,25 @@ This recipe trains a click-through-rate model in PyTorch on two nodes with one A
 
 ## Before you run
 
-Create the sample table by running `create_table.sql` once in the SQL editor or a notebook. It writes 1 million synthetic rows to `main.default.air_examples_ctr_features`. To use another catalog or schema, change the table name in `create_table.sql` and `parameters.table` in `workload.yaml`.
+Create the sample table by running `create_table.sql` once. From the CLI, run the following command. It's experimental and can change between CLI releases (tested with Databricks CLI v1.26.0):
 
-Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` privileges. Reading it requires `USE CATALOG`, `USE SCHEMA`, and `SELECT`. In the Beta, UCDataset reads Delta tables only. It can't read views, materialized views, streaming tables, or tables with row filters or column masks.
+```bash
+databricks experimental aitools tools query --file create_table.sql
+```
+
+The command needs a SQL warehouse that you can use, and it picks one unless you add `--warehouse <warehouse-id>`. You can also run the file in the SQL editor or a notebook. It writes 1 million synthetic rows to `main.default.air_examples_ctr_features` and leaves an existing table with that name unchanged. To use another catalog or schema, change the table name in `create_table.sql` and `parameters.table` in `workload.yaml`.
+
+Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` privileges. The workload reads the table as you, which requires `USE CATALOG`, `USE SCHEMA`, and `SELECT`. In the Beta, UCDataset reads Delta tables only. It can't read views, materialized views, streaming tables, or tables with row filters or column masks.
+
+Before you submit, check the table in `parameters.table` with the same profile that you submit with, so that a wrong name or a missing privilege fails in seconds instead of after the GPUs start. If you renamed the table, use that name:
+
+```bash
+databricks experimental aitools tools query 'SELECT split, COUNT(*) FROM main.default.air_examples_ctr_features WHERE label IS NOT NULL GROUP BY split'
+```
+
+The query also fails if the `split` or `label` column is missing, and it shows how many rows each split has. It doesn't detect the table types that UCDataset can't read, listed above.
+
+UCDataset can't read tables in workspaces whose serverless network policy limits outbound access, even when this check succeeds. In those workspaces, the run fails with `PERMISSION_DENIED: Serverless python and scala notebooks are prohibited from retrieving temporary storage credentials from Unity Catalog in network restricted workspaces`. An account admin controls this through the workspace's serverless network policy.
 
 ## Run
 
@@ -14,7 +30,7 @@ Creating the table requires the `USE CATALOG`, `USE SCHEMA`, and `CREATE TABLE` 
 databricks air run -f workload.yaml --watch
 ```
 
-To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`. `train.py` and the command don't change.
+To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`, and set `parameters.batch_size` to `512`. `batch_size` is per GPU, so this keeps the global batch at 8,192 rows, the same as two GPUs at 4,096. For other GPU counts, set it to 8,192 divided by `num_accelerators`. `train.py` and the command don't change. If you leave `batch_size` at 4,096, the global batch is 65,536 rows and an epoch takes about 18 optimizer steps instead of about 102.
 
 ## Results
 

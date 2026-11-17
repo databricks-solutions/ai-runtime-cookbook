@@ -1,22 +1,18 @@
 experiment_name: ray-tune-hello-world
 
+# databricks_ai_v6 provides Ray 2.56 (with the default, Train, and Tune extras) and PyTorch 2.11 (CUDA 13).
 environment:
-  version: "5"
-  dependencies:
-    - "ray[tune]==2.56.1"
-    - torch==2.14.1
+  version: databricks_ai_v6
 
 compute:
   num_accelerators: 4
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: ..
-    include_paths:
-      - ray_bootstrap.sh
-      - tune
+  root_path: ..
+  include_paths:
+    - ray_bootstrap.sh
+    - tune
 
 command: |
   cd "$CODE_SOURCE_PATH"

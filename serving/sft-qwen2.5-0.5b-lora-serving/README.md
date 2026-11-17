@@ -8,7 +8,7 @@ The workflow has three separately runnable stages:
 
 1. The AIR CLI runs training and saves merged Hugging Face weights to a Unity Catalog Volume.
 2. A registration-only AI Runtime GPU job loads those weights, smoke-tests them with vLLM, and packages and registers an exact model version.
-3. A local script asynchronously creates or updates a GPU endpoint. Standard Databricks CLI commands report readiness and query the endpoint.
+3. A local script creates or updates a GPU endpoint and, with `--wait`, returns once it serves the requested version. A Databricks CLI command queries the endpoint.
 
 The Volume and source MLflow run ID form the handoff between stages, so registration or deployment can be retried without repeating training.
 
@@ -19,12 +19,15 @@ The Volume and source MLflow run ID form the handoff between stages, so registra
 - Confirm that you can create Model Serving endpoints and use `GPU_MEDIUM` workloads.
 - The Alpaca dataset is licensed CC BY-NC 4.0. Use data with suitable rights for your application.
 
-Deploy the registration job and install the local deployment dependencies once:
+Installing the local deployment dependencies requires Python 3.10 or later with the `venv` module. On Debian or Ubuntu, first run `sudo apt install python3-venv`. Then deploy the registration job and install the dependencies into a virtual environment once:
 
 ```bash
 databricks bundle deploy -t dev --profile <PROFILE>
-python -m pip install -r requirements-deploy.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-deploy.txt
 ```
+
+These commands are written for macOS and Linux. On Windows, the virtual environment's interpreter is `.venv\Scripts\python`; use it in place of `.venv/bin/python` here and in stage 3.
 
 Redeploy the bundle after changing its job configuration or registration code.
 
@@ -73,28 +76,25 @@ databricks registered-models delete <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFIL
 
 ### 3. Deploy and query the endpoint
 
-Submit the endpoint create or update using the exact registered version:
+Create or update the endpoint with the exact registered version. Choose an endpoint name that no one else uses in the workspace:
 
 ```bash
-python deploy_endpoint.py \
+.venv/bin/python deploy_endpoint.py \
   --model-name <CATALOG>.<SCHEMA>.<MODEL> \
   --model-version <VERSION> \
   --endpoint-name <ENDPOINT_NAME> \
-  --profile <PROFILE>
+  --profile <PROFILE> \
+  --wait
 ```
 
-The script exits after submitting the change. Check readiness separately:
+With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. It waits up to 45 minutes; if it stops while the update is still in progress, rerun the same command to resume waiting. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
 
-```bash
-databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>
-```
-
-Wait until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress. Then send a sample request:
+Send a sample request. It uses the registration smoke-test prompt, whose answer appears as `local_vllm_response` in the result that the registration job printed. Sampling is not fixed, so the wording can differ, but the answer should be about Low-Rank Adaptation and comparable to that one:
 
 ```bash
 databricks serving-endpoints query <ENDPOINT_NAME> \
   --profile <PROFILE> \
-  --json '{"messages":[{"role":"user","content":"Explain LoRA in one sentence."}],"max_tokens":64}'
+  --json '{"messages":[{"role":"user","content":"In machine learning, explain Low-Rank Adaptation in one sentence."}],"max_tokens":64}'
 ```
 
 ## Results

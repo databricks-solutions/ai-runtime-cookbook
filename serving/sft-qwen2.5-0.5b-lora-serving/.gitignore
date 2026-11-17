@@ -1,0 +1,3 @@
+# Keeps .venv out of AIR code snapshots and bundle sync even outside a clone
+# of this repository, where the root .gitignore does not apply.
+.venv/

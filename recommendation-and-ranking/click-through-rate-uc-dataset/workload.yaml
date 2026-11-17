@@ -4,6 +4,7 @@ environment:
   version: databricks_ai_v6
   dependencies:
     - databricks-uc-dataset==0.0.1b1
+    - "databricks-sdk-air[data]==0.1.2"
 
 compute:
   num_accelerators: 2

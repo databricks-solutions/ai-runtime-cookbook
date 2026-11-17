@@ -3,19 +3,18 @@ experiment_name: ray-data-hello-world
 environment:
   version: "5"
   dependencies:
-    - "ray[data]==2.56.1"
+    # Ray Data 2.56 warns at once that a short pipeline may hang. 2.57 warns only after an operator waits 60 s.
+    - "ray[data]==2.57.1"
 
 compute:
   num_accelerators: 2
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: ..
-    include_paths:
-      - ray_bootstrap.sh
-      - data
+  root_path: ..
+  include_paths:
+    - ray_bootstrap.sh
+    - data
 
 command: |
   cd "$CODE_SOURCE_PATH"

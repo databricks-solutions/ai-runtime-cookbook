@@ -1,1 +1,1 @@
-databricks-sdk==0.122.0
+databricks-sdk==0.166.0

@@ -42,6 +42,14 @@ Keep recipes independent:
 - Commands must execute against the recipe snapshot and must not depend on files outside the recipe. Reference bundled files through `$CODE_SOURCE_PATH`, or `cd "$CODE_SOURCE_PATH"` and then use relative paths.
 - Use absolute paths for external locations such as Unity Catalog volumes.
 
+The introductory Ray recipes under `getting-started/ray/` are an exception. They share `getting-started/ray/ray_bootstrap.sh`. Each sets `code_source.root_path` to `..` and lists the bootstrap and its own directory in `code_source.include_paths`. Other Ray recipes keep their own copy of `ray_bootstrap.sh`. Keep every copy identical to the shared one. To check every copy, including untracked ones, run this from the repository root:
+
+```bash
+git ls-files --cached --others --exclude-standard '*ray_bootstrap.sh' | xargs -n1 cmp getting-started/ray/ray_bootstrap.sh
+```
+
+It prints nothing when every copy matches.
+
 ### Configuration and public safety
 
 Put values that users must configure in `workload.yaml`. Choose where each value goes:

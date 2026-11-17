@@ -1,9 +1,11 @@
-"""Create or update a Custom LLM Serving endpoint without waiting."""
+"""Create or update a Custom LLM Serving endpoint, optionally waiting until it serves."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
+from datetime import timedelta
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import ResourceDoesNotExist
@@ -13,15 +15,24 @@ from databricks.sdk.service.serving import (
     ServingModelWorkloadType,
 )
 
-DEFAULT_ENDPOINT_NAME = "air-cookbook-qwen05b-lora-serving"
+# New GPU endpoints are usually ready within minutes; GPU capacity can take longer.
+WAIT_TIMEOUT = timedelta(minutes=45)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name", required=True, help="Three-level Unity Catalog model name")
     parser.add_argument("--model-version", required=True, help="Exact numeric model version")
-    parser.add_argument("--endpoint-name", default=DEFAULT_ENDPOINT_NAME)
+    parser.add_argument(
+        "--endpoint-name", required=True, help="Serving endpoint name, unique in the workspace"
+    )
     parser.add_argument("--profile", help="Databricks CLI profile")
+    parser.add_argument(
+        "--wait",
+        action="store_true",
+        help="Wait up to 45 minutes for the endpoint to serve the requested version; "
+        "rerunning the same command resumes the wait",
+    )
     return parser.parse_args()
 
 
@@ -43,6 +54,15 @@ def entity_matches(entity, desired: ServedEntityInput) -> bool:
 
 def served_entities(config) -> list:
     return list(config.served_entities or []) if config else []
+
+
+def describe_entity(entity) -> str:
+    scale_to_zero = "on" if entity.scale_to_zero_enabled else "off"
+    return (
+        f"{entity.entity_name} version {entity.entity_version} "
+        f"({enum_value(entity.workload_type)} {entity.workload_size}, "
+        f"scale to zero {scale_to_zero})"
+    )
 
 
 def submit_endpoint(client, endpoint_name: str, desired: ServedEntityInput) -> str:
@@ -96,6 +116,33 @@ def submit_endpoint(client, endpoint_name: str, desired: ServedEntityInput) -> s
     return action
 
 
+def wait_until_serving(client, endpoint_name: str, desired: ServedEntityInput, action: str) -> None:
+    # The waiter fails whenever the endpoint reports a failed or canceled update, even one from
+    # before this run, so wait only for an update this run submitted or found in progress.
+    if action == "unchanged":
+        endpoint = client.serving_endpoints.get(endpoint_name)
+    else:
+        endpoint = client.serving_endpoints.wait_get_serving_endpoint_not_updating(
+            endpoint_name, timeout=WAIT_TIMEOUT
+        )
+    current = served_entities(endpoint.config)
+    ready = enum_value(endpoint.state.ready) if endpoint.state else None
+    expected = describe_entity(desired)
+    if len(current) != 1:
+        raise RuntimeError(
+            f"Endpoint {endpoint_name} has {len(current)} active served entities; "
+            f"expected only {expected}."
+        )
+    if not entity_matches(current[0], desired):
+        raise RuntimeError(
+            f"Endpoint {endpoint_name} serves {describe_entity(current[0])}; expected {expected}."
+        )
+    if ready != "READY":
+        raise RuntimeError(
+            f"Endpoint {endpoint_name} serves {expected}, but its state.ready is {ready}."
+        )
+
+
 def main() -> None:
     args = parse_args()
     desired = ServedEntityInput(
@@ -114,11 +161,30 @@ def main() -> None:
         "model_name": args.model_name,
         "model_version": str(args.model_version),
     }
-    print("DEPLOYMENT_SUBMITTED=" + json.dumps(result, sort_keys=True))
-    print(
+    print("DEPLOYMENT_SUBMITTED=" + json.dumps(result, sort_keys=True), flush=True)
+    readiness_hint = (
         f"Check readiness with: databricks serving-endpoints get {args.endpoint_name}"
         + (f" --profile {args.profile}" if args.profile else "")
     )
+    if args.wait:
+        try:
+            wait_until_serving(client, args.endpoint_name, desired, action)
+        except (Exception, KeyboardInterrupt) as error:
+            # Giving up on the wait doesn't stop the update, and a rerun waits for it again.
+            interrupted = isinstance(error, KeyboardInterrupt)
+            print(
+                "Interrupted." if interrupted else f"Error: {str(error) or type(error).__name__}",
+                file=sys.stderr,
+            )
+            print(readiness_hint, file=sys.stderr)
+            print(
+                "If the update is still in progress, rerun the same command to resume waiting.",
+                file=sys.stderr,
+            )
+            sys.exit(130 if interrupted else 1)
+        print(f"Endpoint {args.endpoint_name} is ready and serves version {args.model_version}.")
+    else:
+        print(readiness_hint)
 
 
 if __name__ == "__main__":
