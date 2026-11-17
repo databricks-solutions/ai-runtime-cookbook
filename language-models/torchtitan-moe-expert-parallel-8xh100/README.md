@@ -14,7 +14,7 @@ To change the parallel layout, edit `EXPERT_PARALLEL_DEGREE`, `TENSOR_PARALLEL_D
 
 ## Results
 
-The run prints torchtitan's step metrics. It writes `summary.json` (final loss, tokens/s and TFLOPs per GPU, and all logged steps) to `<OUTPUT_ROOT>/<MLflow run ID>/` and logs the summary to MLflow.
+The run prints torchtitan's step metrics. It writes `summary.json` (final loss, tokens/s and TFLOPs per GPU, and all logged steps) to `<OUTPUT_ROOT>/<MLflow run ID>/`. It also logs the summary metrics to the MLflow run and uploads `summary.json` and the rank 0 training log (`logs/train.log`) as run artifacts.
 
 A validation run on 8xH100 produced these results:
 
@@ -26,5 +26,5 @@ A validation run on 8xH100 produced these results:
 
 Notes:
 
-- `train.sh` clones torchtitan tag `v0.4.0`. The `torchtitan_recipes` package and the tokenizer download script are in the GitHub repository, not in the pip wheel.
+- The workload command clones torchtitan tag `v0.4.0`. The `torchtitan_recipes` package and the tokenizer download script are in the GitHub repository, not in the pip wheel.
 - The config uses PyTorch FlexAttention because torchtitan's default `varlen` backend needs FlashAttention 3, which the environment doesn't include.

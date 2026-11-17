@@ -1,4 +1,4 @@
-"""Pull loss, tokens/s and memory from torchtitan's step log lines and save them."""
+"""Pull loss, tokens/s and memory from torchtitan's step log lines, save them, and upload the log."""
 
 import json
 import os
@@ -31,5 +31,7 @@ try:
 
     with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
         mlflow.log_metrics({k: v for k, v in summary.items() if v is not None})
+        mlflow.log_artifact(sys.argv[1], artifact_path="logs")
+        mlflow.log_artifact(str(out / "summary.json"))
 except Exception as e:  # MLflow logging is optional for the recipe.
     print(f"MLflow logging skipped: {e}")
