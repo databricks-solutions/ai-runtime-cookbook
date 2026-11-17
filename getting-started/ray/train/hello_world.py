@@ -41,6 +41,7 @@ def train_loop_per_worker(config):
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
     loss_fn = nn.CrossEntropyLoss()
 
+    metrics = None
     for epoch in range(config["epochs"]):
         model.train()
         epoch_loss = 0.0
@@ -50,8 +51,9 @@ def train_loop_per_worker(config):
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-        # ray.train.report surfaces metrics back to the driver.
-        ray.train.report({"epoch": epoch, "loss": epoch_loss / len(loader)})
+        metrics = {"epoch": epoch + 1, "loss": epoch_loss / len(loader)}
+        ray.train.report(metrics)
+    return metrics
 
 
 trainer = TorchTrainer(
@@ -60,9 +62,9 @@ trainer = TorchTrainer(
     scaling_config=ScalingConfig(num_workers=total_gpus, use_gpu=True),
 )
 
+# Result.metrics only holds metrics reported with a checkpoint, so the final metrics
+# come from the rank 0 worker's return value.
 result = trainer.fit()
-# result.metrics holds the last reported dict (may be None if nothing was
-# reported on the final iteration); fall back to a plain message.
-print(f"\nTraining finished. Final metrics: {result.metrics or 'see per-worker logs above'}")
+print(f"\nTraining finished. Final metrics: {result.return_value}")
 
 ray.shutdown()

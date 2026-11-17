@@ -1,22 +1,18 @@
 experiment_name: ray-train-hello-world
 
+# databricks_ai_v6 provides Ray 2.56 (with the default, Train, and Tune extras) and PyTorch 2.11 (CUDA 13).
 environment:
-  version: "5"
-  dependencies:
-    - "ray[train]==2.56.1"
-    - torch==2.14.1
+  version: databricks_ai_v6
 
 compute:
   num_accelerators: 2
   accelerator_type: GPU_1xA10
 
 code_source:
-  type: snapshot
-  snapshot:
-    root_path: ..
-    include_paths:
-      - ray_bootstrap.sh
-      - train
+  root_path: ..
+  include_paths:
+    - ray_bootstrap.sh
+    - train
 
 command: |
   cd "$CODE_SOURCE_PATH"
@@ -24,6 +20,3 @@ command: |
 
 max_retries: 0
 timeout_minutes: 15
-
-env_variables:
-  NCCL_DEBUG: INFO

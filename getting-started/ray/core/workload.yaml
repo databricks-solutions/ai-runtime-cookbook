@@ -21,6 +21,3 @@ command: |
 
 max_retries: 0
 timeout_minutes: 15
-
-env_variables:
-  NCCL_DEBUG: INFO

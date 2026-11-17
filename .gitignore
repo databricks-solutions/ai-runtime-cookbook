@@ -1,0 +1,6 @@
+# Local Python environments and bytecode
+.venv/
+__pycache__/
+
+# Databricks CLI: bundle state and project-scoped agent skill files
+.databricks/

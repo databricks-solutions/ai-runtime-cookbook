@@ -1,8 +1,21 @@
 #!/bin/bash
+# Starts a Ray cluster across the workload's nodes and runs RAY_ENTRYPOINT on the
+# head node. Arguments after the script name are passed to the entry point:
+#   RAY_ENTRYPOINT=<file> bash ray_bootstrap.sh --flag value
 set -euo pipefail
 
 if [ -z "${RAY_ENTRYPOINT:-}" ]; then
   echo "RAY_ENTRYPOINT is not set; expected a path relative to CODE_SOURCE_PATH." >&2
+  exit 1
+fi
+
+# Check before starting Ray: a missing entry point would otherwise fail only after
+# every node has joined the cluster.
+ENTRYPOINT_PATH="$CODE_SOURCE_PATH/$RAY_ENTRYPOINT"
+if [ ! -f "$ENTRYPOINT_PATH" ] && [ ! -f "$ENTRYPOINT_PATH/__main__.py" ]; then
+  echo "RAY_ENTRYPOINT file not found: $ENTRYPOINT_PATH" >&2
+  echo "Set RAY_ENTRYPOINT to a file, or a directory with __main__.py, that code_source packages (check root_path and include_paths)," >&2
+  echo "and pass arguments after the script: RAY_ENTRYPOINT=<file> bash ray_bootstrap.sh --arg value" >&2
   exit 1
 fi
 
@@ -51,8 +64,13 @@ else:
     )
 PY
 
-  echo "Running ${RAY_ENTRYPOINT} on the Ray head..."
-  python "$CODE_SOURCE_PATH/$RAY_ENTRYPOINT"
+  # Log only the argument count: arguments can carry values that should not be logged.
+  if [ "$#" -gt 0 ]; then
+    echo "Running ${RAY_ENTRYPOINT} with $# argument(s) on the Ray head..."
+  else
+    echo "Running ${RAY_ENTRYPOINT} on the Ray head..."
+  fi
+  python "$ENTRYPOINT_PATH" "$@"
 else
   trap stop_local_ray EXIT
 
