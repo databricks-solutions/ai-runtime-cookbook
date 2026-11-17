@@ -5,6 +5,7 @@ import os
 import time
 from pathlib import Path
 
+import mlflow
 import torch
 import yaml
 from diffusers import ZImagePipeline
@@ -33,7 +34,7 @@ def generate(pipe, prompts, out_dir):
 
 def main():
     prompts = [p.format(subject=P["instance_prompt"].removeprefix("a photo of ")) for p in P["prompts"]]
-    out = Path(P["output_root"]) / os.environ.get("MLFLOW_RUN_ID", "local")
+    out = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
     pipe = ZImagePipeline.from_pretrained(P["model_name"], torch_dtype=torch.bfloat16).to("cuda")
 
     base_s = generate(pipe, prompts, out / "without_lora")
@@ -48,13 +49,8 @@ def main():
     (out / lora_file.name).write_bytes(lora_file.read_bytes())
     print(json.dumps(stats, indent=2))
     print(f"Wrote images and the LoRA weights to {out}")
-    try:
-        import mlflow
-
-        with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
-            mlflow.log_metrics(stats)
-    except Exception as e:  # MLflow logging is optional for the recipe.
-        print(f"MLflow logging skipped: {e}")
+    with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
+        mlflow.log_metrics(stats)
 
 
 if __name__ == "__main__":
