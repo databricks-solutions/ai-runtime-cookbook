@@ -2,7 +2,7 @@
 
   python generate.py teacher            -> sample teacher solutions for GSM8K train questions,
                                            keep the ones with a correct final answer
-  python generate.py eval <model> <tag> -> greedy GSM8K test accuracy for a model
+  python generate.py eval student_before|student_after -> greedy GSM8K test accuracy for the student
 """
 
 import json
@@ -46,7 +46,8 @@ def teacher():
     Path(f"{WORK}/teacher_stats.json").write_text(json.dumps(stats))
 
 
-def evaluate(model, tag):
+def evaluate(tag):
+    model = P["student_model"] if tag == "student_before" else f"{WORK}/student"
     ds = load_dataset("openai/gsm8k", "main", split="test").select(range(P["num_eval_questions"]))
     llm = LLM(model=model, max_model_len=4096, gpu_memory_utilization=0.85)
     outs = llm.chat([messages(q) for q in ds["question"]],
@@ -62,4 +63,4 @@ if __name__ == "__main__":
     if sys.argv[1] == "teacher":
         teacher()
     else:
-        evaluate(sys.argv[2], sys.argv[3])
+        evaluate(sys.argv[2])

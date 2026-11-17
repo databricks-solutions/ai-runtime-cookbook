@@ -12,6 +12,9 @@ environment:
     - transformers==5.20.2
     - trl==1.17.1
     - accelerate==1.15.0
+    # The environment's huggingface_hub breaks load_dataset with newer fsspec releases
+    # ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
+    # These versions work together.
     - datasets==5.2.0
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
@@ -34,7 +37,7 @@ env_variables:
   VLLM_USE_FLASHINFER_SAMPLER: "0"
 
 command: |
-  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   bash "$CODE_SOURCE_PATH/run.sh"
 
