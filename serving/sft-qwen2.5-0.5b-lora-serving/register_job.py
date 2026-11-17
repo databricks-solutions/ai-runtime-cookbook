@@ -24,7 +24,9 @@ dbutils.widgets.text("uc_model_name", "qwen2_5_0_5b_sft")
 
 training_run_id = dbutils.widgets.get("source_training_run_id").strip()
 if not training_run_id:
-    raise ValueError("Set source_training_run_id to a successful AIR MLflow run ID.")
+    raise ValueError(
+        "Set source_training_run_id to the MLflow run ID of a successful training run."
+    )
 # Job run IDs have at most 19 digits; a 32-character MLflow run ID can be all digits.
 if training_run_id.isdigit() and len(training_run_id) != 32:
     raise ValueError(

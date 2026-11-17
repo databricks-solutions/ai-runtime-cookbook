@@ -57,12 +57,17 @@ databricks bundle run register_qwen_sft -t dev --profile <PROFILE> \
 
 Registration uses the training run's `merged_model_path` tag, so an `output_root` override during training carries through automatically. For runs without that tag, it uses `<output_root>/<MLFLOW_RUN_ID>/merged` from the current `workload.yaml`.
 
-The job returns the exact registered model version. Each registration run creates a new version, so retrying after registration succeeds can create a duplicate version for the same AIR run.
+The job returns the exact registered model version. Each registration run creates a new version, so retrying after registration succeeds can create a duplicate version for the same training run.
 
-The job creates the registered model before the smoke test, so a failed run can leave an empty registered model in Unity Catalog. Your rerun reuses it, but only a model's owner can add versions to it, so each user needs their own `model_name` in `databricks.yml`. Deleting a registered model also deletes all of its versions, so list them first and delete the model only if it has none:
+The job creates the registered model before the smoke test, so a failed run can leave an empty registered model in Unity Catalog. Your rerun reuses it, but only a model's owner can add versions to it, so each user needs their own `model_name` in `databricks.yml`. Deleting a registered model also deletes all of its versions, so list them first:
 
 ```bash
 databricks model-versions list <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
+```
+
+If the list is empty, delete the model:
+
+```bash
 databricks registered-models delete <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
 ```
 
@@ -94,4 +99,4 @@ databricks serving-endpoints query <ENDPOINT_NAME> \
 
 ## Results
 
-The AIR MLflow run contains training parameters, loss metrics, the LoRA adapter, and lineage to the registered model. The endpoint serves the exact model version supplied to `deploy_endpoint.py` with scale to zero enabled.
+The MLflow run from stage 1 contains training parameters, loss metrics, the LoRA adapter, and lineage to the registered model. The endpoint serves the exact model version supplied to `deploy_endpoint.py` with scale to zero enabled.
