@@ -41,14 +41,14 @@ command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
 
-  # torchtitan's recipes package and tokenizer script live in the repository, not the wheel.
+  # The tokenizer download script is in the torchtitan repository, not the wheel.
   git clone --depth 1 --branch v0.4.0 https://github.com/pytorch/torchtitan.git /tmp/torchtitan
   export HF_ASSETS_PATH=/tmp/hf_assets/Qwen3-30B-A3B
   python /tmp/torchtitan/scripts/download_hf_assets.py --repo_id Qwen/Qwen3-30B-A3B \
     --assets tokenizer --local_dir /tmp/hf_assets
 
   # One process per GPU. Rank 0's output goes to the workload logs and /tmp/train.log.
-  export PYTHONPATH="$CODE_SOURCE_PATH:/tmp/torchtitan:${PYTHONPATH:-}"
+  export PYTHONPATH="$CODE_SOURCE_PATH:${PYTHONPATH:-}"
   torchrun --nproc_per_node="$(nvidia-smi -L | wc -l)" --rdzv_backend c10d --rdzv_endpoint=localhost:0 \
     --local-ranks-filter 0 --role rank --tee 3 \
     -m torchtitan.train --module moe_ep --config qwen3_moe_ep \

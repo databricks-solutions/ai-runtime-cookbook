@@ -10,7 +10,7 @@ Experts are split across the 8 GPUs with expert parallelism (EP=8, 16 experts pe
 databricks air run -f workload.yaml --watch
 ```
 
-To change the parallel layout, edit `EXPERT_PARALLEL_DEGREE`, `TENSOR_PARALLEL_DEGREE` or `NUM_LAYERS` in `workload.yaml`. `moe_ep.py` is a torchtitan config module. You can extend it with pipeline or context parallelism.
+`EXPERT_PARALLEL_DEGREE`, `TENSOR_PARALLEL_DEGREE` and `NUM_LAYERS` in `workload.yaml` set the layout. Only the default layout (EP=8, TP=1, 12 layers) has been validated. Raising `TENSOR_PARALLEL_DEGREE` leaves fewer data-parallel ranks, which lowers the tokens per step.
 
 ## Results
 
@@ -26,5 +26,5 @@ A validation run on 8xH100 produced these results:
 
 Notes:
 
-- The workload command clones torchtitan tag `v0.4.0`. The `torchtitan_recipes` package and the tokenizer download script are in the GitHub repository, not in the pip wheel.
+- The workload command clones torchtitan tag `v0.4.0` only to run its tokenizer download script, which isn't in the pip wheel. The training code comes from the pinned `torchtitan` wheel.
 - The config uses PyTorch FlexAttention because torchtitan's default `varlen` backend needs FlashAttention 3, which the environment doesn't include.
