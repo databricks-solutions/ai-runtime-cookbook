@@ -12,18 +12,18 @@ databricks air run -f workload.yaml --watch
 
 ## Results
 
-The run prints throughput and GSM8K accuracy for both models. It writes `generations_bf16.jsonl` and `generations_quantized.jsonl` to `<output_root>/<MLflow run ID>/` and logs the metrics to MLflow.
+The run prints throughput and GSM8K accuracy for both models. It writes `generations_bf16.jsonl` and `generations_quantized.jsonl` to `<output_root>/<MLflow run ID>/`. `summarize.py` logs the throughput, speedup and accuracy metrics to the MLflow run.
 
 Validation runs on 8xB300 produced these results:
 
 | Model | Weights | Output tokens/s | Speedup | GSM8K accuracy |
 |---|---|---|---|---|
-| Qwen3-32B bf16 | 65.5 GB | 9,191 | 1.00× | 93.3% |
-| Qwen3-32B NVFP4 | 20.7 GB | 14,277 | 1.55× | 92.6% |
+| Qwen3-32B bf16 | 65.5 GB | 9,628 | 1.00× | 93.4% |
+| Qwen3-32B NVFP4 | 20.7 GB | 14,190 | 1.47× | 92.6% |
 | Qwen3-8B bf16 | 16.4 GB | 32,557 | 1.00× | 90.9% |
 | Qwen3-8B NVFP4 | 6.4 GB | 26,951 | 0.83× | 88.6% |
 
-In these runs, NVFP4 was 1.55× faster for Qwen3-32B but slower than bf16 for Qwen3-8B. For a small model on B300, expect NVFP4 to save memory rather than time. Set `model_name: Qwen/Qwen3-8B` to reproduce the smaller comparison.
+An earlier Qwen3-32B run measured a 1.55× speedup, so expect some run-to-run variation. NVFP4 was faster for Qwen3-32B but slower than bf16 for Qwen3-8B. For a small model on B300, expect NVFP4 to save memory rather than time. Set `model_name: Qwen/Qwen3-8B` to reproduce the smaller comparison.
 
 Notes on the environment:
 
