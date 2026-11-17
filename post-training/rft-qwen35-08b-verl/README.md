@@ -6,7 +6,7 @@ The task is [GSM8K](https://huggingface.co/datasets/openai/gsm8k), a set of grad
 
 Training runs 5 steps on one 8x H100 node. Each step samples 4 responses for each of 32 prompts and scores all 128. The recipe measures greedy accuracy on 32 held-out problems before and after training. The workload takes about 11 minutes.
 
-To use your own task, replace the GSM8K data and scoring in `rft_qwen35_08b_verl.py`. verl's `reward.custom_reward_function` setting takes your own scoring function. For the ideas behind RL tasks and rewards, see [Reinforcement learning for language models](rl-intro.md).
+To use your own task, replace the GSM8K data in `rft_qwen35_08b_verl.py` and add your scoring function through verl's `reward.custom_reward_function` setting. The recipe doesn't set it because verl has a built-in GSM8K scorer. For the ideas behind RL tasks and rewards, see [Reinforcement learning for language models](rl-intro.md).
 
 ## Before you run
 
@@ -18,18 +18,18 @@ To use your own task, replace the GSM8K data and scoring in `rft_qwen35_08b_verl
 databricks air run -f workload.yaml
 ```
 
-Training settings live in the `parameters` block of `workload.yaml`. To train longer, raise `training_steps` and `train_examples` together.
+Training settings live in the `parameters` block of `workload.yaml`. To train longer, raise `training_steps`. Keep `train_examples` at least `training_steps` × `prompts_per_step`, and raise `timeout_minutes` (60 by default) to match.
 
 ## Results
 
 The AIR MLflow run records the mean training reward (`critic/score/mean`), the mean response length (`response_length/mean`), and validation accuracy before and after training (`accuracy_before` and `accuracy_after`).
 
-Five steps check that the loop works, but they're too few to change accuracy reliably. In our test runs, the mean training reward rose from about 0.25 to about 0.45 over the 5 steps, and validation accuracy moved by 0 to 3 of 32 questions (model revision `2fc0636`).
+Five steps check that the loop works, but they're too few to change accuracy reliably. In 4 test runs, the mean training reward rose from about 0.25 to about 0.4 over the 5 steps, and validation accuracy rose by 0 to 3 of 32 questions (model revision `2fc0636`).
 
 Each run also writes to `<output_root>/<MLFLOW_RUN_ID>/`:
 
 - `validation_comparison.jsonl`: each validation question with its answers and scores before and after training.
 - `rollouts/<step>.jsonl`: every sampled training response with its reward.
-- `checkpoints/global_step_5/actor/huggingface/`: the trained model. Qwen3.5 has a vision encoder, so load it with `AutoModelForImageTextToText.from_pretrained(path)`.
+- `checkpoints/global_step_<training_steps>/actor/huggingface/`: the trained model. Qwen3.5 has a vision encoder, so load it with `AutoModelForImageTextToText.from_pretrained(path)`.
 
 The checkpoints take several GB. Delete the run folder when you no longer need them.

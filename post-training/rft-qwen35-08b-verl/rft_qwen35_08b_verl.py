@@ -18,7 +18,7 @@ import yaml
 
 
 def check_opencv_wheel():
-    # Check metadata before importing cv2: the other wheel can abort Python.
+    # Check metadata before importing cv2, because the manylinux_2_28 wheel can abort Python.
     package = distribution("opencv-python-headless")
     tags = (package.read_text("WHEEL") or "").splitlines()
     if package.version != "4.13.0.92" or "Tag: cp37-abi3-manylinux2014_x86_64" not in tags:
@@ -67,7 +67,9 @@ def prepare_data(params, run_dir, model_path):
             if len(prompt_ids) > params["max_prompt_tokens"]:
                 continue
             rows.append({
-                "data_source": params["dataset_id"],
+                # verl picks its built-in GSM8K reward from this name, even if dataset_id
+                # points to a mirror. For another task, set reward.custom_reward_function.
+                "data_source": "openai/gsm8k",
                 "prompt": prompt,
                 "ability": "math",
                 "reward_model": {"style": "rule", "ground_truth": reference},
@@ -116,7 +118,7 @@ def build_config(params, run_dir, model_path, train_path, val_path):
     with initialize_config_dir(config_dir=str(config_dir), version_base=None):
         config = compose(config_name="ppo_trainer", overrides=[
             "algorithm.adv_estimator=grpo",
-            "actor_rollout_ref.actor.use_kl_loss=False",  # No reference model.
+            "actor_rollout_ref.actor.use_kl_loss=False",  # No KL loss, so no reference model.
             f"data.train_files=[{json.dumps(str(train_path))}]",
             f"data.val_files=[{json.dumps(str(val_path))}]",
             f"data.train_batch_size={params['prompts_per_step']}",

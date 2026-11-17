@@ -3,11 +3,12 @@ experiment_name: rft-qwen35-08b-verl
 environment:
   # AI v6 provides PyTorch 2.11.0 with CUDA 13 and vLLM 0.24.0.
   version: databricks_ai_v6
-  # Every package is pinned, so new upstream releases can't change the install.
-  # Don't add a date cutoff such as UV_EXCLUDE_NEWER. AI v6 raises minimum
-  # versions for security fixes (certifi, for example), and a cutoff blocks them.
+  # Every package the recipe adds is pinned, so new upstream releases can't change
+  # the install. Only certifi can still move, because AI v6 enforces a security
+  # minimum for it. Don't add a date cutoff such as UV_EXCLUDE_NEWER. It can block
+  # that minimum and break the install.
   dependencies:
-    # Recipe packages.
+    # Versions chosen and validated for this recipe.
     - cupy-cuda13x==14.0.1
     - datasets==4.8.5
     - hydra-core==1.3.2
@@ -23,7 +24,8 @@ environment:
     - xgrammar==0.2.3
     # The manylinux_2_28 wheel of this OpenCV release can abort on AIR hosts.
     - https://files.pythonhosted.org/packages/92/ce/bd17ff5772938267fd49716e94ca24f616ff4cb1ff4c6be13085108037be/opencv_python_headless-4.13.0.92-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl#sha256=0525a3d2c0b46c611e2130b5fdebc94cf404845d8fa64d2f3a3b679572a5bd22
-    # Everything else verl and the script need, minus wandb.
+    # The rest of what verl[vllm]==0.9.1 installs, minus wandb. A few, such as
+    # pytest, come from verl's optional extras.
     - accelerate==1.13.0
     - apache-tvm-ffi==0.1.9
     - av==19.0.2
@@ -70,8 +72,9 @@ code_source:
   snapshot:
     root_path: .
 
-# verl requires wandb, but this recipe logs to MLflow only. Install verl
-# without its dependencies. The ones the recipe needs are pinned above.
+# verl lists wandb as a dependency, and wandb upgrades the OpenTelemetry packages
+# that AI v6 ships. This recipe logs to MLflow only, so install verl without its
+# dependencies. Everything it needs is pinned above.
 command: |
   set -e
   uv pip install --no-deps verl==0.9.1

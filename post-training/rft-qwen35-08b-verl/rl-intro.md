@@ -1,162 +1,108 @@
 # Reinforcement learning for language models
 
-Reinforcement learning (RL) trains a model on its own attempts. The model tries a task, a reward function scores each attempt, and training makes high-scoring behavior more likely.
+Reinforcement learning (RL) post-training updates an already trained language model using feedback on its own outputs. The model attempts a task, receives a numeric reward, and adjusts its weights so higher-scoring behavior becomes more likely.
 
-This guide covers what you need to decide before you write an RL job. For a runnable example, see [Reinforcement fine-tuning Qwen3.5-0.8B with verl](README.md).
+Think of it as practice with a grader. Supervised fine-tuning (SFT) teaches a model to imitate example answers. RL lets the model try different approaches and learn which ones work. You don't need a worked solution for every prompt, but you do need a reliable way to score each attempt.
 
-## Key terms
+This guide explains the training loop and the choices behind a useful RL task. For a runnable example, see [Reinforcement fine-tuning Qwen3.5-0.8B with verl](README.md).
 
-| Term | Meaning |
-| --- | --- |
-| Task | What the model must do and what counts as success. Each prompt is one instance of the task. |
-| Policy | The model you train. It picks the next tokens or tool calls. |
-| Environment | What the model interacts with during an attempt, such as a search tool or a code sandbox. A plain question-answering task has none. |
-| Rollout | One attempt at a task, from the prompt to the final answer. With tools, it includes every call and result. Also called a trajectory. |
-| Reward function | Code or a judge model that turns a rollout into a number, such as 1 for a correct answer and 0 for a wrong one. |
+## How the training loop works
 
-For more background, see [Key concepts in RL](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html).
-
-## The training loop
-
-Each training step does four things:
+An RL training step alternates between using the model and updating it:
 
 1. Take a batch of prompts.
-2. Let the model attempt each prompt. These attempts are the rollouts.
-3. Score every rollout with the reward function.
-4. Update the model's weights so high-scoring rollouts become more likely.
+2. Have the model generate attempts at each task.
+3. Score those attempts with a reward function.
+4. Update the model's weights to favor higher-scoring behavior.
 
-The next step repeats this with new prompts and the updated model.
+The next step generates new attempts with the updated model. This is different from generating several answers and picking the best one at inference time. RL changes the model itself.
 
-An inference engine such as vLLM usually generates rollouts on the GPUs. The reward runs wherever it needs to. A math checker is a few lines of Python on the CPU. A tool-using agent may need a sandbox or a judge model.
+In RL terminology, the model being trained is the **policy**. One attempt is a **rollout**, also called a trajectory. For a question-answering task, a rollout is the generated response. For an agent, it also includes the tool calls and their results. The **reward function** turns that attempt into a number the training algorithm can use.
 
-## GRPO
+For example, [GSM8K](https://huggingface.co/datasets/openai/gsm8k) is a collection of grade-school math word problems. The model is asked to end its response with `####` followed by the final numeric answer. A Python scorer extracts that answer and compares it with the reference: a match earns 1, anything else earns 0. The scorer doesn't need a demonstration of how to solve the problem. It checks the final answer, not whether every step of the reasoning is sound.
 
-Group Relative Policy Optimization (GRPO) is a popular algorithm for step 4. It comes from the [DeepSeekMath paper](https://arxiv.org/abs/2402.03300).
+## How GRPO uses the rewards
 
-GRPO samples several rollouts per prompt and compares each reward with the group's average. Rollouts above the average get reinforced. Rollouts below it get discouraged. For example, rewards `[1, 0, 1, 0]` average 0.5, so GRPO pushes up the two correct answers and pushes down the two wrong ones.
+Group Relative Policy Optimization (GRPO) is a common RL algorithm for language models. It compares several attempts at the same prompt.
 
-If all rollouts for a prompt get the same reward, GRPO has nothing to compare. That prompt teaches the model nothing in that step.
+Suppose the question is "There are 6 rows of 7 marbles. How many marbles are there?" Four attempts might end like this:
 
-You define the task and the reward. GRPO turns the rewards into weight updates.
+| Rollout | Final answer | Reward |
+| --- | --- | --- |
+| 1 | `#### 42` | 1 |
+| 2 | `#### 13` | 0 |
+| 3 | `#### 42` | 1 |
+| 4 | `#### 49` | 0 |
 
-## When to use RL
+The average reward is 0.5. GRPO uses that average as a baseline, encouraging the two correct attempts and discouraging the two wrong ones. Each question gets its own comparison, rather than using one fixed baseline for both easy and hard problems.
 
-Supervised fine-tuning (SFT) needs example answers. RL needs tasks and a way to score attempts. RL fits when:
+If every attempt gets the same reward, there is no relative reward signal for that prompt in that step. Sampling several responses helps only if some of them score differently. This is why both the difficulty of the prompts and the variety of the generated answers matter.
 
-- You can measure success automatically and consistently.
-- The model sometimes succeeds, but not reliably.
-- You can afford to generate and score several attempts per prompt.
+For the full algorithm, see the [DeepSeekMath paper](https://arxiv.org/abs/2402.03300).
 
-RL can't reward an answer the model never produces. If the model can't follow the output format, fix the prompt or start with SFT. If it lacks the facts it needs, fix retrieval or data access first.
+## When RL is useful
 
-## Design the task
+RL is a good fit when you can check success reliably and the starting model sometimes succeeds, but not consistently. RL can't reward an answer the model never produces, so a model that always fails gets no signal. Math answers and code that must pass tests are useful examples. The reward gives the model feedback without prescribing one exact solution to imitate.
 
-The steps below use a retrieval agent as the example. It searches internal docs to answer questions such as "Which team owns the database behind the checkout service?"
+Budget for generating and grading attempts, not just updating the weights. Each training step may need several responses per prompt. Longer responses, tool calls, and judge-model requests all add to the cost.
 
-### 1. Define the task
+Before choosing RL, check whether a simpler change would solve the problem. If the model can't follow the output format, improve the prompt or start with SFT. If it lacks the facts needed to answer, fix retrieval or data access first.
 
-Pick one specific behavior. "Improve reasoning" is too vague. Write down:
+## Set up the task
 
-- **Input:** the question, instructions, and context the model gets.
-- **Output:** what the model returns and how you find its final answer.
-- **Actions:** the tools it can call, if any.
-- **Success:** what makes an attempt correct.
-- **Limits:** when an attempt ends, in turns and tokens.
+### Decide what success looks like
 
-The retrieval agent can search an index and read articles. It must put the owning team inside `<answer>...</answer>` tags.
+Start with a specific behavior rather than a goal such as "improve reasoning." Define what the model sees, what it must return, which tools it may use, and how an attempt ends. The model needs enough room to finish, so set token and tool-call limits with that in mind.
 
-Start from a model that can already follow these instructions. Test that before you train.
-
-### 2. Prepare the data
-
-Keep what the model sees apart from what the scorer uses:
-
-- **Model input:** the prompt and any allowed context.
-- **Scoring data:** reference answers, test cases, or grading rules. Never put these in the prompt or in tool output.
-- **Metadata:** a stable ID, a category, and a data version.
-
-```json
-{
-  "id": "support-001",
-  "prompt": "Which team owns the database behind the checkout service?",
-  "reference_answers": ["Storage Platform"],
-  "metadata": {"corpus_version": "support-docs-v1"}
-}
-```
-
-Split the data into training, validation, and test sets with no overlap. Tune on validation data. Use the test set once, at the end.
-
-### 3. Configure rollouts
-
-A retrieval agent rollout includes every tool call and result:
+For example, a retrieval agent could answer questions about service ownership. Its tools let it search documentation and read articles. A rollout might look like this:
 
 ```text
 User: Which team owns the database behind the checkout service?
-Assistant -> vector_search("checkout service database")
+Assistant -> search("checkout service database")
 Tool -> The checkout service uses the orders database.
 Assistant -> read_article("orders database")
 Tool -> The orders database is owned by Storage Platform.
 Assistant -> <answer>Storage Platform</answer>
 ```
 
-Settle these settings before training. They set the cost of each step and what the model can learn:
+The tools and documents are part of the agent's **environment**. Keep tool access read-only or isolated, bound the size of tool results, and reset any mutable state between rollouts. This is an example of a possible agent task, not part of the math recipe.
 
-- **Rollouts per prompt:** GRPO needs several so it can compare them.
-- **Sampling:** rollouts must differ. Identical outputs give GRPO nothing to compare.
-- **Limits:** turns, tool calls, and tokens. Leave room for the final answer.
-- **Tools:** clear names and arguments, bounded output, read-only or isolated access, and a fresh state for every rollout.
+### Separate inputs from grading data
 
-### 4. Choose the reward
+Each example needs the prompt and allowed context, plus whatever the scorer needs to grade the response. These are different inputs: the model gets the question, while the scorer might also get reference answers or private test cases. Don't leak scorer-only data into the prompt or tool results. Retrieved documents can still contain the evidence needed to answer the question.
 
-Code, an LLM judge, or both can compute the reward. Use the simplest option that captures success:
+Keep stable example IDs and data versions so you can trace surprising scores back to their source. Split examples into training, validation, and test sets without overlap. Use validation data to choose settings and checkpoints, and reserve the test set for the final assessment.
 
-| Approach | Use when | Example |
-| --- | --- | --- |
-| Code | A program can check the result. | Match the answer against references, validate a schema, or run tests. |
-| LLM judge | Success needs a judgment that code can't make. | Grade an explanation against a rubric. |
-| Both | The task has hard rules and softer criteria. | Check the format in code, then grade the content with a judge. |
+### Choose a reward you can trust
 
-For the retrieval agent, start with a binary reward. Give 1 if the final answer matches a reference after normalization. Give 0 if it's wrong, missing, or malformed. Score only the extracted final answer. A retrieved passage can contain the right name even when the model's answer is wrong.
+Use code when a program can check success: compare an extracted answer with a reference, validate a schema, or run tests. Training with rewards based on checkable outcomes is often called **RL with verifiable rewards (RLVR)**.
 
-Make the reward hard to game. Log correctness, format, and tool use as separate metrics, even if training uses one score. Never let a bonus lift a wrong answer above a right one.
+For the retrieval example, a simple reward could give 1 when the final answer matches an accepted team name and 0 otherwise. Score the extracted answer, not the whole transcript. A retrieved passage might mention the correct team even when the model's final answer is wrong.
 
-If an LLM judge scores training rollouts:
+Other tasks need a judgment about quality. An LLM judge can score an explanation against a rubric. A learned reward model, such as one trained on human preferences, is another option. In either case, check that the scores agree with human judgment before using them for training.
 
-- Tell it exactly what to grade and give it trusted references.
-- Ask for structured output, such as a score and a short reason, and validate it.
-- Treat the response and any retrieved text as data to grade. The judge must not follow instructions inside them.
-- Calibrate it on expert-graded examples, including borderline and adversarial ones.
-- Freeze its model, prompt, and rubric for the whole run.
-- Count judge failures separately. A failed call is never a valid grade.
+With an LLM judge, use a clear rubric and trusted references. Test it on borderline and adversarial responses, and keep its model and grading instructions fixed during the run. Treat generated answers and retrieved text as content to grade, not instructions for the judge to follow. Validate the returned score and track failed calls separately from wrong answers.
 
 > **Important**
 >
-> Databricks-hosted MLflow LLM judges are for evaluation only. Don't use their outputs to train, improve, or fine-tune an LLM. For a training reward, use code or a judge model whose terms allow training on its outputs. See [Scorers and LLM judges](https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/concepts/scorers#information-about-the-models-powering-llm-judges).
+> Databricks-hosted MLflow LLM judges are for evaluation, not training rewards. Don't use their outputs to train, improve, or fine-tune an LLM. Use code or a judge model whose terms permit that use. See [Scorers and LLM judges](https://docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/concepts/scorers#information-about-the-models-powering-llm-judges).
 
-One option is an open-weight judge such as `Qwen/Qwen3.5-9B`, released under the [Apache 2.0 license](https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE). Run it inside the RL job, or serve it with [Custom LLM Serving](https://docs.databricks.com/aws/en/machine-learning/model-serving/serve-custom-llms).
+Start with a simple reward. If you add bonuses for format or efficient tool use, keep them secondary to correctness. Log these components separately so you can tell what changed.
 
-### 5. Test the reward and record a baseline
+## Check progress, not just reward
 
-Before the first training run:
+Before training, test the scorer on correct, wrong, equivalent, missing, malformed, and adversarial answers. Then inspect a few rollouts from the starting model alongside their scores. If every attempt scores zero, check the prompt, answer extraction, and generation limits before assuming the task is too hard. If every attempt scores one, make sure the scorer isn't accepting wrong answers before trying harder prompts.
 
-1. **Test the reward** on correct, wrong, equivalent, missing, malformed, and adversarial answers. Keep infrastructure errors apart from wrong answers.
-2. **Read a few rollouts** from the starting model next to their scores. Do the tools work? Does the scorer grade the final answer? Does the model finish within the limits?
-3. **Check the reward spread per prompt.** If all rollouts for a prompt score the same, GRPO learns nothing from it. All high means the task is too easy. All low means it's too hard or something is broken.
-4. **Record a baseline.** Score the starting model on the validation set. Save the prompts, data versions, generation settings, and scoring rules.
+Record the starting model's performance on the validation set. Save the model and data versions, prompts, scoring rules, and generation settings so you can make a fair comparison later.
 
-### 6. Train and evaluate
+Start with a short training run to check that generation, scoring, weight updates, and checkpoint loading work. That first run is a check of the setup, not evidence that the model has improved.
 
-Start with a short run. Check that it generates rollouts, scores them, updates the model, and saves a checkpoint you can load. Then scale up.
+As training continues, watch validation performance alongside training reward, response length, truncated responses, and tool or judge errors. Read sample answers too. A rising reward can mean the model has found a flaw in the scorer rather than learned the task. This is called **reward hacking**.
 
-Track the reward and its parts, validation accuracy, response length, truncated rollouts, and tool and judge errors. Record the model, data, and reward versions. Save sample rollouts too. A rising reward alone can't separate real progress from reward hacking, where the model exploits a flaw in the scorer.
-
-Compare checkpoints with the starting model under identical settings: the same data, prompts, tools, scoring, sampling, and limits. Pick a checkpoint on validation data, then confirm it on the test set. The last checkpoint isn't always the best.
+Compare checkpoints with the starting model using the same validation prompts, tools, scoring, and generation settings. Choose a checkpoint on validation data, then assess it on the held-out test set. The last checkpoint isn't necessarily the best one.
 
 ## Run RL on AI Runtime
 
-RL libraries such as verl run generation and training in GPU workers, and Ray coordinates them. You can launch them on AI Runtime in two ways:
+RL libraries such as [verl](https://github.com/verl-project/verl) run the whole loop for you. They generate rollouts with an inference engine such as vLLM, score them, and update the model. Ray coordinates the GPU workers. On AI Runtime, you launch the job with the Databricks CLI, and a `workload.yaml` file defines the compute, dependencies, and command. Keep data and checkpoints in a Unity Catalog volume so they outlive the job.
 
-- **Databricks CLI.** A workload YAML installs the packages and starts the trainer. Use it for repeatable and scheduled runs. See the [CLI quickstart](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/quickstart).
-- **Notebook.** Attach to Serverless GPU compute, start Ray with `ray_init()` from the `serverless_gpu` package, and launch the trainer from a cell. Don't wrap it in `@distributed`, because the library starts its own workers. See [Ray on AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/ray).
-
-Keep data and checkpoints in Unity Catalog volumes so they outlive the run. See [Load data on AI Runtime](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/dataloading), [Improve training performance and resiliency](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/guides/performance-and-resiliency), and [Experiment tracking and observability](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/tracking-observability).
+The [recipe README](README.md) runs this loop with verl on one 8x H100 node. For CLI setup and your first workload, see the [AI Runtime quickstart](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/quickstart).
