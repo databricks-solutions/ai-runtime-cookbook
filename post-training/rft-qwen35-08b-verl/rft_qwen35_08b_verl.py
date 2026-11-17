@@ -125,6 +125,9 @@ def build_config(params, run_dir, model_path, train_path, val_path):
             f"data.max_prompt_length={params['max_prompt_tokens']}",
             f"data.max_response_length={params['max_response_tokens']}",
             f"data.seed={params['seed']}",
+            # Load prompts in the task runner. Ray kills leftover DataLoader workers
+            # when it exits, and PyTorch then prints a traceback.
+            "data.dataloader_num_workers=0",
             f"actor_rollout_ref.model.path={json.dumps(model_path)}",
             "+actor_rollout_ref.model.override_config.attn_implementation=sdpa",
             "actor_rollout_ref.model.use_remove_padding=False",
