@@ -9,6 +9,7 @@ environment:
     - vllm==0.33.0
     - transformers==5.20.2
     - pypdfium2==5.15.2
+    # vLLM's transformers release needs huggingface_hub >= 1.31, newer than the environment's.
     - huggingface_hub==2.4.0
     - mlflow-skinny==3.8.1
     # vllm needs opencv-python-headless>=4.13. Its manylinux_2_28 wheels bundle an
@@ -29,7 +30,7 @@ env_variables:
   VLLM_USE_FLASHINFER_SAMPLER: "0"
 
 command: |
-  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/ocr.py"
 

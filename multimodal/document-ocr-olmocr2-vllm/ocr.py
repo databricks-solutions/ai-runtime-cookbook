@@ -12,6 +12,7 @@ import os
 import time
 from pathlib import Path
 
+import mlflow
 import pandas as pd
 import pypdfium2 as pdfium
 import yaml
@@ -82,7 +83,7 @@ def main():
     outs = llm.chat(requests, SamplingParams(temperature=0.1, max_tokens=P["max_tokens"]))
     infer_s = time.time() - t0
 
-    out = Path(P["output_root"]) / os.environ.get("MLFLOW_RUN_ID", "local")
+    out = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
     md_dir = out / "markdown"
     rows, finished = [], 0
     for meta, o in zip(pages, outs):
@@ -105,13 +106,8 @@ def main():
     print(json.dumps(stats, indent=2))
     print(f"--- sample page {rows[0]['doc_id']} ---\n{rows[0]['markdown'][:1200]}")
     print(f"Wrote {len(rows)} Markdown pages and pages.parquet to {out}")
-    try:
-        import mlflow
-
-        with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
-            mlflow.log_metrics(stats)
-    except Exception as e:  # MLflow logging is optional for the recipe.
-        print(f"MLflow logging skipped: {e}")
+    with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
+        mlflow.log_metrics(stats)
 
 
 if __name__ == "__main__":
