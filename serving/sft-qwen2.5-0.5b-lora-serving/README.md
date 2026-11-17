@@ -27,6 +27,8 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-deploy.txt
 ```
 
+These commands are written for macOS and Linux. On Windows, the virtual environment's interpreter is `.venv\Scripts\python`; use it in place of `.venv/bin/python` here and in stage 3.
+
 Redeploy the bundle after changing its job configuration or registration code.
 
 ## Run
