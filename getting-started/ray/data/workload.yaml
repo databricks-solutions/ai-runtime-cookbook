@@ -3,7 +3,7 @@ experiment_name: ray-data-hello-world
 environment:
   version: "5"
   dependencies:
-    # Ray Data 2.56 warns that every short pipeline may hang forever; 2.57 warns only after 60 s.
+    # Ray Data 2.56 warns at once that a short pipeline may hang. 2.57 warns only after an operator waits 60 s.
     - "ray[data]==2.57.1"
 
 compute:
