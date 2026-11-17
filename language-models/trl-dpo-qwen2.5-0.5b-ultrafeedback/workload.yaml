@@ -1,0 +1,57 @@
+# Preference tuning (DPO) of Qwen2.5-0.5B-Instruct with Hugging Face TRL on one A10, evaluated with
+# held-out preference accuracy and a reward-model win rate.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-trl-dpo-qwen25-05b-ultrafeedback
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - transformers==5.22.2
+    - trl==1.17.1
+    - peft==0.21.2
+    - accelerate==1.15.0
+    # The environment's huggingface_hub breaks load_dataset with newer fsspec releases
+    # ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
+    # These three versions work together.
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 120
+
+parameters:
+  model_name: Qwen/Qwen2.5-0.5B-Instruct   # public; no Hugging Face token needed
+  # Reward model that judges base and DPO answers (Apache 2.0, public).
+  reward_model: Skywork/Skywork-Reward-V2-Qwen3-0.6B
+  lora_r: 16
+  # DPO training on UltraFeedback preference pairs.
+  train_pairs: 4000
+  batch_size: 4
+  grad_accum: 4
+  learning_rate: 0.00005
+  beta: 0.1
+  max_length: 1024
+  # Held-out UltraFeedback test pairs for preference accuracy.
+  eval_pairs: 500
+  # Further held-out test prompts for the reward-model win rate.
+  win_rate_prompts: 300
+  generation_batch_size: 32
+  max_new_tokens: 512
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/trl-dpo-qwen2.5-0.5b-ultrafeedback
