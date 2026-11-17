@@ -6,7 +6,7 @@ The task is [GSM8K](https://huggingface.co/datasets/openai/gsm8k), a set of grad
 
 Training runs 5 steps on one 8x H100 node. Each step samples 4 responses for each of 32 prompts and scores all 128. The recipe measures greedy accuracy on 32 held-out problems before and after training. The workload takes about 11 minutes.
 
-To use your own task, replace the GSM8K data and scoring in `rft_qwen35_08b_verl.py`. verl's `reward.custom_reward_function` setting takes your own scoring function. For the ideas behind RL tasks and rewards, see [Reinforcement learning for language models](../rl-intro.md).
+To use your own task, replace the GSM8K data and scoring in `rft_qwen35_08b_verl.py`. verl's `reward.custom_reward_function` setting takes your own scoring function. For the ideas behind RL tasks and rewards, see [Reinforcement learning for language models](rl-intro.md).
 
 ## Before you run
 

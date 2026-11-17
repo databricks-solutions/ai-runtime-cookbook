@@ -2,7 +2,7 @@
 
 Reinforcement learning (RL) trains a model on its own attempts. The model tries a task, a reward function scores each attempt, and training makes high-scoring behavior more likely.
 
-This guide covers what you need to decide before you write an RL job. For a runnable example, see [Reinforcement fine-tuning Qwen3.5-0.8B with verl](rft-qwen35-08b-verl/README.md).
+This guide covers what you need to decide before you write an RL job. For a runnable example, see [Reinforcement fine-tuning Qwen3.5-0.8B with verl](README.md).
 
 ## Key terms
 
