@@ -169,14 +169,19 @@ def main() -> None:
     if args.wait:
         try:
             wait_until_serving(client, args.endpoint_name, desired, action)
-        except (Exception, KeyboardInterrupt):
+        except (Exception, KeyboardInterrupt) as error:
             # Giving up on the wait doesn't stop the update, and a rerun waits for it again.
+            interrupted = isinstance(error, KeyboardInterrupt)
+            print(
+                "Interrupted." if interrupted else f"Error: {str(error) or type(error).__name__}",
+                file=sys.stderr,
+            )
             print(readiness_hint, file=sys.stderr)
             print(
                 "If the update is still in progress, rerun the same command to resume waiting.",
                 file=sys.stderr,
             )
-            raise
+            sys.exit(130 if interrupted else 1)
         print(f"Endpoint {args.endpoint_name} is ready and serves version {args.model_version}.")
     else:
         print(readiness_hint)
