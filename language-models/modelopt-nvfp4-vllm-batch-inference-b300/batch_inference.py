@@ -1,6 +1,6 @@
 """Offline batch inference with vLLM; scores GSM8K accuracy and measures throughput.
 
-Usage: python batch_inference.py <label> <model_path>
+Usage: python batch_inference.py bf16|quantized
 """
 
 import json
@@ -30,7 +30,9 @@ def number(text):
     return found[:-2] if found.endswith(".0") else found
 
 
-def main(label, model_path):
+def main(label):
+    # bf16 runs the original checkpoint; quantized runs the export from quantize.py.
+    model_path = P["model_name"] if label == "bf16" else P["quantized_dir"]
     ds = load_dataset("openai/gsm8k", "main", split="test").select(range(P["num_prompts"]))
     gold = [number(a) for a in ds["answer"]]
     messages = [[{"role": "system", "content": SYSTEM}, {"role": "user", "content": q}]
@@ -54,7 +56,7 @@ def main(label, model_path):
     }
     print(json.dumps(result), flush=True)
     Path(f"/tmp/vllm_result_{label}.json").write_text(json.dumps(result, indent=2))
-    out = Path(P["output_root"]) / os.environ.get("MLFLOW_RUN_ID", "local")
+    out = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
     out.mkdir(parents=True, exist_ok=True)
     with open(out / f"generations_{label}.jsonl", "w") as f:
         for q, o in zip(ds["question"], outs):
@@ -62,4 +64,4 @@ def main(label, model_path):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1])

@@ -27,13 +27,8 @@ compute:
 code_source:
   root_path: .
 
-env_variables:
-  # Use vLLM's PyTorch sampler. The default FlashInfer sampler JIT-compiles a CUDA
-  # kernel at startup and needs CUDA headers (curand.h) that this environment lacks.
-  VLLM_USE_FLASHINFER_SAMPLER: "0"
-
 command: |
-  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   # The environment's flash-attn is compiled for its original PyTorch, which vllm replaces.
   # vLLM ships its own attention kernels, so remove the incompatible package.
@@ -44,9 +39,9 @@ max_retries: 0
 timeout_minutes: 90
 
 parameters:
-  # NVFP4 pays off once weights dominate memory traffic; Qwen3-8B also runs but is not faster.
+  # Qwen3-8B also runs, but NVFP4 was slower than bf16 at that size.
   model_name: Qwen/Qwen3-32B  # public; no Hugging Face token needed
-  quant_format: nvfp4         # or fp8 (also runs on H100)
+  quant_format: nvfp4         # quantize.py also accepts fp8, which hasn't been validated
   calib_samples: 256
   calib_seq_len: 1024
   quantized_dir: /tmp/qwen3-quantized

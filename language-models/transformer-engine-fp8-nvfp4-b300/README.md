@@ -27,4 +27,4 @@ Notes:
 
 - The recipe pins TE 2.17.1 because newer TE releases need a newer cuBLASLt than `databricks_ai_v6` provides.
 - TE's cuDNN fused attention fails on B300 with the cuDNN in `databricks_ai_v6`. `NVTE_FUSED_ATTN=0` makes TE use FlashAttention instead. Attention runs in bf16 for every precision.
-- On H100, set `PRECISIONS` to `"bf16 fp8_current"`. MXFP8 and NVFP4 need Blackwell GPUs.
+- MXFP8 and NVFP4 need Blackwell GPUs. The recipe has only been validated on B300.

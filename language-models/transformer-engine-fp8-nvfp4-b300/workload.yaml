@@ -7,7 +7,11 @@ experiment_name: air-te-fp8-nvfp4-b300
 environment:
   # B300 requires environment version 6 or later (CUDA 13, Blackwell-ready PyTorch).
   version: databricks_ai_v6
-  dependencies: []
+  dependencies:
+    # The environment's transformers needs huggingface_hub < 2. These versions work with it.
+    - datasets==4.8.5
+    - huggingface_hub==1.33.0
+    - fsspec==2026.2.0
 
 compute:
   accelerator_type: GPU_8xB300
@@ -22,7 +26,7 @@ env_variables:
   # TE uses FlashAttention instead. Attention runs in bf16 for every precision either way.
   NVTE_FUSED_ATTN: "0"
   NVTE_FLASH_ATTN: "1"
-  # One precision per GPU. NVFP4 and MXFP8 need Blackwell; on H100 use "bf16 fp8_current".
+  # One precision per GPU, run in parallel. MXFP8 and NVFP4 need Blackwell GPUs.
   PRECISIONS: "bf16 fp8_current mxfp8 nvfp4"
   # Optional: a volume directory that caches the compiled TE binding between runs.
   TE_WHEEL_CACHE: /Volumes/main/default/air_examples/transformer-engine-fp8-nvfp4-b300/te_wheels
@@ -33,8 +37,6 @@ command: |
   set -e
   cd "$CODE_SOURCE_PATH"
   bash install_transformer_engine.sh
-  # The environment's transformers needs huggingface_hub < 2; these versions work with it.
-  python -m pip install --no-cache-dir datasets==4.8.5 huggingface_hub==1.33.0 fsspec==2026.2.0
   bash run_all.sh
 
 max_retries: 0

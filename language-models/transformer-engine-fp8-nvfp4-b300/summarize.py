@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+import mlflow
 import yaml
 
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
@@ -17,17 +18,12 @@ for r in results:
     print(f"{r['precision']:<12}{r['tokens_per_second']:>12,.0f}{speedup:>8.2f}x"
           f"{r['model_tflops_per_second']:>9.0f}{r['loss_last_20_mean']:>12.4f}{r['peak_mem_gb']:>8.1f}")
 
-run_id = os.environ.get("MLFLOW_RUN_ID", "local")
+run_id = os.environ["MLFLOW_RUN_ID"]
 out = Path(P["output_root"]) / run_id
 out.mkdir(parents=True, exist_ok=True)
 (out / "results.json").write_text(json.dumps(results, indent=2))
 print(f"Wrote {out / 'results.json'}")
-try:
-    import mlflow
-
-    with mlflow.start_run(run_id=run_id):
-        for r in results:
-            mlflow.log_metrics({f"{r['precision']}_tokens_per_second": r["tokens_per_second"],
-                                f"{r['precision']}_final_loss": r["loss_last_20_mean"]})
-except Exception as e:  # MLflow logging is optional for the recipe.
-    print(f"MLflow logging skipped: {e}")
+with mlflow.start_run(run_id=run_id):
+    for r in results:
+        mlflow.log_metrics({f"{r['precision']}_tokens_per_second": r["tokens_per_second"],
+                            f"{r['precision']}_final_loss": r["loss_last_20_mean"]})
