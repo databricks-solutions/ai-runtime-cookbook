@@ -18,10 +18,10 @@ A validation run on 8xB300 produced these results (final loss is the mean of the
 
 | Precision | Tokens/s per GPU | Speedup vs bf16 | Final loss | Peak memory |
 |---|---|---|---|---|
-| bf16 | 83,437 | 1.00× | 5.828 | 59.9 GB |
-| FP8 (current scaling) | 111,659 | 1.34× | 5.836 | 55.8 GB |
-| MXFP8 | 110,934 | 1.33× | 5.832 | 60.2 GB |
-| NVFP4 | 136,635 | 1.64× | 5.848 | 55.8 GB |
+| bf16 | 83,457 | 1.00× | 5.827 | 59.9 GB |
+| FP8 (current scaling) | 111,831 | 1.34× | 5.840 | 55.8 GB |
+| MXFP8 | 110,802 | 1.33× | 5.826 | 60.2 GB |
+| NVFP4 | 136,477 | 1.64× | 5.851 | 55.8 GB |
 
 Notes:
 
