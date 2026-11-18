@@ -9,7 +9,6 @@
 
 import json
 import os
-import time
 from pathlib import Path
 
 import mlflow
@@ -51,8 +50,6 @@ def reward_scores(prompts, answers):
     scores = []
     for prompt, answer in zip(prompts, answers):
         text = tok.apply_chat_template(prompt + [{"role": "assistant", "content": answer}], tokenize=False)
-        if tok.bos_token and text.startswith(tok.bos_token):
-            text = text[len(tok.bos_token) :]
         enc = tok(text, return_tensors="pt", truncation=True, max_length=4096).to("cuda")
         scores.append(rm(**enc).logits[0][0].item())
     return scores
@@ -81,7 +78,8 @@ def main():
             gradient_checkpointing=True,
             logging_steps=10,
             save_strategy="no",
-            report_to="none",
+            # Logs the loss and reward curves to the AIR run (MLFLOW_RUN_ID).
+            report_to="mlflow",
         ),
         train_dataset=train,
         eval_dataset=eval_pairs,
@@ -89,14 +87,10 @@ def main():
         peft_config=LoraConfig(r=P["lora_r"], lora_alpha=2 * P["lora_r"],
                                target_modules="all-linear", task_type="CAUSAL_LM"),
     )
-    t0 = time.time()
     result = trainer.train()
-    metrics = {"train_loss": result.training_loss, "train_seconds": time.time() - t0}
+    metrics = {"train_loss": result.training_loss, "train_seconds": result.metrics["train_runtime"]}
 
-    # With LoRA, the reference model is the base model (adapter disabled), so preference
-    # accuracy is 50% before training by construction.
     held_out = trainer.evaluate()
-    held_out = {**trainer.state.log_history[-1], **held_out}  # TRL adds its reward metrics when logging
     metrics["eval_preference_accuracy"] = held_out["eval_rewards/accuracies"]
     metrics["eval_reward_margin"] = held_out["eval_rewards/margins"]
     print(f"[eval] held-out preference accuracy {metrics['eval_preference_accuracy']:.3f} "
@@ -133,10 +127,11 @@ def main():
                                 "base_reward": bs, "dpo_reward": ds}) + "\n")
     model.save_pretrained(OUT / "dpo_adapter")
     tok.save_pretrained(OUT / "dpo_adapter")
-    with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
-        mlflow.log_metrics(metrics)
-        mlflow.log_artifact(str(OUT / "metrics.json"))
-        mlflow.log_artifact(str(OUT / "generations.jsonl"))
+    # The trainer's MLflow callback has already opened the AIR run, so log to it directly.
+    # Opening it again with mlflow.start_run() would fail with "Run ... is already active".
+    mlflow.log_metrics(metrics)
+    mlflow.log_artifact(str(OUT / "metrics.json"))
+    mlflow.log_artifact(str(OUT / "generations.jsonl"))
     print(f"Wrote metrics, generations and the LoRA adapter to {OUT}")
 
 
