@@ -17,12 +17,15 @@ import yaml
 from datasets import load_dataset
 from peft import LoraConfig
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers.integrations import MLflowCallback
 from trl import DPOConfig, DPOTrainer
 
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
-OUT = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
+# Read the AIR run ID now: MLflow clears MLFLOW_RUN_ID when the trainer ends the run.
+RUN_ID = os.environ["MLFLOW_RUN_ID"]
+OUT = Path(P["output_root"]) / RUN_ID
 
 
 @torch.no_grad()
@@ -90,6 +93,9 @@ def main():
     result = trainer.train()
     metrics = {"train_loss": result.training_loss, "train_seconds": result.metrics["train_runtime"]}
 
+    # The MLflow callback ended the AIR run when training finished. Remove it so evaluate()
+    # does not start a new run; the final metrics below go to the AIR run.
+    trainer.remove_callback(MLflowCallback)
     held_out = trainer.evaluate()
     metrics["eval_preference_accuracy"] = held_out["eval_rewards/accuracies"]
     metrics["eval_reward_margin"] = held_out["eval_rewards/margins"]
@@ -127,11 +133,10 @@ def main():
                                 "base_reward": bs, "dpo_reward": ds}) + "\n")
     model.save_pretrained(OUT / "dpo_adapter")
     tok.save_pretrained(OUT / "dpo_adapter")
-    # The trainer's MLflow callback has already opened the AIR run, so log to it directly.
-    # Opening it again with mlflow.start_run() would fail with "Run ... is already active".
-    mlflow.log_metrics(metrics)
-    mlflow.log_artifact(str(OUT / "metrics.json"))
-    mlflow.log_artifact(str(OUT / "generations.jsonl"))
+    with mlflow.start_run(run_id=RUN_ID):
+        mlflow.log_metrics(metrics)
+        mlflow.log_artifact(str(OUT / "metrics.json"))
+        mlflow.log_artifact(str(OUT / "generations.jsonl"))
     print(f"Wrote metrics, generations and the LoRA adapter to {OUT}")
 
 
