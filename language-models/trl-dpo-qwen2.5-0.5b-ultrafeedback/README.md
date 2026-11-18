@@ -19,14 +19,14 @@ databricks air run -f workload.yaml --watch
 
 The run prints both evaluations. It writes `metrics.json`, `generations.jsonl` (each prompt with both answers and their reward scores) and the LoRA adapter (`dpo_adapter/`) to `<output_root>/<MLflow run ID>/`. It also logs the training loss and reward curves and the final metrics to the MLflow run, and uploads `metrics.json` and `generations.jsonl`.
 
-A validation run on an A10 produced these results:
+Three validation runs on an A10 produced these results. Each cell gives the range across the runs:
 
 | Metric | Value |
 |---|---|
-| Held-out preference accuracy (500 pairs) | 66.7% |
-| Reward-model win rate vs the base model (300 prompts) | 59.2% |
-| Mean reward score, base → DPO | 0.85 → 1.26 |
-| Mean answer length, base → DPO | 1,247 → 1,406 characters |
+| Held-out preference accuracy (500 pairs) | 66.1% to 66.9% |
+| Reward-model win rate vs the base model (300 prompts) | 58.8% to 60.0% |
+| Mean reward score, base → DPO | 0.85 → 1.16 to 1.26 |
+| Mean answer length, base → DPO | 1,247 → 1,406 to 1,410 characters |
 | Training time (4,000 pairs) | 18 minutes |
 
-The standard errors are about 2.1 points for the preference accuracy and 2.8 points for the win rate. DPO answers were about 13% longer, and reward models often favor longer answers. Read `generations.jsonl` to judge the answers yourself.
+The standard errors are about 2.1 points for the preference accuracy and 2.8 points for the win rate. The spread across runs is smaller than that. DPO answers were about 13% longer, and reward models often favor longer answers. Read `generations.jsonl` to judge the answers yourself.
