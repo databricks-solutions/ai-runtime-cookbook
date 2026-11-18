@@ -33,7 +33,7 @@ def generate(pipe, prompts, out_dir):
 
 
 def main():
-    prompts = [p.format(subject=P["instance_prompt"].removeprefix("a photo of ")) for p in P["prompts"]]
+    prompts = [p.format(subject=P["subject"]) for p in P["prompts"]]
     out = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
     pipe = ZImagePipeline.from_pretrained(P["model_name"], torch_dtype=torch.bfloat16).to("cuda")
 

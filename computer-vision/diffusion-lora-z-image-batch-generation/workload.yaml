@@ -29,17 +29,20 @@ code_source:
   root_path: .
 
 command: |
+  set -e
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  bash "$CODE_SOURCE_PATH/train.sh"
+  python "$CODE_SOURCE_PATH/train.py"
+  python "$CODE_SOURCE_PATH/generate.py"
 
 max_retries: 0
 timeout_minutes: 90
 
 parameters:
   model_name: Tongyi-MAI/Z-Image   # public 6B model; no Hugging Face token needed
-  diffusers_tag: v0.42.1           # training script version; keep in step with diffusers above
-  instance_prompt: a photo of sks dog
+  # Training captions are "a photo of <subject>", and {subject} in the prompts below is
+  # replaced with it. "sks" is a rare token, so the LoRA ties it to the training dog.
+  subject: sks dog
   resolution: 768
   lora_rank: 16
   learning_rate: 0.0001
