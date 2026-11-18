@@ -10,6 +10,7 @@ import io
 import json
 import os
 import time
+from itertools import zip_longest
 from pathlib import Path
 
 import mlflow
@@ -61,7 +62,11 @@ def main():
         "allenai/olmOCR-bench", repo_type="dataset",
         allow_patterns=[f"bench_data/pdfs/{c}/*.pdf" for c in P["pdf_categories"]],
     )
-    pdfs = sorted(Path(root).rglob("*.pdf"))[: P["max_pdfs"]]
+    # Take PDFs from each category in turn so every category is in the sample.
+    by_category = [sorted((Path(root) / "bench_data/pdfs" / c).glob("*.pdf")) for c in P["pdf_categories"]]
+    pdfs = [pdf for group in zip_longest(*by_category) for pdf in group if pdf][: P["max_pdfs"]]
+    print(f"[sample] {len(pdfs)} PDFs: " + ", ".join(
+        f"{c} {sum(p.parent.name == c for p in pdfs)}" for c in P["pdf_categories"]))
 
     t0 = time.time()
     pages, requests = [], []

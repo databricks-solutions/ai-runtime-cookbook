@@ -2,7 +2,7 @@
 
 This recipe converts PDFs to Markdown with `allenai/olmOCR-2-7B-1025-FP8`, a document-OCR fine-tune of Qwen2.5-VL, using vLLM offline batch inference on one H100. It renders each page with `pypdfium2` at olmOCR's training resolution (1,288 px on the longest side) and sends it with the olmOCR v4 prompt. The model returns Markdown, with tables as HTML and equations as LaTeX, plus page metadata.
 
-The input is 300 one-page PDFs (tables, multi-column papers and old scans) from the public `allenai/olmOCR-bench` dataset. The whole run takes about 7 minutes.
+The input is 300 one-page PDFs (tables, multi-column papers and old scans) from the public `allenai/olmOCR-bench` dataset. The run takes about 8 minutes in the container, plus provisioning and queueing.
 
 ## Run
 
@@ -17,7 +17,7 @@ To process your own PDFs, replace the `snapshot_download` call in `ocr.py` with 
 The run writes these files to `<output_root>/<MLflow run ID>/`:
 
 - `markdown/<category>/<doc>_p<page>.md`: one Markdown file per page.
-- `pages.parquet`: one row per page, with the Markdown, detected language, `is_table`, `is_diagram`, rotation correction and output token count. Load it into a Delta table with `spark.read.parquet(...)`.
+- `pages.parquet`: one row per page, with the Markdown, detected language, `is_table`, `is_diagram`, rotation correction and output token count. To save it as a Delta table, run `spark.read.parquet(path).write.saveAsTable("<catalog>.<schema>.<table>")`.
 - `stats.json`.
 
 A validation run on an H100 produced these results:
