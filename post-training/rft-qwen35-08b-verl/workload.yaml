@@ -90,8 +90,12 @@ max_retries: 0
 timeout_minutes: 60
 
 parameters:
-  # Change this to a folder in a Unity Catalog volume that you can write to.
-  # The default works only if your workspace has the main.default.air_examples volume.
+  # Action required unless your workspace has the main.default.air_examples volume.
+  # Replace this path with a folder in an existing Unity Catalog volume that you can
+  # write to, such as /Volumes/<catalog>/<schema>/<volume>/rft-qwen35-08b-verl.
+  # The job doesn't create volumes. It stops at startup with "Volume not accessible"
+  # if the volume is missing. To try a path once, run:
+  #   databricks air run -f workload.yaml --override parameters.output_root=<path>
   output_root: /Volumes/main/default/air_examples/rft-qwen35-08b-verl
   model_id: Qwen/Qwen3.5-0.8B
   dataset_id: openai/gsm8k

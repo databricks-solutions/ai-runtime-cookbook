@@ -18,7 +18,8 @@ import yaml
 
 
 def check_opencv_wheel():
-    # Check metadata before importing cv2, because the manylinux_2_28 wheel can abort Python.
+    """Fail early if the wrong OpenCV wheel is installed."""
+    # Read the metadata instead of importing cv2, because the manylinux_2_28 wheel can abort Python.
     package = distribution("opencv-python-headless")
     tags = (package.read_text("WHEEL") or "").splitlines()
     if package.version != "4.13.0.92" or "Tag: cp37-abi3-manylinux2014_x86_64" not in tags:
@@ -26,6 +27,7 @@ def check_opencv_wheel():
 
 
 def check_environment():
+    """Stop before any GPU work if the install or the node doesn't match workload.yaml."""
     check_opencv_wheel()
     expected_versions = {
         "verl": "0.9.1", "torch": "2.11.0", "vllm": "0.24.0",
@@ -33,6 +35,7 @@ def check_environment():
     }
     for package, expected in expected_versions.items():
         installed = version(package)
+        # Drop local tags such as +cu130 before comparing.
         if installed.split("+")[0] != expected:
             raise RuntimeError(f"Expected {package} {expected}, found {installed}. Check workload.yaml.")
     if torch.version.cuda != "13.0":
@@ -42,12 +45,13 @@ def check_environment():
 
 
 def prepare_data(params, run_dir, model_path):
+    """Write the train and validation parquet files that verl reads."""
     from datasets import Dataset, load_dataset
     from transformers import AutoTokenizer
     from verl.utils.reward_score.gsm8k import extract_solution
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    # Reserve GSM8K's test split for final evaluation, outside this smoke test.
+    # Carve validation out of the train split. GSM8K's test split stays untouched for final evaluation.
     raw_data = load_dataset(params["dataset_id"], "main", split="train")
     splits = raw_data.train_test_split(test_size=params["validation_examples"], seed=params["seed"])
     instruction = 'Solve the problem step by step. End with "#### " followed by only the final numeric answer.'
@@ -57,6 +61,7 @@ def prepare_data(params, run_dir, model_path):
             raise ValueError(f"Requested {limit} {split} examples, but only {len(data)} are available.")
         rows = []
         for index, example in enumerate(data.shuffle(seed=params["seed"]).select(range(limit))):
+            # The reference is the number after #### in GSM8K's worked solution.
             reference = extract_solution(example["answer"], method="strict")
             if reference is None:
                 raise ValueError(f"Missing reference answer in {split} example {index}.")
@@ -64,6 +69,7 @@ def prepare_data(params, run_dir, model_path):
             prompt_ids = tokenizer.apply_chat_template(
                 prompt, tokenize=True, add_generation_prompt=True, return_dict=False,
             )
+            # Skip prompts that don't fit in max_prompt_tokens.
             if len(prompt_ids) > params["max_prompt_tokens"]:
                 continue
             rows.append({
@@ -83,6 +89,7 @@ def prepare_data(params, run_dir, model_path):
         raise ValueError("Increase train_examples to cover every training step after prompt-length filtering.")
     if not val_rows:
         raise ValueError("No validation prompts remain after prompt-length filtering.")
+    # Make sure no validation question also appears in training.
     train_prompts = {row["prompt"][0]["content"] for row in train_rows}
     val_prompts = {row["prompt"][0]["content"] for row in val_rows}
     if train_prompts & val_prompts:
@@ -96,8 +103,10 @@ def prepare_data(params, run_dir, model_path):
 
 
 def check_reward():
+    """Try verl's GSM8K scorer on a few known answers before spending GPU time."""
     from verl.utils.reward_score.gsm8k import compute_score
 
+    # Each case is (response, reference, expected reward). A missing #### scores 0, and commas are ignored.
     examples = [
         ("There are 6 x 7 = 42 marbles.\n#### 42", "42", 1),
         ("There are 7 marbles.\n#### 7", "42", 0),
@@ -110,6 +119,7 @@ def check_reward():
 
 
 def build_config(params, run_dir, model_path, train_path, val_path):
+    """Start from verl's default PPO config and override what this recipe changes."""
     import verl
     from hydra import compose, initialize_config_dir
     from verl.utils.config import validate_config
@@ -138,6 +148,7 @@ def build_config(params, run_dir, model_path, train_path, val_path):
             "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4",
             "actor_rollout_ref.actor.checkpoint.save_contents=[model,optimizer,extra,hf_model]",
             "actor_rollout_ref.rollout.name=vllm",
+            # Responses sampled per prompt. GRPO compares them with each other.
             f"actor_rollout_ref.rollout.n={params['rollouts_per_prompt']}",
             "actor_rollout_ref.rollout.tensor_model_parallel_size=1",
             # One worker per engine avoids nested multiprocessing rendezvous.
@@ -145,6 +156,7 @@ def build_config(params, run_dir, model_path, train_path, val_path):
             f"actor_rollout_ref.rollout.max_model_len={params['max_prompt_tokens'] + params['max_response_tokens']}",
             "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8",
             "actor_rollout_ref.rollout.enforce_eager=True",
+            # Greedy validation with one answer per question, so before and after are comparable.
             "actor_rollout_ref.rollout.val_kwargs.do_sample=False",
             "actor_rollout_ref.rollout.val_kwargs.n=1",
             "trainer.use_v1=True",
@@ -153,6 +165,7 @@ def build_config(params, run_dir, model_path, train_path, val_path):
             "trainer.n_gpus_per_node=8",
             "trainer.total_epochs=1",
             f"trainer.total_training_steps={params['training_steps']}",
+            # Validate and save only at the last step. Validate once before training for the baseline.
             f"trainer.test_freq={params['training_steps']}",
             f"trainer.save_freq={params['training_steps']}",
             "trainer.val_before_train=True",
@@ -168,6 +181,11 @@ def build_config(params, run_dir, model_path, train_path, val_path):
 
 @ray.remote(num_gpus=1, max_calls=1, max_retries=0)
 def check_worker_environment(run_id):
+    """Smoke-test one GPU worker before training starts.
+
+    Workers import vLLM, flashinfer, and MLflow on their own, so a broken install or missing
+    credentials would otherwise show up deep inside verl. Returns the versions it found.
+    """
     check_opencv_wheel()
     import cv2
     import flashinfer
@@ -190,6 +208,7 @@ def check_worker_environment(run_id):
 
 
 def train(config, run_id, training_steps):
+    """Run GRPO on a local Ray cluster and check that every step reached MLflow."""
     from mlflow.utils.databricks_utils import get_databricks_env_vars
     from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
     from verl.trainer.main_ppo import TaskRunnerV1, run_ppo
@@ -198,6 +217,7 @@ def train(config, run_id, training_steps):
     runtime_env["py_executable"] = sys.executable
     # Pass session credentials to the workers only. Never save them in config.yaml.
     runtime_env["env_vars"].update(get_databricks_env_vars("databricks"))
+    # Make the workers log to the same MLflow run as this script.
     runtime_env["env_vars"].update({
         "MLFLOW_TRACKING_URI": "databricks",
         "MLFLOW_RUN_ID": run_id,
@@ -212,6 +232,7 @@ def train(config, run_id, training_steps):
             raise RuntimeError(f"Ray sees {gpu_count} GPUs, but this recipe needs 8.")
         print("Ray worker check:", ray.get(check_worker_environment.remote(run_id)), flush=True)
         run_ppo(config, task_runner_class=TaskRunnerV1)
+        # Confirm every step reached MLflow before treating the run as a success.
         history = mlflow.MlflowClient().get_metric_history(run_id, "critic/score/mean")
         if not set(range(1, training_steps + 1)).issubset({metric.step for metric in history}):
             raise RuntimeError("Training returned without logging every expected step to MLflow.")
@@ -220,9 +241,11 @@ def train(config, run_id, training_steps):
 
 
 def compare_responses(run_dir, training_steps, validation_count):
+    """Pair each validation answer before and after training, then log the accuracy."""
     from verl.utils.reward_score.gsm8k import compute_score
 
     validation_dir = run_dir / "validation"
+    # verl writes one file per validation pass, named by step. Step 0 is before training.
     before = pd.read_json(validation_dir / "0.jsonl", lines=True, dtype={"gts": str})
     after = pd.read_json(validation_dir / f"{training_steps}.jsonl", lines=True, dtype={"gts": str})
     comparison = before[["input", "gts", "output", "score"]].merge(
@@ -231,6 +254,7 @@ def compare_responses(run_dir, training_steps, validation_count):
     )
     if not len(comparison) == len(before) == len(after) == validation_count:
         raise RuntimeError("Validation runs must cover the same prompts.")
+    # Recompute every score to confirm verl's saved scores match our reward function.
     for frame in (before, after):
         if any(compute_score(row.output, row.gts) != row.score for row in frame.itertuples()):
             raise RuntimeError("Saved validation scores do not match the reward function.")
@@ -253,6 +277,7 @@ def compare_responses(run_dir, training_steps, validation_count):
 
 
 def main():
+    """Check the settings and the output volume, then train and compare validation answers."""
     from huggingface_hub import snapshot_download
     from omegaconf import OmegaConf
 
@@ -267,6 +292,8 @@ def main():
     if params["rollouts_per_prompt"] < 2:
         raise ValueError("GRPO needs at least two rollouts per prompt.")
     check_environment()
+    # Check the output path now, so a typo doesn't surface after the model download.
+    # A volume path starts with /Volumes/<catalog>/<schema>/<volume>, which is five parts.
     output_root = Path(params["output_root"])
     if (
         len(output_root.parts) < 5 or output_root.parts[:2] != ("/", "Volumes")
@@ -280,6 +307,7 @@ def main():
             "to a Unity Catalog volume that exists and that you can write to."
         )
 
+    # Each AIR attempt writes to its own folder. Fail if it already exists instead of overwriting.
     run_id = os.environ["MLFLOW_RUN_ID"]
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -302,6 +330,7 @@ def main():
             train(config, run_id, params["training_steps"])
             compare_responses(run_dir, params["training_steps"], val_count)
         finally:
+            # Upload the validation files even if training failed, so you can inspect them.
             if (run_dir / "validation").is_dir():
                 try:
                     mlflow.log_artifacts(str(run_dir / "validation"), artifact_path="validation")
