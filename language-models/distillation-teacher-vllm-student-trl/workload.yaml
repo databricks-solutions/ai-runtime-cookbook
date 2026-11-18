@@ -62,7 +62,7 @@ parameters:
   num_train_questions: 4000
   samples_per_question: 4      # keep the first correct one per question
   max_tokens: 768
-  num_eval_questions: 500
+  num_eval_questions: 1319     # the full GSM8K test set
   epochs: 2
   batch_size: 16
   learning_rate: 0.00001
