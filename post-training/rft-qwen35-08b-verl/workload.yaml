@@ -5,8 +5,7 @@ environment:
   version: databricks_ai_v6
   # Every package the recipe adds is pinned, so new upstream releases can't change
   # the install. Only certifi can still move, because AI v6 enforces a security
-  # minimum for it. Don't add a date cutoff such as UV_EXCLUDE_NEWER. It can block
-  # that minimum and break the install.
+  # minimum for it.
   dependencies:
     # Versions chosen and validated for this recipe.
     - cupy-cuda13x==14.0.1
