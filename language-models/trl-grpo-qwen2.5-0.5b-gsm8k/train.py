@@ -20,7 +20,9 @@ from trl import GRPOConfig, GRPOTrainer
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
-OUT = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
+# Read the AIR run ID now: MLflow clears MLFLOW_RUN_ID when the trainer ends the run.
+RUN_ID = os.environ["MLFLOW_RUN_ID"]
+OUT = Path(P["output_root"]) / RUN_ID
 SYSTEM = (
     "Solve the math problem. Think step by step, then give the final answer "
     "on the last line as: #### <number>"
@@ -133,10 +135,10 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2))
     model.save_pretrained(OUT / "grpo_adapter")
-    # The trainer's MLflow callback ends the run when training finishes. These calls resume
-    # the AIR run through MLFLOW_RUN_ID. Opening it with mlflow.start_run() isn't needed.
-    mlflow.log_metrics(metrics)
-    mlflow.log_artifact(str(OUT / "metrics.json"))
+    # The MLflow callback ended the AIR run when training finished; reopen it by ID.
+    with mlflow.start_run(run_id=RUN_ID):
+        mlflow.log_metrics(metrics)
+        mlflow.log_artifact(str(OUT / "metrics.json"))
     print(f"Wrote metrics and the LoRA adapter to {OUT}")
 
 
