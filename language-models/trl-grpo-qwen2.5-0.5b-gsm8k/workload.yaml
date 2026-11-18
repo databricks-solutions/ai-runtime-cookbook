@@ -1,0 +1,51 @@
+# GRPO reinforcement learning on GSM8K math with Hugging Face TRL on one A10.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-trl-grpo-qwen25-05b-gsm8k
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - transformers==5.22.2
+    - trl==1.17.1
+    - peft==0.21.2
+    - accelerate==1.15.0
+    # The environment's huggingface_hub breaks load_dataset with newer fsspec releases
+    # ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
+    # These three versions work together.
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10   # any single GPU works; use GPU_1xH100 for larger models
+
+code_source:
+  root_path: .
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
+
+max_retries: 0
+timeout_minutes: 120
+
+parameters:
+  model_name: Qwen/Qwen2.5-0.5B-Instruct   # public; no Hugging Face token needed
+  lora_r: 16
+  train_samples: 2000          # GSM8K training questions to sample prompts from
+  steps: 100
+  batch_size: 16               # completions per step; must be divisible by num_generations
+  num_generations: 8           # completions sampled per prompt (the "group" in GRPO)
+  learning_rate: 0.00002
+  loss_type: dapo              # TRL also supports grpo, dr_grpo and bnpo
+  max_completion_length: 320
+  # GSM8K test questions for the before/after accuracy check. 0 uses all 1,319.
+  eval_samples: 0
+  eval_batch_size: 64
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/trl-grpo-qwen2.5-0.5b-gsm8k
