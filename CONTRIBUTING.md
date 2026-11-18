@@ -50,6 +50,10 @@ git ls-files --cached --others --exclude-standard '*ray_bootstrap.sh' | xargs -n
 
 It prints nothing when every copy matches.
 
+### Workload command
+
+Keep a short workflow directly in the `command` block of `workload.yaml`, so readers can see every step in one place. Move it into a separate `.sh` or `.py` file only when it is long.
+
 ### Configuration and public safety
 
 Put values that users must configure in `workload.yaml`. Choose where each value goes:
@@ -72,9 +76,12 @@ Never include the following. For values that have no established cookbook defaul
 
 ### Reproducibility and correctness
 
-- Packages inherited from the AIR environment do not need to be pinned. Pin any dependency you add above the AIR environment to an exact, validated version.
+- Packages inherited from the AIR environment do not need to be pinned. Pin every dependency you add above the AIR environment to an exact, validated version with `==`, and list it in `environment.dependencies` rather than installing it in `command`. Do not use unpinned or range specifiers.
 - Prefer stable, versioned model and dataset identifiers (for example, `Qwen/Qwen2.5-7B-Instruct` or `tatsu-lab/alpaca`). Pin an immutable revision only when exact reproducibility matters, such as benchmarked results, regression or output assertions, or behavior that depends on a particular upstream snapshot. Avoid floating aliases such as `latest`. When a recipe reports a specific measured metric or comparison, record the revision in the README or a comment as optional provenance rather than in executable code.
 - Use evaluation data appropriate to the methodology, and do not tune or select a model on final test data.
+- Report each evaluation metric with its standard error, and compare any improvement against the standard error of the difference. Use the full test split when it is affordable. If you evaluate a subset, say why.
+- When reruns give different results, report the spread across runs rather than the best run.
+- Make sampled subsets representative. For example, sample in turn from each category instead of taking the first N sorted items, and print the resulting mix.
 - Make distributed downloads, logging, checkpoints, and other side effects rank-safe.
 - Set `max_retries` explicitly. When retries are enabled, ensure reruns do not corrupt outputs. For long-running or costly training, save checkpoints and restore them on restart when practical.
 
@@ -84,6 +91,8 @@ For recipes using Hugging Face Hub 1.x, unset an inherited `HF_HUB_ENABLE_HF_TRA
 
 AIR creates an MLflow run for each attempt and provides its ID in `MLFLOW_RUN_ID`. When a recipe adds custom MLflow tracking, log to that run.
 
+- Do not wrap MLflow logging in `try`/`except` or fall back to a placeholder run ID. A logging failure should fail the workload.
+- For Hugging Face `Trainer`-based recipes, including TRL, set `report_to="mlflow"` so loss and reward curves reach the AIR run. The callback ends the run when training finishes, and MLflow then clears `MLFLOW_RUN_ID`. Read the run ID when the script starts. To log after training, reopen the run with `mlflow.start_run(run_id=...)`. Before calling `trainer.evaluate()` after training, remove the `MLflowCallback`; otherwise the evaluation logs to a new run.
 - Training recipes generally log metrics and, when useful, a packaged MLflow model.
 - Treat registration in Unity Catalog and alias assignment as model lifecycle operations. Include them when they support the recipe's learning objective, and document the registry target and mutations clearly.
 
@@ -138,6 +147,8 @@ A few things to avoid:
 - Put fixed workload behavior in the introduction rather than `Results`.
 - Do not describe implementation steps as results.
 - Do not repeat repository-wide requirements such as access to AI Runtime.
+- Claim only what you validated. Do not describe hardware, parallel layouts, or alternative settings you did not run, even when marked as untested.
+- Describe durations as time in the container, for example "about 10 minutes in the container." Do not document provisioning or queueing time.
 
 ## Contribution workflow
 
@@ -152,6 +163,7 @@ databricks air run -f workload.yaml --watch
 Then:
 
 - Confirm that the workload completes successfully and produces the documented result.
+- Check the outputs the README documents, not only the exit status. Confirm that the AIR MLflow run has the expected metrics and artifacts and that no extra run was created.
 - Report the observed workload duration and relevant result in the pull request.
 - If you cannot complete this validation before opening the pull request, state that explicitly and explain what remains unvalidated.
 
