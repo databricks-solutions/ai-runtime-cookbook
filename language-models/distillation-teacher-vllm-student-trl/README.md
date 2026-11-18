@@ -2,7 +2,7 @@
 
 This recipe distills math reasoning from `Qwen/Qwen2.5-7B-Instruct` (the teacher) into `Qwen/Qwen2.5-0.5B-Instruct` (the student) on one H100.
 
-The teacher samples up to 4 solutions for each of 4,000 GSM8K training questions using vLLM batch inference. The recipe keeps the first solution with a correct final answer. The student then runs 2 epochs of supervised fine-tuning on those solutions with TRL, with loss on the solution tokens only. The recipe measures the student's GSM8K test accuracy (500 questions, greedy) before and after. The whole run takes about 10 minutes.
+The teacher samples up to 4 solutions for each of 4,000 GSM8K training questions using vLLM batch inference. The recipe keeps the first solution with a correct final answer. The student then runs 2 epochs of supervised fine-tuning on those solutions with TRL, with loss on the solution tokens only. The recipe measures the student's greedy accuracy on all 1,319 GSM8K test questions before and after. The run takes about 10 minutes in the container, plus provisioning and queueing.
 
 ## Run
 
@@ -14,15 +14,15 @@ databricks air run -f workload.yaml --watch
 
 The run prints each stage's results. It writes `summary.json` to `<output_root>/<MLflow run ID>/` and logs the metrics to MLflow.
 
-Validation runs on an H100 produced these results:
+A validation run on an H100 produced these results:
 
 | Stage | Result |
 |---|---|
-| Teacher batch generation | 3,886 of 4,000 questions solved correctly, in about 180 s |
-| Student fine-tuning | 3,886 examples × 2 epochs, in 105 s |
-| Student GSM8K accuracy | 49.6% → 50.8% in the two latest runs. An earlier run measured 49.4% → 53.6%. |
+| Teacher batch generation | 3,882 of 4,000 questions solved correctly, in 176 s |
+| Student fine-tuning | 3,882 examples × 2 epochs, in 105 s |
+| Student GSM8K accuracy (1,319 questions) | 47.1% → 51.2% |
 
-With 500 questions, the standard error is about 2.2 points. The latest runs' 1.2-point gain is within that noise. Raise `num_eval_questions` (up to 1,319) for a tighter estimate.
+With 1,319 questions, each accuracy has a standard error of about 1.4 points, and their difference about 1.9 points if the two evaluations are treated as independent. The 4.1-point gain is about twice that. The test set is only used for this report. No checkpoint is selected on it.
 
 Notes:
 
