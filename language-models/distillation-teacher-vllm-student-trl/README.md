@@ -14,15 +14,15 @@ databricks air run -f workload.yaml --watch
 
 The run prints each stage's results. It writes `summary.json` to `<output_root>/<MLflow run ID>/` and logs the metrics to MLflow.
 
-A validation run on an H100 produced these results:
+Validation runs on an H100 produced these results:
 
 | Stage | Result |
 |---|---|
-| Teacher batch generation | 3,886 of 4,000 questions solved correctly, in 181 s |
+| Teacher batch generation | 3,886 of 4,000 questions solved correctly, in about 180 s |
 | Student fine-tuning | 3,886 examples × 2 epochs, in 105 s |
-| Student GSM8K accuracy | 49.4% → 53.6% |
+| Student GSM8K accuracy | 49.6% → 50.8% in the two latest runs. An earlier run measured 49.4% → 53.6%. |
 
-With 500 questions, the standard error is about 2.2 points. Raise `num_eval_questions` (up to 1,319) for a tighter estimate.
+With 500 questions, the standard error is about 2.2 points. The latest runs' 1.2-point gain is within that noise. Raise `num_eval_questions` (up to 1,319) for a tighter estimate.
 
 Notes:
 
