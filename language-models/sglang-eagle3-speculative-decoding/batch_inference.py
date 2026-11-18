@@ -10,6 +10,7 @@ import os
 import time
 from pathlib import Path
 
+import mlflow
 import sglang as sgl
 import yaml
 from datasets import load_dataset
@@ -78,19 +79,14 @@ def main():
           f"mean accept length {spec['mean_accept_length']:.2f}, "
           f"identical greedy outputs: {same:.0%}")
 
-    out = Path(P["output_root"]) / os.environ.get("MLFLOW_RUN_ID", "local")
+    out = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
     out.mkdir(parents=True, exist_ok=True)
     summary = {"baseline": base, "eagle3": spec, "speedup": speedup, "identical_outputs": same}
     (out / "results.json").write_text(json.dumps(summary, indent=2))
-    try:
-        import mlflow
-
-        with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
-            mlflow.log_metrics({"speedup": speedup, "mean_accept_length": spec["mean_accept_length"],
-                                "baseline_tok_per_s": base["output_tokens_per_second"],
-                                "eagle3_tok_per_s": spec["output_tokens_per_second"]})
-    except Exception as e:  # MLflow logging is optional for the recipe.
-        print(f"MLflow logging skipped: {e}")
+    with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
+        mlflow.log_metrics({"speedup": speedup, "mean_accept_length": spec["mean_accept_length"],
+                            "baseline_tok_per_s": base["output_tokens_per_second"],
+                            "eagle3_tok_per_s": spec["output_tokens_per_second"]})
 
 
 # SGLang starts worker processes, so the entry point must be guarded.

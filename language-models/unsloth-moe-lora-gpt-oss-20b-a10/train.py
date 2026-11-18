@@ -13,6 +13,7 @@ import os
 import time
 from pathlib import Path
 
+import mlflow
 import torch
 import yaml
 from datasets import load_dataset
@@ -21,7 +22,7 @@ from trl import SFTConfig, SFTTrainer
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
-RUN_ID = os.environ.get("MLFLOW_RUN_ID", "local")
+RUN_ID = os.environ["MLFLOW_RUN_ID"]
 OUT = Path(P["output_root"]) / RUN_ID
 
 
@@ -110,13 +111,8 @@ def main():
     if P["save_adapter"]:
         model.save_pretrained(str(OUT / "lora_adapter"))
         tokenizer.save_pretrained(str(OUT / "lora_adapter"))
-    try:
-        import mlflow
-
-        with mlflow.start_run(run_id=RUN_ID):
-            mlflow.log_metrics(metrics)
-    except Exception as e:  # MLflow logging is optional for the recipe.
-        print(f"MLflow logging skipped: {e}")
+    with mlflow.start_run(run_id=RUN_ID):
+        mlflow.log_metrics(metrics)
     print(f"Wrote outputs to {OUT}")
 
 
