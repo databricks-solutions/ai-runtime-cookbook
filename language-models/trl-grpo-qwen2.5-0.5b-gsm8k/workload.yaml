@@ -37,7 +37,6 @@ timeout_minutes: 120
 parameters:
   model_name: Qwen/Qwen2.5-0.5B-Instruct   # public; no Hugging Face token needed
   lora_r: 16
-  train_samples: 2000          # GSM8K training questions to sample prompts from
   steps: 100
   batch_size: 16               # completions per step; must be divisible by num_generations
   num_generations: 8           # completions sampled per prompt (the "group" in GRPO)

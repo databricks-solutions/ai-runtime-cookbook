@@ -1,18 +1,16 @@
 """GRPO reinforcement learning on GSM8K math with Hugging Face TRL.
 
 Trains a LoRA adapter on Qwen2.5-0.5B-Instruct with GRPO (Group Relative Policy Optimization).
-The reward is 1 for a correct final answer, plus 0.2 for the requested `#### <number>` format.
+The reward is 1 for a correct final answer, plus 0.2 if the answer contains the `####` marker.
 The recipe measures greedy GSM8K test accuracy before and after training.
 """
 
 import json
 import os
 import re
-import time
 from pathlib import Path
 
 import mlflow
-import torch
 import yaml
 from datasets import load_dataset
 from peft import LoraConfig
@@ -30,8 +28,8 @@ SYSTEM = (
 
 
 def normalize(number):
-    number = number.replace(",", "").rstrip(".")
-    return number[:-2] if number.endswith(".0") else number
+    # Compare as numbers, so 18 and 18.00, or 1,000 and 1000, match.
+    return float(number.replace(",", ""))
 
 
 def gsm8k_answer(text):
@@ -51,7 +49,6 @@ def to_prompt(question):
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": question}]
 
 
-@torch.no_grad()
 def gsm8k_accuracy(model, tok, questions, answers):
     """Greedy accuracy on GSM8K questions."""
     model.eval()
@@ -83,12 +80,14 @@ def main():
     test_q = test["question"]
     test_a = [gsm8k_answer(a) for a in test["answer"]]
 
-    train = load_dataset("openai/gsm8k", "main", split="train").shuffle(seed=0)
-    train = train.select(range(P["train_samples"])).map(
+    # GRPOTrainer's sampler shuffles the prompts. The run uses steps × batch_size ÷ num_generations of them.
+    train = load_dataset("openai/gsm8k", "main", split="train").map(
         lambda x: {"prompt": to_prompt(x["question"]), "solution": gsm8k_answer(x["answer"])},
         remove_columns=["question", "answer"],
     )
 
+    # Left padding, for batched generation.
+    tok = AutoTokenizer.from_pretrained(P["model_name"], padding_side="left")
     trainer = GRPOTrainer(
         model=P["model_name"],
         reward_funcs=[correctness_reward, format_reward],
@@ -106,41 +105,38 @@ def main():
             gradient_checkpointing=True,
             logging_steps=10,
             save_strategy="no",
-            report_to="none",
+            # Logs the loss and reward curves to the AIR run (MLFLOW_RUN_ID).
+            report_to="mlflow",
         ),
         train_dataset=train,
-        processing_class=AutoTokenizer.from_pretrained(P["model_name"]),
+        processing_class=tok,
         peft_config=LoraConfig(r=P["lora_r"], lora_alpha=2 * P["lora_r"],
                                target_modules="all-linear", task_type="CAUSAL_LM"),
     )
-    eval_tok = AutoTokenizer.from_pretrained(P["model_name"], padding_side="left")
     model = trainer.model
 
     metrics = {}
-    t0 = time.time()
     with model.disable_adapter():
-        metrics["gsm8k_acc_base"] = gsm8k_accuracy(model, eval_tok, test_q, test_a)
-    print(f"[eval] base accuracy {metrics['gsm8k_acc_base']:.3f} on {len(test_q)} questions "
-          f"({time.time() - t0:.0f}s)")
+        metrics["gsm8k_acc_base"] = gsm8k_accuracy(model, tok, test_q, test_a)
+    print(f"[eval] base accuracy {metrics['gsm8k_acc_base']:.3f} on {len(test_q)} questions")
 
-    t0 = time.time()
-    trainer.train()
-    metrics["train_seconds"] = time.time() - t0
+    metrics["train_seconds"] = trainer.train().metrics["train_runtime"]
     rewards = [h["reward"] for h in trainer.state.log_history if "reward" in h]
     metrics["reward_first_logged"], metrics["reward_last_logged"] = rewards[0], rewards[-1]
     print(f"[grpo] {P['steps']} steps in {metrics['train_seconds']:.0f}s; mean reward per logging "
           f"interval: {[round(r, 3) for r in rewards]}")
 
-    metrics["gsm8k_acc_grpo"] = gsm8k_accuracy(model, eval_tok, test_q, test_a)
+    metrics["gsm8k_acc_grpo"] = gsm8k_accuracy(model, tok, test_q, test_a)
     print(f"[eval] after GRPO accuracy {metrics['gsm8k_acc_grpo']:.3f}")
     print(json.dumps(metrics, indent=2))
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2))
     model.save_pretrained(OUT / "grpo_adapter")
-    with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
-        mlflow.log_metrics(metrics)
-        mlflow.log_artifact(str(OUT / "metrics.json"))
+    # The trainer's MLflow callback ends the run when training finishes. These calls resume
+    # the AIR run through MLFLOW_RUN_ID. Opening it with mlflow.start_run() isn't needed.
+    mlflow.log_metrics(metrics)
+    mlflow.log_artifact(str(OUT / "metrics.json"))
     print(f"Wrote metrics and the LoRA adapter to {OUT}")
 
 
