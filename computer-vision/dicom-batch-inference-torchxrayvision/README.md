@@ -1,86 +1,91 @@
 # Chest X-ray DICOM batch inference with TorchXRayVision
 
-This recipe runs batch inference on single-frame chest X-ray DICOM files. It uses `UCVolumeDataset` and a custom AI Runtime image on one A10 GPU. Inference uses [TorchXRayVision](https://github.com/mlmed/torchxrayvision)'s [`densenet121-res224-all`](https://github.com/mlmed/torchxrayvision/releases/tag/v1) model. The recipe accepts `DX` and `CR` images and writes one row of uncalibrated pathology scores per image.
+This recipe reads chest X-rays from a Unity Catalog volume with `UCVolumeDataset` and writes 18 pathology scores per image. On one A10 GPU, a custom Docker image runs [TorchXRayVision’s `densenet121-res224-all` model][model].
 
-You can use and adapt this recipe for research and evaluation. The scores are not diagnoses, calibrated probabilities, or triage decisions. Do not use them for clinical care. Validate the full workflow separately for the intended scanner, protocol, site, and patient population.
-
-## Improving DICOM throughput from 73 to 932 images/s
-
-Small-file I/O and CPU preprocessing limited the initial Ray Data implementation. The GPU often waited for input instead of running inference. The optimized AI Runtime pipeline removed those bottlenecks without changing the model.
-
-Both implementations processed the same 10,000 synthetic DICOM files with the same TorchXRayVision model on one A10. Reproduce the validation files with [`assets/prepare_synthetic.py`](assets/prepare_synthetic.py).
-
-| Implementation | Throughput | What limited or enabled it |
-|---|---:|---|
-| Initial Ray Data batch inference | 73.033 images/s | Small-file I/O, CPU preprocessing, and fragmented batches left the GPU waiting. |
-| Optimized AI Runtime pipeline | 932.690 images/s | Concurrent caching and prefetching, fused GPU preprocessing, two CUDA streams, and asynchronous Parquet writes. |
-
-The optimized warm pass used **6.37 GB** of GPU memory. It recorded **99% median** and **100% p95 GPU utilization**. Mean utilization was **63.09%** because startup and end-of-run idle windows are included.
-
-The final cold pass measured **108.356 images/s**. Warmup isolates steady-state performance; it is not required for production.
-
-![From I/O-bound to GPU-bound: baseline and optimized AI Runtime throughput](assets/benchmark-throughput.svg)
-
-**Alternatives considered:** AI Runtime also supports [Ray Data batch inference](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/examples/gpu-batch-inference). Ray was not the fundamental bottleneck here; file layout and scheduling were. This recipe uses the direct [`UCVolumeDataset`](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/develop-workloads/dataloading) path for small DICOM files. Ray Data remains useful for distributed actor pipelines.
-
-Use the **Databricks AI Runtime skill** (`databricks-ai-runtime`) to repeat the optimization loop. It standardizes custom-image builds, workload validation, and MLflow performance comparisons.
-
-### References
-
-- [AI Runtime data loading and `UCVolumeDataset`](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/develop-workloads/dataloading)
-- [AI Runtime custom Docker images](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images)
-- [AI Runtime Ray Data batch inference](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/examples/gpu-batch-inference)
-- [Fast, fault-tolerant PyTorch training on AI Runtime — Databricks Engineering Blog](https://www.databricks.com/blog/fast-fault-tolerant-pytorch-training-ai-runtime)
+You can adapt this recipe for research and evaluation. Validate it for your scanner, protocol, site, and patient population. Keep the uncalibrated scores out of clinical decisions such as diagnosis or triage.
 
 ## Before you run
 
-### Build and push the custom image
+### Build and push the image
 
-Enable the AI Runtime Beta Features and Databricks Artifact Registry previews. Install Docker and Databricks CLI 1.20.0 or newer. Use a Unity Catalog schema where you have permission to push images. This example uses `main.default`.
+Use Docker and Databricks CLI 1.20.0 or later. Enable the Databricks Artifact Registry preview in your workspace and choose a schema where you can push and read images. See [Custom Docker images on AI Runtime][docker].
 
-From this recipe directory, build for `linux/amd64` and push the image:
+From the recipe directory, set `AIR_PROFILE` to your CLI profile. The image includes decoders for common DICOM compression formats and the model weights. For Azure, add `--build-arg BASE_IMAGE=databricksruntime/air:dcs-base-azure-runtime` to `docker build`.
 
 ```bash
+AIR_PROFILE=your-profile
 docker build --platform linux/amd64 -t dicom-xray-inference:8 .
-databricks air images push --profile <profile> \
+databricks air images push --profile "$AIR_PROFILE" \
   --source dicom-xray-inference:8 \
   --catalog main --schema default --artifact dicom-xray-inference:8
 ```
 
-The image includes PyTorch, AIR's volume DataLoader, pydicom, OpenCV, and common DICOM decoders. It also caches the public TorchXRayVision weights. For Azure, build with `--build-arg BASE_IMAGE=databricksruntime/air:dcs-base-azure-runtime`.
+If you push outside `main.default`, update `environment.unity_catalog_image` to match in [workload.yaml](workload.yaml).
 
-The push command creates `main.default.dicom-xray-inference:8`. To use another catalog or schema, change the push command and `environment.unity_catalog_image` in `workload.yaml` to match.
+### Prepare the input
 
-### Add input images
+In `workload.yaml`, set `INPUT_PATH` to a directory containing only input DICOMs and `OUTPUT_ROOT` to a writable directory. Both default to subdirectories of the existing `main.default.air_examples` volume.
 
-Upload de-identified `.dcm` or `.DCM` files to the directory configured as `INPUT_PATH`. The default is:
+**For your own images**, upload single-frame grayscale DICOMs (`.dcm` or `.DCM`) from digital radiography (`DX`) or computed radiography (`CR`). De-identify the tags and any identifying text burned into the pixels. The output omits patient names and IDs. Treat the retained UIDs and device metadata as sensitive.
 
-```text
-/Volumes/main/default/air_examples/dicom-batch-inference-torchxrayvision/input
+**For synthetic images**, use Python with NumPy and pydicom 3 installed. Generate eight files in a new local directory and upload them to the default `INPUT_PATH`.
+
+```bash
+NUM_SYNTHETIC_IMAGES=8 INPUT_PATH=./dicom-sample python assets/prepare_synthetic.py
+databricks fs cp --recursive ./dicom-sample \
+  dbfs:/Volumes/main/default/air_examples/dicom-batch-inference-torchxrayvision/input \
+  --profile "$AIR_PROFILE"
 ```
-
-The volume must already exist and be accessible. Inputs must be single-frame, grayscale `DX` or `CR` images. The bundled pydicom plugins support compressed pixel data. An unreadable or unsupported file fails the run and reports its input path.
-
-The default `OUTPUT_ROOT` is a sibling `predictions` directory on the same volume. Change either path in `workload.yaml` as needed.
-
-Use data de-identified according to your organization's policies. Removing DICOM tags does not remove burned-in PHI from pixel data. The recipe does not copy `PatientName` or `PatientID` to its output. DICOM UIDs and device metadata remain sensitive.
-
-Set `MAX_IMAGES` to a small positive integer for a single-process smoke test. The default value `0` processes every matching file with concurrent caching and decoding.
-
-`BATCH_SIZE` defaults to 256, `DATALOADER_WORKERS` to 12, and `PREFETCH_FACTOR` to 32. `USE_AMP` enables mixed-precision inference. `CHANNELS_LAST` enables Tensor Core convolution.
-
-Standard linear DICOM windowing, normalization, and resizing run in batches on the GPU. Non-linear LUTs are applied on the CPU. Mixed-size images are grouped by shape for GPU preprocessing. Two independent CUDA streams overlap inference. A bounded asynchronous Parquet writer keeps output work off the GPU's critical path.
 
 ## Run
 
 ```bash
-databricks air run -f workload.yaml --profile <profile>
+databricks air run -f workload.yaml --watch --profile "$AIR_PROFILE"
 ```
+
+For a smoke test on a larger directory, set `MAX_IMAGES` to `"8"` in `workload.yaml`. A positive limit uses a single loader process. The default (`"0"`) loads the full directory in parallel.
 
 ## Results
 
-Each run writes `predictions.parquet` to `OUTPUT_ROOT/<MLFLOW_RUN_ID>`. Rows contain DICOM UIDs, modality and device metadata, original image dimensions, and the model weight identifier. Each TorchXRayVision output has one `score_*` column. Join results back to source images with `sop_instance_uid`.
+- **Predictions** are in `OUTPUT_ROOT/<MLFLOW_RUN_ID>/predictions.parquet`. Join each row to its source image on `sop_instance_uid`. The `score_*` columns sit alongside study and series UIDs, modality, device metadata, original dimensions, and the model weights identifier.
+- **MLflow** records `images`, `inference_wall_time_s`, and `inference_images_per_sec`. If you set `INFERENCE_REPEATS` above one, the file and inference metrics reflect the final pass.
 
-The AIR MLflow run records the image count, inference wall time, and throughput. Set `WARMUP_PASS=true` to run one warmup pass without writing predictions. The run then records separate cold and warm metrics.
+## Improving DICOM throughput from 73 to 932 images/s
 
-`INFERENCE_REPEATS` controls how many measured passes run. The final pass overwrites the previous Parquet output and metrics. These are pipeline measurements, not clinical performance results.
+Both pipelines used the same model, one A10, and 10,000 synthetic 512 × 512 DICOMs. To generate a dataset this size, use `NUM_SYNTHETIC_IMAGES=10000` with the [sample generator](assets/prepare_synthetic.py).
+
+| Pipeline and pass | What the pass did | Images/s |
+| --- | --- | ---: |
+| Ray Data baseline | Read small files and preprocessed images on the CPU. The GPU waited for batches. | 73.033 |
+| `UCVolumeDataset`, cold pass | Loaded the model, cached the files from the volume, and ran inference without writing predictions. | 108.356 |
+| `UCVolumeDataset`, warm pass | Reused the cached files, ran inference, and wrote predictions to Parquet. | **932.690** |
+
+With `WARMUP_PASS` set to `"true"`, MLflow records the cold rate as `warmup_images_per_sec` and the warm rate as `inference_images_per_sec`. By default, the first pass writes predictions.
+
+<details>
+<summary>View the throughput chart and GPU utilization</summary>
+
+![Throughput on one A10 in images per second. Ray Data baseline 73.033, cold volume pass 108.356, warm volume pass 932.690.](assets/benchmark-throughput.svg)
+
+Warm-pass GPU utilization was 99% at the median and 100% at the 95th percentile. It averaged 63.09% including idle samples. Peak GPU memory use was 6.37 GB.
+
+</details>
+
+### How the pipeline keeps the GPU busy
+
+- `UCVolumeDataset` caches files locally. Twelve loader workers decode images and prefetch batches (`PREFETCH_FACTOR=32`). See [volume data loading][loader] and the [Databricks Engineering Blog][blog].
+- The GPU applies linear windowing, normalization, and resizing. Mixed-size images follow the same path in groups of matching shapes. The CPU handles non-linear lookup tables.
+- The recipe configures two CUDA streams for mixed-precision inference on batches of 256. A background writer saves predictions while the GPU processes the next batch.
+
+To repeat the comparison, track throughput in MLflow after each change. For the image build, push, and workload validation steps, use the [Databricks AI Runtime skill][skill].
+
+### Alternatives considered
+
+This recipe feeds one GPU directly from a volume. To distribute inference across Ray actors, see [Ray Data batch inference on AI Runtime][ray].
+
+[model]: https://github.com/mlmed/torchxrayvision/tree/1.5.7#models-demo-notebook
+[docker]: https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images
+[loader]: https://docs.databricks.com/aws/en/machine-learning/ai-runtime/develop-workloads/dataloading#load-unstructured-data-with-ucvolumedataset
+[ray]: https://docs.databricks.com/aws/en/machine-learning/ai-runtime/examples/gpu-batch-inference
+[skill]: https://github.com/databricks/databricks-agent-skills/blob/main/skills/databricks-ai-runtime/SKILL.md
+[blog]: https://www.databricks.com/blog/fast-fault-tolerant-pytorch-training-ai-runtime

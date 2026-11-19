@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
-  <title id="title">From I/O-bound to GPU-bound</title>
-  <desc id="desc">Initial Ray Data batch inference reached 73.033 images per second. Optimized AI Runtime reached 932.690 images per second, a 12.8x improvement. Optimizations were UCVolumeDataset, fused GPU preprocessing, asynchronous Parquet writes, and two CUDA streams.</desc>
+  <title id="title">Chest X-ray DICOM throughput on one A10 GPU</title>
+  <desc id="desc">Both pipelines scored the same 10,000 synthetic images. The Ray Data baseline processed 73.033 images per second. UCVolumeDataset processed 108.356 on the first pass and 932.690 on the pass that reused cached files and wrote Parquet predictions.</desc>
   <rect width="1200" height="760" fill="#F9F7F4"/>
   <style>
     text { font-family: "DM Sans", Arial, sans-serif; letter-spacing: 0; }
@@ -11,58 +11,58 @@
     .small { font-size: 17px; }
   </style>
 
-  <text x="48" y="62" class="navy" font-size="38" font-weight="700">From I/O-bound to GPU-bound</text>
-  <text x="48" y="94" class="muted" font-size="20">DICOM batch inference on Databricks AI Runtime | one A10 | 10,000 synthetic files</text>
+  <text x="48" y="62" class="navy" font-size="38" font-weight="700">Chest X-ray DICOM throughput on one A10 GPU</text>
+  <text x="48" y="94" class="muted" font-size="20">Databricks AI Runtime · TorchXRayVision · 10,000 synthetic 512 × 512 images</text>
 
   <rect x="48" y="124" width="1104" height="244" rx="8" fill="#FFFFFF" stroke="#D7D3CC"/>
   <text x="80" y="162" class="navy" font-size="22" font-weight="700">Images per second</text>
 
-  <text x="80" y="202" class="navy label">Initial Ray Data</text>
-  <text x="1112" y="202" class="navy label" text-anchor="end">73.033</text>
-  <rect x="80" y="216" width="1000" height="32" rx="4" fill="#E5E7EB"/>
-  <rect x="80" y="216" width="78" height="32" rx="4" fill="#7A858A"/>
+  <text x="80" y="208" class="navy label">Ray Data baseline</text>
+  <rect x="410" y="189" width="575" height="24" rx="4" fill="#E5E7EB"/>
+  <rect x="410" y="189" width="45" height="24" rx="4" fill="#7A858A"/>
+  <text x="1112" y="208" class="navy label" text-anchor="end">73.033</text>
 
-  <text x="80" y="282" class="navy label">Optimized AI Runtime</text>
-  <text x="1112" y="282" class="navy label" text-anchor="end">932.690</text>
-  <rect x="80" y="296" width="1000" height="32" rx="4" fill="#E5E7EB"/>
-  <rect x="80" y="296" width="1000" height="32" rx="4" fill="#FF3621"/>
+  <text x="80" y="252" class="navy label">UCVolumeDataset · cold pass</text>
+  <rect x="410" y="233" width="575" height="24" rx="4" fill="#E5E7EB"/>
+  <rect x="410" y="233" width="67" height="24" rx="4" fill="#4B7579"/>
+  <text x="1112" y="252" class="navy label" text-anchor="end">108.356</text>
 
-  <text x="80" y="350" class="lava" font-size="28" font-weight="700">12.8x throughput</text>
+  <text x="80" y="296" class="navy label">UCVolumeDataset · warm pass</text>
+  <rect x="410" y="277" width="575" height="24" rx="4" fill="#FF3621"/>
+  <text x="1112" y="296" class="navy label" text-anchor="end">932.690</text>
+
+  <text x="80" y="350" class="lava" font-size="26" font-weight="700">Warm pass at 12.8× baseline</text>
   <text x="1112" y="348" class="navy small" text-anchor="end">99% median GPU utilization | 100% p95 | 6.37 GB GPU memory</text>
 
   <text x="48" y="410" class="navy" font-size="24" font-weight="700">What changed</text>
 
   <rect x="48" y="434" width="252" height="184" rx="8" fill="#FFFFFF" stroke="#D7D3CC"/>
-  <text x="68" y="470" class="lava" font-size="22" font-weight="700">01</text>
-  <text x="68" y="502" class="navy" font-size="20" font-weight="700">UCVolumeDataset</text>
-  <text x="68" y="532" class="muted small">Concurrent local caching</text>
-  <text x="68" y="558" class="muted small">and tuned prefetching</text>
-  <text x="68" y="592" class="muted small">kept batches ready.</text>
+  <text x="68" y="476" class="navy" font-size="20" font-weight="700">UCVolumeDataset</text>
+  <text x="68" y="518" class="muted small">Files are cached locally.</text>
+  <text x="68" y="545" class="muted small">Twelve loader workers</text>
+  <text x="68" y="572" class="muted small">decode and prefetch.</text>
 
   <rect x="324" y="434" width="252" height="184" rx="8" fill="#FFFFFF" stroke="#D7D3CC"/>
-  <text x="344" y="470" class="lava" font-size="22" font-weight="700">02</text>
-  <text x="344" y="502" class="navy" font-size="20" font-weight="700">GPU preprocessing</text>
-  <text x="344" y="532" class="muted small">Windowing, normalization,</text>
-  <text x="344" y="558" class="muted small">inversion, and resize</text>
-  <text x="344" y="592" class="muted small">fused on the GPU.</text>
+  <text x="344" y="476" class="navy" font-size="20" font-weight="700">GPU preprocessing</text>
+  <text x="344" y="518" class="muted small">Windowing, normalization,</text>
+  <text x="344" y="545" class="muted small">inversion, and resizing</text>
+  <text x="344" y="572" class="muted small">run in batches on the GPU.</text>
 
   <rect x="600" y="434" width="252" height="184" rx="8" fill="#FFFFFF" stroke="#D7D3CC"/>
-  <text x="620" y="470" class="lava" font-size="22" font-weight="700">03</text>
-  <text x="620" y="502" class="navy" font-size="20" font-weight="700">Async output</text>
-  <text x="620" y="532" class="muted small">A bounded writer queue</text>
-  <text x="620" y="558" class="muted small">overlaps Parquet output</text>
-  <text x="620" y="592" class="muted small">with the next GPU batch.</text>
+  <text x="620" y="476" class="navy" font-size="20" font-weight="700">Two CUDA streams</text>
+  <text x="620" y="518" class="muted small">Two model copies score</text>
+  <text x="620" y="545" class="muted small">batches of 256 using FP16</text>
+  <text x="620" y="572" class="muted small">and channels-last tensors.</text>
 
   <rect x="876" y="434" width="252" height="184" rx="8" fill="#FFFFFF" stroke="#D7D3CC"/>
-  <text x="896" y="470" class="lava" font-size="22" font-weight="700">04</text>
-  <text x="896" y="502" class="navy" font-size="20" font-weight="700">Two CUDA streams</text>
-  <text x="896" y="532" class="muted small">Two model copies overlap</text>
-  <text x="896" y="558" class="muted small">inference with channels_last</text>
-  <text x="896" y="592" class="muted small">and FP16 batches of 256.</text>
+  <text x="896" y="476" class="navy" font-size="20" font-weight="700">Parquet output</text>
+  <text x="896" y="518" class="muted small">A background writer saves</text>
+  <text x="896" y="545" class="muted small">predictions while the GPU</text>
+  <text x="896" y="572" class="muted small">scores the next batch.</text>
 
   <rect x="48" y="644" width="1104" height="74" rx="8" fill="#0B2026"/>
-  <text x="72" y="675" fill="#FFFFFF" font-size="19" font-weight="600">AI Runtime skill: build &#x2192; push &#x2192; dry-run &#x2192; run &#x2192; measure</text>
-  <text x="72" y="702" fill="#D7E1E5" font-size="16">Repeatable A/B runs with identical data, model, custom Docker images, MLflow, and NVML.</text>
+  <text x="72" y="675" fill="#FFFFFF" font-size="19" font-weight="600">Repeat the comparison with the Databricks AI Runtime skill</text>
+  <text x="72" y="702" fill="#D7E1E5" font-size="16">Build and push the Docker image, validate the workload, and compare throughput in MLflow.</text>
 
-  <text x="48" y="746" class="muted" font-size="15">Cold pass 108.356 images/s | Warm pass 932.690 images/s | Pipeline benchmark only; no clinical evaluation.</text>
+  <text x="48" y="746" class="muted" font-size="15">The cold pass fills the local cache. The warm pass reuses the cached files and writes predictions.</text>
 </svg>
