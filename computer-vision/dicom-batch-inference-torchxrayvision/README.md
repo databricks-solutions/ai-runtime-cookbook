@@ -1,6 +1,6 @@
 # Chest X-ray DICOM batch inference with TorchXRayVision
 
-This recipe reads chest X-rays from a Unity Catalog volume with `UCVolumeDataset` and writes 18 pathology scores per image. On one A10 GPU, a custom Docker image runs [TorchXRayVision’s `densenet121-res224-all` model][model].
+This recipe reads chest X-rays from a Unity Catalog volume with `UCVolumeDataset` and writes 18 pathology scores per image. It runs [TorchXRayVision's `densenet121-res224-all` model][model] on one A10 GPU, using a custom Docker image.
 
 You can adapt this recipe for research and evaluation. Validate it for your scanner, protocol, site, and patient population. Keep the uncalibrated scores out of clinical decisions such as diagnosis or triage.
 
@@ -10,7 +10,9 @@ You can adapt this recipe for research and evaluation. Validate it for your scan
 
 Use Docker and Databricks CLI 1.20.0 or later. Enable the Databricks Artifact Registry preview in your workspace and choose a schema where you can push and read images. See [Custom Docker images on AI Runtime][docker].
 
-From the recipe directory, set `AIR_PROFILE` to your CLI profile. The image includes decoders for common DICOM compression formats and the model weights. For Azure, add `--build-arg BASE_IMAGE=databricksruntime/air:dcs-base-azure-runtime` to `docker build`.
+The image includes the model weights and decoders for common compressed DICOM formats. For Azure, add `--build-arg BASE_IMAGE=databricksruntime/air:dcs-base-azure-runtime` to `docker build`.
+
+From the recipe directory, set `AIR_PROFILE` to your CLI profile and run the build and push commands.
 
 ```bash
 AIR_PROFILE=your-profile
@@ -24,11 +26,18 @@ If you push outside `main.default`, update `environment.unity_catalog_image` to 
 
 ### Prepare the input
 
-In `workload.yaml`, set `INPUT_PATH` to a directory containing only input DICOMs and `OUTPUT_ROOT` to a writable directory. Both default to subdirectories of the existing `main.default.air_examples` volume.
+Set these paths in [workload.yaml](workload.yaml). Both default to subdirectories of the existing `main.default.air_examples` volume.
 
-**For your own images**, upload single-frame grayscale DICOMs (`.dcm` or `.DCM`) from digital radiography (`DX`) or computed radiography (`CR`). De-identify the tags and any identifying text burned into the pixels. The output omits patient names and IDs. Treat the retained UIDs and device metadata as sensitive.
+| Setting | Required access |
+| --- | --- |
+| `INPUT_PATH` | Read access to a directory containing the input DICOMs. |
+| `OUTPUT_ROOT` | Write access to a directory for predictions. |
 
-**For synthetic images**, use Python with NumPy and pydicom 3 installed. Generate eight files in a new local directory and upload them to the default `INPUT_PATH`.
+For your own images, upload single-frame grayscale DICOMs (`.dcm` or `.DCM`) from digital radiography (`DX`) or computed radiography (`CR`).
+
+De-identify the tags and any identifying text burned into the pixels. The output omits patient names and IDs. Treat the retained UIDs and device metadata as sensitive.
+
+To try synthetic images, use Python with NumPy and pydicom 3 installed. Generate eight files in a new local directory and upload them to the default `INPUT_PATH`.
 
 ```bash
 NUM_SYNTHETIC_IMAGES=8 INPUT_PATH=./dicom-sample python assets/prepare_synthetic.py
@@ -43,24 +52,29 @@ databricks fs cp --recursive ./dicom-sample \
 databricks air run -f workload.yaml --watch --profile "$AIR_PROFILE"
 ```
 
-For a smoke test on a larger directory, set `MAX_IMAGES` to `"8"` in `workload.yaml`. A positive limit uses a single loader process. The default (`"0"`) loads the full directory in parallel.
+For a smoke test, set `MAX_IMAGES` to `"8"` in `workload.yaml`. A positive limit uses a single loader process. The default `"0"` loads the full directory in parallel.
 
 ## Results
 
-- **Predictions** are in `OUTPUT_ROOT/<MLFLOW_RUN_ID>/predictions.parquet`. Join each row to its source image on `sop_instance_uid`. The `score_*` columns sit alongside study and series UIDs, modality, device metadata, original dimensions, and the model weights identifier.
-- **MLflow** records `images`, `inference_wall_time_s`, and `inference_images_per_sec`. If you set `INFERENCE_REPEATS` above one, the file and inference metrics reflect the final pass.
+Each run writes `OUTPUT_ROOT/<MLFLOW_RUN_ID>/predictions.parquet`. Each row contains 18 `score_*` columns, DICOM UIDs, device metadata, original dimensions, and the model weights identifier. Join predictions to source images on `sop_instance_uid`.
 
-## Improving DICOM throughput from 73 to 932 images/s
+The AIR MLflow run records `images`, `inference_wall_time_s`, and `inference_images_per_sec`. If you set `INFERENCE_REPEATS` above one, the file and inference metrics reflect the final pass.
 
-Both pipelines used the same model, one A10, and 10,000 synthetic 512 × 512 DICOMs. To generate a dataset this size, use `NUM_SYNTHETIC_IMAGES=10000` with the [sample generator](assets/prepare_synthetic.py).
+## Throughput with cold and warm caches
 
-| Pipeline and pass | What the pass did | Images/s |
+The 932.690 images/s result uses a warm local cache. The initial Ray Data result is a first pass over the input files. Both pipelines used the same model, one A10, and 10,000 synthetic 512 × 512 DICOMs.
+
+| Pipeline and pass | Work included in the timer | Images/s |
 | --- | --- | ---: |
-| Ray Data baseline | Read small files and preprocessed images on the CPU. The GPU waited for batches. | 73.033 |
-| `UCVolumeDataset`, cold pass | Loaded the model, cached the files from the volume, and ran inference without writing predictions. | 108.356 |
-| `UCVolumeDataset`, warm pass | Reused the cached files, ran inference, and wrote predictions to Parquet. | **932.690** |
+| Ray Data, first pass | File reads, CPU preprocessing, model loading, and inference. Parquet writing follows the timer. | 73.033 |
+| `UCVolumeDataset`, cold warmup | Model loading, local caching, GPU preprocessing, and inference. Predictions are discarded. | 108.356 |
+| `UCVolumeDataset`, warm pass | Cached file reads, GPU preprocessing, inference, and Parquet writing. | **932.690** |
 
-With `WARMUP_PASS` set to `"true"`, MLflow records the cold rate as `warmup_images_per_sec` and the warm rate as `inference_images_per_sec`. By default, the first pass writes predictions.
+With the default `WARMUP_PASS: "false"`, the run makes one cold pass and writes its predictions. Expect throughput closer to the cold result.
+
+Set `WARMUP_PASS: "true"` to fill the cache before writing predictions. MLflow then records the cold rate as `warmup_images_per_sec` and the warm rate as `inference_images_per_sec`.
+
+To generate 10,000 benchmark files, use `NUM_SYNTHETIC_IMAGES=10000` with the [sample generator](assets/prepare_synthetic.py).
 
 <details>
 <summary>View the throughput chart and GPU utilization</summary>

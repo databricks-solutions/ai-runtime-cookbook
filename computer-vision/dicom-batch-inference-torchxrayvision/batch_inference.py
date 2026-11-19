@@ -70,8 +70,8 @@ def score_column(pathology):
     return "score_" + re.sub(r"[^a-z0-9]+", "_", pathology.lower()).strip("_")
 
 
-def prepare_dicom(row, resize=True, gpu_preprocess=False):
-    """Decode one DICOM file and apply the model's expected preprocessing."""
+def prepare_dicom(row):
+    """Decode and center-crop one DICOM, retaining settings for GPU preprocessing."""
     try:
         with BytesIO(row["bytes"]) as stream:
             dataset = pydicom.dcmread(stream, force=False)
@@ -87,58 +87,37 @@ def prepare_dicom(row, resize=True, gpu_preprocess=False):
             if photometric not in ALLOWED_PHOTOMETRIC_INTERPRETATIONS:
                 raise ValueError(f"unsupported photometric interpretation: {photometric}")
 
-            preprocess = None
-            if gpu_preprocess:
-                voi_function = str(getattr(dataset, "VOILUTFunction", "")).upper()
-                use_cpu_lut = "VOILUTSequence" in dataset or voi_function not in ("", "LINEAR")
-                try:
-                    preprocess = {
-                        "rescale_slope": float(getattr(dataset, "RescaleSlope", 1.0)),
-                        "rescale_intercept": float(getattr(dataset, "RescaleIntercept", 0.0)),
-                        "window_center": float(dataset.WindowCenter) if "WindowCenter" in dataset else None,
-                        "window_width": float(dataset.WindowWidth) if "WindowWidth" in dataset else None,
-                        "monochrome1": photometric == "MONOCHROME1",
-                    }
-                except (TypeError, ValueError):
-                    use_cpu_lut = True
-                if use_cpu_lut:
-                    pixels = apply_modality_lut(dataset.pixel_array, dataset)
-                    pixels = apply_voi_lut(pixels, dataset)
-                    preprocess = {
-                        "rescale_slope": 1.0,
-                        "rescale_intercept": 0.0,
-                        "window_center": None,
-                        "window_width": None,
-                        "monochrome1": photometric == "MONOCHROME1",
-                    }
-                else:
-                    pixels = dataset.pixel_array
-            else:
+            voi_function = str(getattr(dataset, "VOILUTFunction", "")).upper()
+            use_cpu_lut = "VOILUTSequence" in dataset or voi_function not in ("", "LINEAR")
+            try:
+                preprocess = {
+                    "rescale_slope": float(getattr(dataset, "RescaleSlope", 1.0)),
+                    "rescale_intercept": float(getattr(dataset, "RescaleIntercept", 0.0)),
+                    "window_center": float(dataset.WindowCenter) if "WindowCenter" in dataset else None,
+                    "window_width": float(dataset.WindowWidth) if "WindowWidth" in dataset else None,
+                    "monochrome1": photometric == "MONOCHROME1",
+                }
+            except (TypeError, ValueError):
+                use_cpu_lut = True
+            if use_cpu_lut:
+                # Apply unsupported window functions on CPU. Neutral settings
+                # let the GPU normalize these pixels without applying the LUT twice.
                 pixels = apply_modality_lut(dataset.pixel_array, dataset)
                 pixels = apply_voi_lut(pixels, dataset)
+                preprocess = {
+                    "rescale_slope": 1.0,
+                    "rescale_intercept": 0.0,
+                    "window_center": None,
+                    "window_width": None,
+                    "monochrome1": photometric == "MONOCHROME1",
+                }
+            else:
+                pixels = dataset.pixel_array
             pixels = np.asarray(pixels, dtype=np.float32)
             if pixels.ndim != 2 or not np.isfinite(pixels).all():
                 raise ValueError("pixel data must be a finite single-channel image")
 
-            if gpu_preprocess:
-                image = CENTER_CROP(pixels[None, ...])
-            else:
-                # Respect the DICOM VOI/window, then map the remaining display
-                # range to the 8-bit range expected by TorchXRayVision.
-                minimum = float(pixels.min())
-                maximum = float(pixels.max())
-                if maximum <= minimum:
-                    raise ValueError("pixel data has no dynamic range")
-                pixels = (pixels - minimum) * (255.0 / (maximum - minimum))
-                if photometric == "MONOCHROME1":
-                    pixels = 255.0 - pixels
-                # VOI LUT interpolation and float32 rounding can slightly exceed
-                # the 8-bit bounds that TorchXRayVision validates.
-                pixels = np.clip(pixels, 0.0, 255.0)
-                pixels = xrv.datasets.normalize(pixels, 255)
-                image = CENTER_CROP(pixels[None, ...])
-            if resize and not gpu_preprocess:
-                image = RESIZER(image).astype(np.float32)
+            image = CENTER_CROP(pixels[None, ...])
             metadata = {
                 "sop_instance_uid": str(dataset.SOPInstanceUID),
                 "study_instance_uid": str(dataset.StudyInstanceUID),
@@ -149,10 +128,7 @@ def prepare_dicom(row, resize=True, gpu_preprocess=False):
                 "original_rows": int(dataset.Rows),
                 "original_columns": int(dataset.Columns),
             }
-            result = {**metadata, "image": image}
-            if preprocess is not None:
-                result["preprocess"] = preprocess
-            return result
+            return {**metadata, "image": image, "preprocess": preprocess}
     except Exception as error:
         raise ValueError(f"Failed to prepare DICOM file {row.get('path', '<unknown>')}: {error}") from error
 
@@ -221,11 +197,7 @@ class DicomPathDataset(IterableDataset):
             paths = islice(paths, self.max_images)
         for local_path in paths:
             with open(local_path, "rb") as handle:
-                yield prepare_dicom(
-                    {"path": local_path, "bytes": handle.read()},
-                    resize=False,
-                    gpu_preprocess=True,
-                )
+                yield prepare_dicom({"path": local_path, "bytes": handle.read()})
 
 
 def collate(rows):

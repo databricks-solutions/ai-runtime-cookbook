@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
   <title id="title">Chest X-ray DICOM throughput on one A10 GPU</title>
-  <desc id="desc">Both pipelines scored the same 10,000 synthetic images. The Ray Data baseline processed 73.033 images per second. UCVolumeDataset processed 108.356 on the first pass and 932.690 on the pass that reused cached files and wrote Parquet predictions.</desc>
+  <desc id="desc">Both pipelines scored the same 10,000 synthetic images. Ray Data's first pass processed 73.033 images per second, with Parquet writing afterward. UCVolumeDataset processed 108.356 during cold warmup without writing predictions, and 932.690 when reusing cached files and writing Parquet predictions.</desc>
   <rect width="1200" height="760" fill="#F9F7F4"/>
   <style>
     text { font-family: "DM Sans", Arial, sans-serif; letter-spacing: 0; }
@@ -17,7 +17,7 @@
   <rect x="48" y="124" width="1104" height="244" rx="8" fill="#FFFFFF" stroke="#D7D3CC"/>
   <text x="80" y="162" class="navy" font-size="22" font-weight="700">Images per second</text>
 
-  <text x="80" y="208" class="navy label">Ray Data baseline</text>
+  <text x="80" y="208" class="navy label">Ray Data · first pass</text>
   <rect x="410" y="189" width="575" height="24" rx="4" fill="#E5E7EB"/>
   <rect x="410" y="189" width="45" height="24" rx="4" fill="#7A858A"/>
   <text x="1112" y="208" class="navy label" text-anchor="end">73.033</text>
@@ -31,7 +31,7 @@
   <rect x="410" y="277" width="575" height="24" rx="4" fill="#FF3621"/>
   <text x="1112" y="296" class="navy label" text-anchor="end">932.690</text>
 
-  <text x="80" y="350" class="lava" font-size="26" font-weight="700">Warm pass at 12.8× baseline</text>
+  <text x="80" y="350" class="lava" font-size="22" font-weight="700">Warm throughput reuses the local cache</text>
   <text x="1112" y="348" class="navy small" text-anchor="end">99% median GPU utilization | 100% p95 | 6.37 GB GPU memory</text>
 
   <text x="48" y="410" class="navy" font-size="24" font-weight="700">What changed</text>
@@ -64,5 +64,5 @@
   <text x="72" y="675" fill="#FFFFFF" font-size="19" font-weight="600">Repeat the comparison with the Databricks AI Runtime skill</text>
   <text x="72" y="702" fill="#D7E1E5" font-size="16">Build and push the Docker image, validate the workload, and compare throughput in MLflow.</text>
 
-  <text x="48" y="746" class="muted" font-size="15">The cold pass fills the local cache. The warm pass reuses the cached files and writes predictions.</text>
+  <text x="48" y="746" class="muted" font-size="15">The cold warmup loads the model and fills the cache. The warm pass also writes Parquet predictions.</text>
 </svg>
