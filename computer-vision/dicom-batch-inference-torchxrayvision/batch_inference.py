@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Research-only chest X-ray inference over DICOM files with Ray Data.
+"""Research-only chest X-ray inference over DICOM files with AI Runtime.
 
 The input directory must contain single-frame, grayscale DX or CR DICOM files.
 Patient names and IDs are never copied to the output. The model scores are
@@ -61,8 +61,7 @@ METADATA_FIELDS = [
     "original_columns",
 ]
 CENTER_CROP = xrv.datasets.XRayCenterCrop()
-RESIZER = xrv.datasets.XRayResizer(224, engine="cv2")
-# Let Ray provide the parallelism; a thread pool per task would oversubscribe CPUs.
+# AIR DataLoader provides CPU parallelism; avoid oversubscribing it with OpenCV threads.
 cv2.setNumThreads(1)
 
 
@@ -158,26 +157,6 @@ def prepare_dicom(row, resize=True, gpu_preprocess=False):
         raise ValueError(f"Failed to prepare DICOM file {row.get('path', '<unknown>')}: {error}") from error
 
 
-def preprocess_cpu(image, preprocess):
-    """Finish one raw DICOM image on CPU for mixed-size fallback batches."""
-    pixels = image.astype(np.float32, copy=False)
-    pixels = pixels * preprocess["rescale_slope"] + preprocess["rescale_intercept"]
-    if preprocess["window_center"] is not None:
-        lower = preprocess["window_center"] - (preprocess["window_width"] - 1) / 2
-        upper = preprocess["window_center"] + (preprocess["window_width"] - 1) / 2
-        pixels = np.clip(pixels, lower, upper)
-    minimum = float(pixels.min())
-    maximum = float(pixels.max())
-    if maximum <= minimum:
-        raise ValueError("pixel data has no dynamic range")
-    pixels = (pixels - minimum) * (255.0 / (maximum - minimum))
-    if preprocess["monochrome1"]:
-        pixels = 255.0 - pixels
-    pixels = np.clip(pixels, 0.0, 255.0)
-    pixels = xrv.datasets.normalize(pixels, 255)
-    return RESIZER(pixels).astype(np.float32)
-
-
 def preprocess_gpu(inputs, preprocess):
     """Apply standard DICOM scaling and normalization as a GPU batch."""
     def column(key):
@@ -211,6 +190,24 @@ def preprocess_gpu(inputs, preprocess):
     return (inputs / 127.5 - 1.0) * 1024.0
 
 
+def preprocess_mixed_gpu(images, preprocess, device):
+    """Group mixed-size images by shape for the standard GPU preprocess path."""
+    groups = {}
+    for index, image in enumerate(images):
+        groups.setdefault(image.shape, []).append(index)
+
+    resized = torch.empty((len(images), 1, 224, 224), dtype=torch.float32, device=device)
+    for indices in groups.values():
+        group = torch.from_numpy(np.stack([images[index] for index in indices])).to(
+            device, non_blocking=True
+        )
+        group = preprocess_gpu(group, [preprocess[index] for index in indices])
+        group = F.interpolate(group, size=(224, 224), mode="area")
+        output_indices = torch.tensor(indices, dtype=torch.long, device=device)
+        resized.index_copy_(0, output_indices, group)
+    return resized
+
+
 class DicomPathDataset(IterableDataset):
     """Decode each locally cached path produced by UCVolumeDataset."""
 
@@ -232,15 +229,15 @@ class DicomPathDataset(IterableDataset):
 
 
 def collate(rows):
-    """Build a pinned-memory-compatible tensor batch plus metadata columns."""
+    """Stack same-size images and preserve mixed-size images for GPU grouping."""
     batch = {field: [row[field] for row in rows] for field in METADATA_FIELDS}
     shapes = {row["image"].shape for row in rows}
     batch["resize_on_gpu"] = len(shapes) == 1
+    images = [row["image"] for row in rows]
     if batch["resize_on_gpu"]:
-        images = [row["image"] for row in rows]
+        batch["image"] = torch.from_numpy(np.stack(images))
     else:
-        images = [preprocess_cpu(row["image"], row["preprocess"]) for row in rows]
-    batch["image"] = torch.from_numpy(np.stack(images))
+        batch["image"] = images
     batch["preprocess"] = [row["preprocess"] for row in rows]
     return batch
 
@@ -265,13 +262,13 @@ class ChestXRayPredictor:
             if isinstance(batch["image"], torch.Tensor):
                 images = batch["image"]
                 inputs = images.to(self.device, non_blocking=True)
+                if batch.get("preprocess") is not None:
+                    inputs = preprocess_gpu(inputs, batch["preprocess"])
+                if batch.get("resize_on_gpu", False):
+                    inputs = F.interpolate(inputs, size=(224, 224), mode="area")
             else:
-                images = np.stack(batch["image"]).astype(np.float32, copy=False)
-                inputs = torch.from_numpy(images).to(self.device, non_blocking=True)
-            if batch.get("preprocess") is not None:
-                inputs = preprocess_gpu(inputs, batch["preprocess"])
-            if batch.get("resize_on_gpu", False):
-                inputs = F.interpolate(inputs, size=(224, 224), mode="area")
+                images = batch["image"]
+                inputs = preprocess_mixed_gpu(images, batch["preprocess"], self.device)
             if CHANNELS_LAST:
                 inputs = inputs.to(memory_format=torch.channels_last)
             with torch.inference_mode(), torch.autocast(
