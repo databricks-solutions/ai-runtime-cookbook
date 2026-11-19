@@ -76,11 +76,11 @@ Never include the following. For values that have no established cookbook defaul
 
 ### Reproducibility and correctness
 
-- Packages inherited from the AIR environment do not need to be pinned. Pin every dependency you add above the AIR environment to an exact, validated version with `==`, and list it in `environment.dependencies` rather than installing it in `command`. Do not use unpinned or range specifiers.
+- Packages inherited from the AIR environment do not need to be pinned. Pin every dependency you add above the AIR environment to an exact, validated version with `==`, and list it in `environment.dependencies` rather than installing it in `command`. Do not use unpinned or range specifiers. If a dependency must be built against the AIR environment, such as a package that compiles against the installed PyTorch and CUDA, you can install it in `command` instead. Still pin its exact version, and add a comment saying why it can't go in `environment.dependencies`.
 - Prefer stable, versioned model and dataset identifiers (for example, `Qwen/Qwen2.5-7B-Instruct` or `tatsu-lab/alpaca`). Pin an immutable revision only when exact reproducibility matters, such as benchmarked results, regression or output assertions, or behavior that depends on a particular upstream snapshot. Avoid floating aliases such as `latest`. When a recipe reports a specific measured metric or comparison, record the revision in the README or a comment as optional provenance rather than in executable code.
 - Use evaluation data appropriate to the methodology, and do not tune or select a model on final test data.
-- Report each evaluation metric with its standard error, and compare any improvement against the standard error of the difference. Use the full test split when it is affordable. If you evaluate a subset, say why.
-- When reruns give different results, report the spread across runs rather than the best run.
+- For metrics measured on a sample of test examples, such as accuracy or win rate, report the standard error, and compare any improvement against the standard error of the difference. Other metrics may need a different summary; say which one you use. Use the full test split when it is affordable. If you evaluate a subset, say why.
+- When reruns give different results, report every run, or the number of runs and the lowest and highest value of each metric, rather than the best run.
 - Make sampled subsets representative. For example, sample in turn from each category instead of taking the first N sorted items, and print the resulting mix.
 - Make distributed downloads, logging, checkpoints, and other side effects rank-safe.
 - Set `max_retries` explicitly. When retries are enabled, ensure reruns do not corrupt outputs. For long-running or costly training, save checkpoints and restore them on restart when practical.
@@ -92,7 +92,9 @@ For recipes using Hugging Face Hub 1.x, unset an inherited `HF_HUB_ENABLE_HF_TRA
 AIR creates an MLflow run for each attempt and provides its ID in `MLFLOW_RUN_ID`. When a recipe adds custom MLflow tracking, log to that run.
 
 - Do not wrap MLflow logging in `try`/`except` or fall back to a placeholder run ID. A logging failure should fail the workload.
-- For Hugging Face `Trainer`-based recipes, including TRL, set `report_to="mlflow"` so loss and reward curves reach the AIR run. The callback ends the run when training finishes, and MLflow then clears `MLFLOW_RUN_ID`. Read the run ID when the script starts. To log after training, reopen the run with `mlflow.start_run(run_id=...)`. Before calling `trainer.evaluate()` after training, remove the `MLflowCallback`; otherwise the evaluation logs to a new run.
+- For Hugging Face `Trainer`-based recipes, including TRL, set `report_to="mlflow"` so loss and reward curves reach the AIR run. Metrics logged after training must reach the same run. When the callback starts the run, it ends the run after training, and later logging goes to a new run. Use one of these approaches:
+  - **Open the run before training**, as the ModernBERT recipes do. Remove `MLFLOW_RUN_ID` from the environment, call `mlflow.start_run(run_id=...)` with its value, and keep the run open through evaluation and final logging. The callback logs into the open run and does not end it.
+  - **Let the callback own the run**, as the TRL DPO and GRPO recipes do. Read `MLFLOW_RUN_ID` when the script starts. Before calling `trainer.evaluate()` after training, remove the `MLflowCallback`, and reopen the run with `mlflow.start_run(run_id=...)` to log the final metrics.
 - Training recipes generally log metrics and, when useful, a packaged MLflow model.
 - Treat registration in Unity Catalog and alias assignment as model lifecycle operations. Include them when they support the recipe's learning objective, and document the registry target and mutations clearly.
 
