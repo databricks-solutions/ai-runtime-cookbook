@@ -32,12 +32,19 @@ def main():
     ray.init(address="auto")
     # Derive replicas from the live cluster so the example scales when nodes are added.
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
-    print(f"Ray cluster ready: {total_gpus} GPU(s)", flush=True)
+    if total_gpus < 1:
+        raise RuntimeError("No GPUs found in the Ray cluster; cannot run vLLM inference.")
+    print(
+        f"Ray cluster ready: {total_gpus} GPU(s); starting {total_gpus} vLLM replicas "
+        "with one GPU each (tensor_parallel_size=1)",
+        flush=True,
+    )
 
     ds = build_prompts()
 
-    # vLLM engine config. concurrency = number of replicas Ray Data runs in parallel;
-    # one per GPU in the cluster here. engine_kwargs are passed through to the vLLM engine.
+    # Ray 2.56.1 treats an integer concurrency as an autoscaling range from 1 to n.
+    # Equal lower/upper bounds start one replica per GPU, including on short runs.
+    # engine_kwargs are passed through to the vLLM engine.
     config = vLLMEngineProcessorConfig(
         model_source=MODEL_SOURCE,
         engine_kwargs={
@@ -45,7 +52,7 @@ def main():
             "tensor_parallel_size": 1,
             "enable_chunked_prefill": True,
         },
-        concurrency=total_gpus,
+        concurrency=(total_gpus, total_gpus),
         batch_size=64,
     )
 
@@ -68,6 +75,8 @@ def main():
 
     # materialize once so the write and the sample print don't re-run inference.
     out = processor(ds).materialize()
+    # Print Ray Data execution statistics for diagnosing pipeline bottlenecks.
+    print(out.stats(), flush=True)
     out.write_parquet(OUTPUT_PATH)
     print(f"Wrote {out.count()} rows to {OUTPUT_PATH}", flush=True)
     for row in out.take(2):
