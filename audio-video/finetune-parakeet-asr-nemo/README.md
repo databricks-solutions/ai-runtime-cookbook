@@ -27,11 +27,11 @@ Each run writes to `<output_root>/<MLFLOW_RUN_ID>/`:
 
 The AIR MLflow run logs the WER values and standard errors as metrics, and `metrics.json` and `test_predictions.jsonl` as artifacts.
 
-On the normalized scores in the validated run (`GPU_1xA10`, about 21 minutes in the container), the test improvement is well above its standard error:
+On the normalized scores in the validated run (`GPU_1xA10`, about 20 minutes in the container), the test improvement is well above its standard error:
 
 | Split | Pretrained | Fine-tuned (step 900) |
 | --- | --- | --- |
-| Validation (500 utterances) | 0.1025 ± 0.0042 | 0.0812 ± 0.0037 |
-| Test (1,000 utterances) | 0.0928 ± 0.0029 | 0.0758 ± 0.0027 |
+| Validation (500 utterances) | 0.1025 ± 0.0080 | 0.0812 ± 0.0059 |
+| Test (1,000 utterances) | 0.0928 ± 0.0049 | 0.0758 ± 0.0037 |
 
-The test WER improvement, 0.0170, is about 4.6 times the standard error of the paired difference, 0.0037. Validation WER fell from 0.0937 at step 300 to 0.0846 at step 600, and then to 0.0812 at step 900, the last check and therefore the selected checkpoint. Standard errors are bootstrap estimates over utterances, so they reflect the sampled subsets rather than the full AMI splits.
+The test WER improvement, 0.0170, is about 4.5 times the standard error of the paired difference, 0.0037. Validation WER fell from 0.0937 at step 300 to 0.0846 at step 600, and then to 0.0812 at step 900, the last check and therefore the selected checkpoint. Standard errors are bootstrap estimates over utterances, so they reflect the sampled subsets rather than the full AMI splits.
