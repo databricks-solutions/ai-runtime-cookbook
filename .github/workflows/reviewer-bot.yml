@@ -1,0 +1,145 @@
+# Reviewer Bot — AI review of PRs against the AI Runtime Cookbook.
+#
+# Own-job workflow. We do NOT use the engine's cross-repo actions/reusable
+# workflows (`uses: databricks/databricks-bot-engine/...`): an external repo
+# can't resolve the internal engine's Actions artifacts ("not found"). Instead
+# the engine is pip-installed via the LOCAL ./.github/actions/bot-prelude ->
+# install-bot-engine composites (local `./` refs always resolve). This file owns
+# checkout, Setup Python, and the run; bot-prelude mints tokens + Node + installs
+# the engine.
+#
+# SAFE ROLLOUT: the pull_request path is gated on the repo VARIABLE
+# REVIEW_BOT_ENABLED — merging this workflow is a no-op until an admin sets
+# REVIEW_BOT_ENABLED=true (Settings > Secrets and variables > Actions >
+# Variables). workflow_dispatch always runs, so a dry-run test works before the
+# variable is flipped.
+#
+# Engine pin: the engine commit installed is bot-prelude's `engine-ref` default
+# (single source of truth); bump it there, never @main.
+#
+# Auth: PAT-free — bot-prelude mints a short-lived, engine-scoped App token for
+# the install (no stored PAT).
+name: Reviewer Bot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: string
+      dry_run:
+        description: 'Print what would be posted instead of posting'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  # No id-token: use-jfrog=false (see bot-prelude), so no JFrog OIDC exchange.
+  # Grant id-token: write if the install is ever moved to an egress-blocked
+  # runner group with use-jfrog=true.
+
+jobs:
+  review:
+    # SECURITY FLOOR: manual dispatch, OR (rollout enabled AND) a non-draft,
+    # non-fork PR. fork == false keeps the App + model tokens off untrusted
+    # code — critical on a PUBLIC repo. The vars gate is the deliberate rollout
+    # switch; without it the workflow would review every PR on merge.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (vars.REVIEW_BOT_ENABLED == 'true'
+          && github.event.pull_request.draft == false
+          && github.event.pull_request.head.repo.fork == false)
+    # Collapse redundant reviews: this triggers on every `synchronize` (push to a
+    # PR), so rapid pushes would otherwise spawn overlapping runs against the same
+    # PR. cancel-in-progress: true — a review of a superseded head is wasted work.
+    concurrency:
+      group: reviewer-bot-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+      cancel-in-progress: true
+    # Public hosted runner: has direct egress to pypi/npm, so the engine install
+    # runs with use-jfrog=false (no internal runner-group availability assumed).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Run trusted workflow code; inspect the resolved PR head separately.
+      - name: Checkout trusted workflow source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The reviewer reads code, it doesn't execute recipes — so it needs only a
+      # Python interpreter (to run the engine), NOT the full workload toolchain.
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: '3.11'
+
+      # Shared prelude: mint the review-bot token (posts findings) + the
+      # engine-scoped token, set up Node, install the pinned engine (PAT-free,
+      # public pypi/npm).
+      - name: Bot prelude (tokens + Node + engine install)
+        id: prelude
+        uses: ./.github/actions/bot-prelude
+        with:
+          app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
+          private-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
+          use-jfrog: 'false'
+          # Engine pin lives in ONE place: bot-prelude's `engine-ref` default.
+
+      - name: Resolve trigger inputs
+        id: inputs
+        # SECURITY: dispatcher-supplied values pass via env, never interpolated
+        # into the script body (an inline expression would inject at assignment,
+        # before the digits-only check). Env values expand without re-parsing.
+        env:
+          GH_TOKEN: ${{ steps.prelude.outputs.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RAW_PR="$INPUT_PR"; DRY_RUN="$INPUT_DRY_RUN"
+          else
+            RAW_PR="$EVENT_PR"; DRY_RUN="false"
+          fi
+          [[ "$RAW_PR" =~ ^[0-9]+$ ]] || { echo "::error::Invalid pr_number '$RAW_PR'"; exit 1; }
+          case "$DRY_RUN" in true|false) ;; *) DRY_RUN="true" ;; esac  # fail safe
+          PR_JSON=$(gh api "repos/$REPO/pulls/$RAW_PR")
+          jq -e --arg repo "$REPO" '.state == "open" and .head.repo.full_name == $repo and .head.repo.fork == false' <<< "$PR_JSON" >/dev/null \
+            || { echo "::error::Reviewer requires an open PR from this repository"; exit 1; }
+          HEAD_SHA=$(jq -r '.head.sha' <<< "$PR_JSON")
+          BASE_SHA=$(jq -r '.base.sha' <<< "$PR_JSON")
+          { echo "pr_number=$RAW_PR"; echo "head_sha=$HEAD_SHA"; echo "base_sha=$BASE_SHA"; echo "dry_run=$DRY_RUN"; } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout reviewed PR (read-only)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ steps.inputs.outputs.head_sha }}
+          path: review-content
+          persist-credentials: false
+
+      - name: Run reviewer
+        env:
+          GH_TOKEN: ${{ steps.prelude.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.inputs.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.inputs.outputs.head_sha }}
+          PR_BASE_SHA: ${{ steps.inputs.outputs.base_sha }}
+          DRY_RUN: ${{ steps.inputs.outputs.dry_run }}
+          REVIEW_CONTENT_ROOT: ${{ github.workspace }}/review-content
+          REVIEWER_BOT_MODEL_OVERRIDE: databricks-claude-opus-5-5
+          MODEL_ENDPOINT: https://${{ vars.BOT_DATABRICKS_HOST }}/serving-endpoints/databricks-claude-opus-5-5/invocations
+          DATABRICKS_TOKEN: ${{ secrets.BOT_DATABRICKS_TOKEN }}
+          RUNNER_TEMP: ${{ runner.temp }}
+          # The reviewer's repo-specific ADDITIVE guidance, read from the TRUSTED
+          # checkout (run_review enforces containment). Engine owns the base prompt.
+          REVIEW_SYSTEM_PROMPT: .bot/prompts/review/system.md
+        run: python -m databricks_bot_engine.reviewer_bot.run_review
