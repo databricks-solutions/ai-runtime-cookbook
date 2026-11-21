@@ -1,0 +1,66 @@
+# Fine-tune NVIDIA Parakeet TDT 0.6B v3 on AMI meeting speech with NVIDIA NeMo Speech on one A10.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-parakeet-tdt-ami-finetune
+
+environment:
+  version: databricks_ai_v6
+  dependencies:
+    # NeMo Speech 3.0.0 (the repo was renamed from NeMo at this release). The asr extra does not
+    # pull opencv or PyAV, the two packages whose wheels abort on AI Runtime with a FIPS self-test.
+    - nemo-toolkit[asr]==3.0.0
+    # Versions below match the uv.lock of NeMo Speech v3.0.0, the validated stack for this release.
+    - lightning==2.4.0
+    - numba==0.65.0
+    - lhotse==1.33.0
+    - librosa==0.11.0
+    - soundfile==0.13.1
+    # Hub 1.x. lightning 2.4.0 requires fsspec<2026, so use the fsspec version from NeMo's v3.0.0 lock.
+    # huggingface_hub is downgraded to NeMo's locked version: the environment's preinstalled hub
+    # is not validated against the pinned fsspec (their HfFileSystem versions must agree).
+    - huggingface_hub==1.33.0
+    # datasets is downgraded to the release from the same NeMo lock, paired with hub 1.33.0;
+    # the environment's preinstalled datasets is not validated against that hub version.
+    - datasets==4.8.5
+    - fsspec==2025.12.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10   # 24 GB; batch_size and max_duration below are sized for it
+
+code_source:
+  root_path: .
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/finetune_parakeet.py"
+
+max_retries: 0
+timeout_minutes: 60
+
+parameters:
+  model_name: nvidia/parakeet-tdt-0.6b-v3   # public, ungated, CC-BY-4.0
+  seed: 42
+  # AMI individual-headset (ihm) subsets. Shards are sampled per split; utterances per split are capped.
+  train_shards: 4
+  train_utterances: 3000
+  validation_shards: 1
+  validation_utterances: 500
+  test_shards: 2
+  test_utterances: 1000
+  # Keep utterances in a length range that fits the 24 GB GPU and the model's context.
+  min_duration: 0.5
+  max_duration: 15.0
+  # Short, bounded fine-tune; learning rate is small because the training set is small.
+  max_steps: 900
+  batch_size: 8
+  eval_batch_size: 16
+  learning_rate: 0.00005
+  min_learning_rate: 0.000001
+  warmup_steps: 100
+  val_check_interval: 300
+  num_workers: 4
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/finetune-parakeet-asr-nemo
