@@ -1,0 +1,100 @@
+# Offline batch inference with a 321B MoE model: vLLM tensor parallel vs. data + expert parallel on one 8x H100 node.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-vllm-ep-glm53-flash-batch-inference
+
+environment:
+  # vLLM 0.34.0's PyPI wheel is built for CUDA 13.0, which matches databricks_ai_v6.
+  version: databricks_ai_v6
+  dependencies:
+    - vllm==0.34.0
+    - datasets==5.2.0
+    # vLLM 0.34 requires huggingface_hub >= 2.0.0. This Hub 2.x set is the one other cookbook recipes use
+    # with datasets 5.2.0.
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    # opencv-python-headless is not pinned. The environment's preinstalled 5.x wheel satisfies vLLM's
+    # >= 4.13 requirement. Pinning 4.14.0.94 replaced that wheel and hit the FIPS selftest abort.
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  root_path: .
+
+env_variables:
+  # Chunked Xet downloads of the 328 GB checkpoint; high-performance mode uses more parallel range requests.
+  HF_XET_HIGH_PERFORMANCE: "1"
+  # The default FlashInfer sampler JIT-compiles a kernel that needs CUDA headers this environment lacks.
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  # Loading and compiling a 321B-parameter model across eight GPUs can take well over the default timeout.
+  VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x+ uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  # FlashInfer JIT-compiles some kernels at startup. They need curand.h, which this environment ships only
+  # inside the nvidia-* pip wheels. Expose just those headers, as the SGLang recipe does.
+  mkdir -p /tmp/curand-include
+  # FlashInfer's FP8 block-scale GEMM JIT also needs nvrtc.h (NVRTC runtime compiler headers).
+  NVIDIA_DIR="$(python -c 'import nvidia; print(nvidia.__path__[0])')"
+  find "$NVIDIA_DIR" \( -name 'curand*.h' -o -name 'nvrtc*.h' \) -exec cp {} /tmp/curand-include/ \;
+  # The same JIT link step needs -lnvrtc, which the system CUDA lacks. Link against the wheel's libnvrtc,
+  # and add its directory to the runtime loader path too.
+  mkdir -p /tmp/cuda-extra-lib
+  for lib in $(find "$NVIDIA_DIR" -name 'libnvrtc.so.*' -type f); do
+    ln -sf "$lib" /tmp/cuda-extra-lib/libnvrtc.so
+    export LD_LIBRARY_PATH="$(dirname "$lib"):${LD_LIBRARY_PATH:-}"
+    break
+  done
+  export LIBRARY_PATH="/tmp/cuda-extra-lib:${LIBRARY_PATH:-}"
+  export CPATH="/tmp/curand-include:${CPATH:-}"
+  # The environment's flash-attn is compiled for its original PyTorch, and vLLM 0.34 installs a newer torch.
+  # vLLM uses its own bundled attention kernels, so remove the incompatible package (the SGLang recipe does too).
+  python -m pip uninstall -y flash-attn
+  # The environment's legacy pynvml package shadows nvidia-ml-py's newer pynvml module, which vLLM's
+  # worker startup needs (the SGLang recipe does the same).
+  python -m pip uninstall -y pynvml
+  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
+  # Stages run in order. The checkpoint is downloaded once and read by both layouts.
+  python "$CODE_SOURCE_PATH/batch_inference.py" download
+  python "$CODE_SOURCE_PATH/batch_inference.py" generate --layout tp8
+  python "$CODE_SOURCE_PATH/batch_inference.py" generate --layout dp8_ep
+  python "$CODE_SOURCE_PATH/batch_inference.py" summary
+
+max_retries: 0
+# The checkpoint download dominates. Target: about 90 minutes of wall time in total.
+timeout_minutes: 120
+
+parameters:
+  # Public, ungated (MIT). Main-branch commit used for the README's measured numbers is recorded there.
+  model_name: zai-org/GLM-5.3-Flash
+  # Public, ungated. CC BY-NC 4.0: non-commercial use only.
+  dataset_name: tatsu-lab/alpaca
+  num_prompts: 1000
+  max_new_tokens: 512
+  max_model_len: 4096
+  # Low reasoning effort keeps the batch output short. The default ("max") generates long thinking traces.
+  reasoning_effort: low
+  # Concurrency is split evenly across engines, so tp8 runs 256 sequences in one engine and dp8_ep runs 32 per GPU.
+  concurrent_seqs_total: 256
+  # Warm-up batch size per engine. Lower values keep DP+EP's MoE warm-up buffers within the 80 GB H100.
+  max_num_batched_tokens: 2048
+  # vLLM's Triton fused-MoE kernel, used for both layouts.
+  moe_backend: triton
+  gpu_memory_utilization: 0.90
+  # Shard the expert weights per rank so each DP+EP rank reads only its own experts from disk.
+  ep_weight_filter: true
+  data_parallel_size: 8
+  # Download workers for the Hub Xet transfer.
+  download_workers: 16
+  # Free space required on the scratch disk, as a multiple of the checkpoint size.
+  disk_headroom: 1.10
+  # Empty means: use /local_disk0, then /local_nvme0, then the temp dir. Set this to a larger local disk if the
+  # check fails.
+  local_scratch_dir: ""
+  # Startup budget per engine (model load, CUDA graph capture, compile) before the run fails.
+  startup_timeout_s: 3600
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/vllm-expert-parallel-moe-batch-inference
