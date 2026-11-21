@@ -21,3 +21,10 @@ The AIR MLflow run contains the selected threshold, test mean average precision 
 - `pseudo_labels_train.json`: pseudo-labels in COCO format, with a confidence `score` on each box.
 - `rfdetr_pseudo_label_best.pth`: RF-DETR Nano weights selected on validation.
 - `metrics.json`: the threshold sweep and all reported metrics.
+
+A run on one A10 took 23 minutes 19 seconds in the container and produced 106,603 pseudo-label boxes for 1,456 training images. The selected confidence threshold was 0.05. The table reports COCO box mean average precision (mAP) on the full test split, averaged across classes and, for mAP@[.50:.95], IoU thresholds from 0.50 to 0.95. An earlier run used the same training settings before the MLflow logging change.
+
+| Model | Earlier test mAP@[.50:.95] | Final test mAP@[.50:.95] | Earlier test mAP@.50 | Final test mAP@.50 |
+| --- | --- | --- | --- | --- |
+| OWLv2 auto-labeler | 0.179 | 0.179 | 0.439 | 0.439 |
+| RF-DETR Nano on pseudo-labels | 0.205 | 0.196 | 0.443 | 0.427 |
