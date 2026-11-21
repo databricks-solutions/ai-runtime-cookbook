@@ -28,16 +28,16 @@ For each layout, the run writes `generations.parquet` (the prompt, the output te
 
 ### Full-run results
 
-Measured on one `GPU_8xH100` node with the default parameters: 1000 Alpaca prompts, up to 512 new tokens each, greedy decoding. Output tokens per layout were 226,435 (TP8) and 225,302 (DP8+EP8).
+Measured on one `GPU_8xH100` node with the default parameters: 1000 Alpaca prompts, up to 512 new tokens each, greedy decoding. Output tokens per layout were 226,902 (TP8) and 226,447 (DP8+EP8).
 
 | Layout | Output tokens/s | Generation time (s) | Startup (s) | KV-cache tokens (log, per engine) |
 |---|---|---|---|---|
-| TP8 | 5,393 | 42.0 | 767 | 867,737 (one engine) |
-| DP8+EP8 | 2,570 | 87.7 | 316 | 80,749 (eight engines) |
+| TP8 | 4,732 | 48.0 | 765 | 867,737 (one engine) |
+| DP8+EP8 | 2,556 | 88.6 | 305 | 80,749 (eight engines) |
 
-Under this configuration TP8 generated about 2.1x faster than DP8+EP8. DP8+EP8 has a smaller KV-cache budget per GPU (see the memory budget below), so it runs fewer concurrent sequences per engine (32 each, against 256 for TP8).
+Under this configuration TP8 generated about 1.9x faster than DP8+EP8. DP8+EP8 has a smaller KV-cache budget per GPU (see the memory budget below), so it runs fewer concurrent sequences per engine (32 each, against 256 for TP8).
 
-**Cross-layout output divergence.** Greedy decoding does not make the two layouts produce the same text. In the run above, 13.2% of prompts produced bit-identical outputs. The `summary` stage measures where the rest diverge: among prompts whose outputs differ, the first differing token appears at a median of about 9% into the shorter output (the layouts' total output token counts differ by only 0.5%). Bit-identical outputs across parallel layouts are not expected: each layout splits every matrix multiplication differently, so floating-point reduction orders differ, small logit differences flip greedy token choices, and the differences compound token by token. This is numerical divergence, not a routing error: both layouts produce well-formed completions of similar length. Compare throughput, not text, across layouts.
+**Cross-layout output divergence.** Greedy decoding does not make the two layouts produce the same text. In the run above, 14.4% of prompts produced bit-identical outputs. The `summary` stage measures where the rest diverge: among the 856 prompts whose outputs differ, the first differing token appears at a median of 12% into the shorter output (mean 20%). The layouts' total output token counts differ by only 0.2%, and their finish-reason mixes are nearly the same (901 vs 904 prompts ending on the stop token). Bit-identical outputs across parallel layouts are not expected: each layout splits every matrix multiplication differently, so floating-point reduction orders differ, small logit differences flip greedy token choices, and the differences compound token by token. This is numerical divergence, not a routing error: both layouts produce well-formed completions of similar length. Compare throughput, not text, across layouts.
 
 Total duration: about 26 minutes of container time, plus about 3 minutes for the checkpoint download.
 
