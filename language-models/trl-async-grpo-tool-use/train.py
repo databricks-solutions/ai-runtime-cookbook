@@ -29,8 +29,11 @@ from trl import AsyncGRPOConfig, AsyncGRPOTrainer
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
-# Read the AIR run ID now: MLflow clears MLFLOW_RUN_ID when the trainer's callback ends the run.
-RUN_ID = os.environ["MLFLOW_RUN_ID"]
+# The AIR-provided MLflow run ID. The trainer's MLflow callback resumes the run at train begin,
+# which removes MLFLOW_RUN_ID from the environment, and the spawned rollout worker then re-imports
+# this module without it. The child never logs, so it can take the empty default; main() fails the
+# workload when the run ID is missing, so nothing is ever logged to a placeholder.
+RUN_ID = os.environ.get("MLFLOW_RUN_ID", "")
 OUT = Path(P["output_root"]) / RUN_ID
 WORK = Path("/tmp/trl-recipe")
 VLLM_URL = "http://localhost:8000"
@@ -325,6 +328,8 @@ def log_eval_metrics(result, step):
 
 
 def main():
+    if not RUN_ID:
+        raise RuntimeError("MLFLOW_RUN_ID is not set; the recipe logs to the AIR-provided MLflow run")
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
 
