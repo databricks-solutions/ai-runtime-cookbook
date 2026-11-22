@@ -1,11 +1,13 @@
 # Object detection with auto-labeled training data and RF-DETR
 
-Auto-label training images with the open-vocabulary [OWLv2](https://huggingface.co/google/owlv2-base-patch16-ensemble) detector, then fine-tune [RF-DETR Nano](https://github.com/roboflow/rf-detr) on the pseudo-labels for 15 epochs on one A10 GPU. The [People & Luggage Detection](https://huggingface.co/datasets/abhinand4as/people-luggage-detection) dataset has two classes (`luggage` and `person`); this recipe ignores its human train labels and uses the human validation labels to select the auto-labeler's confidence threshold and RF-DETR's best checkpoint. The threshold is the candidate with the best validation F1 at IoU 0.5, which penalizes the extra boxes a low threshold adds; COCO mAP would always favor the lowest threshold. The human test labels are used only to evaluate both models.
+Auto-label training images with the open-vocabulary [OWLv2](https://huggingface.co/google/owlv2-base-patch16-ensemble) detector, then fine-tune [RF-DETR Nano](https://github.com/roboflow/rf-detr) on the pseudo-labels for 15 epochs on one A10 GPU. The [People & Luggage Detection](https://huggingface.co/datasets/abhinand4as/people-luggage-detection) dataset has two classes, `luggage` and `person`.
+
+The recipe ignores the dataset's human train labels. Human validation labels select the auto-labeler's confidence threshold and RF-DETR's best checkpoint. The threshold is the candidate with the best validation F1 at IoU 0.5. F1 penalizes the extra boxes a low threshold adds. COCO mAP would always favor the lowest threshold. Human test labels are used only to evaluate both models.
 
 ## Before you run
 
-- RF-DETR downloads pretrained weights from `repo.roboflow.com`; the workspace needs outbound access to that host. The OWLv2 weights and dataset are downloaded from Hugging Face.
-- Review the dataset's CC BY 4.0 license and the models' Apache-2.0 licenses. Both models and the dataset are public and ungated; no Hugging Face token is needed.
+- RF-DETR downloads pretrained weights from `repo.roboflow.com`. The workspace needs outbound access to that host. The OWLv2 weights and dataset are downloaded from Hugging Face.
+- Review the dataset's CC BY 4.0 license and the models' Apache-2.0 licenses. Both models and the dataset are public and ungated. No Hugging Face token is needed.
 - The output path defaults to `/Volumes/main/default/air_examples/object-detection-autolabel-rf-detr`. Set `parameters.output_root` in `workload.yaml` to another existing writable volume directory if needed.
 
 ## Run

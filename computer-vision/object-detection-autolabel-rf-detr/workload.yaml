@@ -21,7 +21,7 @@ code_source:
   root_path: .
 
 command: |
-  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  # AIR may inherit this obsolete setting. huggingface_hub 1.0 and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/train.py"
 
