@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import shutil
-import tempfile
 import time
 from pathlib import Path
 
@@ -25,22 +24,8 @@ with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
 GIB = 1024**3
 MODEL_NAME = P["model_name"]
 
-
-def pick_scratch_dir() -> Path:
-    """Return the local disk that holds the checkpoint.
-
-    The repo does not document the disk layout of an AI Runtime 8x H100 node, so take the first
-    local mount that exists. The download stage checks its free space before writing anything.
-    """
-    if P["local_scratch_dir"]:
-        return Path(P["local_scratch_dir"])
-    for candidate in ("/local_disk0", "/local_nvme0"):
-        if os.path.isdir(candidate):
-            return Path(candidate)
-    return Path(tempfile.gettempdir())
-
-
-SCRATCH = pick_scratch_dir()
+# Local disk that holds the checkpoint. The download stage checks its free space before writing.
+SCRATCH = Path(P["local_scratch_dir"])
 MODEL_DIR = SCRATCH / "glm-5.3-flash"
 # Keep the Hub and Xet caches on the same local disk as the checkpoint, not the small home volume.
 os.environ.setdefault("HF_HOME", str(SCRATCH / "hf_home"))
@@ -61,20 +46,13 @@ def download() -> None:
     if free < need:
         raise SystemExit(
             f"Not enough free space on {SCRATCH}: need {need / GIB:,.0f} GiB, have {free / GIB:,.0f} GiB. "
-            "Set the local_scratch_dir parameter to a larger local disk."
+            "Set the local_scratch_dir parameter to a disk with more free space."
         )
 
     start = time.time()
+    # snapshot_download checks each downloaded file against its Hub size.
     snapshot_download(MODEL_NAME, local_dir=str(MODEL_DIR), max_workers=P["download_workers"])
     elapsed = time.time() - start
-
-    missing = [
-        e.path
-        for e in entries
-        if not (MODEL_DIR / e.path).is_file() or (MODEL_DIR / e.path).stat().st_size != e.size
-    ]
-    if missing:
-        raise SystemExit(f"Download incomplete; missing or wrong size: {missing[:5]}")
     print(
         f"Downloaded {total / GIB:,.1f} GiB in {elapsed / 60:.1f} min "
         f"({total / elapsed / 1e6:,.0f} MB/s) to {MODEL_DIR}",
@@ -110,13 +88,27 @@ def engine_kwargs(num_engines: int) -> dict:
         # Text-only batch job: skip the vision encoder's profiling and memory.
         language_model_only=True,
         max_num_seqs=P["concurrent_seqs_total"] // num_engines,
-        # Warm-up batch size. vLLM's default (16384) sizes MoE activation buffers, which the DP+EP warm-up
-        # pass overflows on 80 GB GPUs.
+        # Caps tokens per scheduler step for the whole run. vLLM's default (16384) ran out of GPU
+        # memory in the DP+EP warm-up.
         max_num_batched_tokens=P["max_num_batched_tokens"],
         # Same MoE kernel in both layouts. The default FlashInfer CUTLASS FP8 MoE path overflowed in DP+EP.
         moe_backend=P["moe_backend"],
         seed=0,
     )
+
+
+def _rows(indices, outputs) -> list[dict]:
+    """One record per generated output, in the order given."""
+    return [
+        {
+            "prompt_index": int(idx),
+            "prompt_tokens": len(o.prompt_token_ids),
+            "output_tokens": len(o.outputs[0].token_ids),
+            "output_text": o.outputs[0].text,
+            "finish_reason": str(o.outputs[0].finish_reason),
+        }
+        for idx, o in zip(indices, outputs)
+    ]
 
 
 def run_tp8(token_ids: list[list[int]]) -> dict:
@@ -134,19 +126,8 @@ def run_tp8(token_ids: list[list[int]]) -> dict:
     outputs = llm.generate(prompts, sampling, use_tqdm=False)
     generate_s = time.time() - start
 
-    rows = [
-        {
-            "prompt_index": i,
-            "prompt_tokens": len(o.prompt_token_ids),
-            "output_tokens": len(o.outputs[0].token_ids),
-            "output_token_ids": list(o.outputs[0].token_ids),
-            "output_text": o.outputs[0].text,
-            "finish_reason": str(o.outputs[0].finish_reason),
-        }
-        for i, o in enumerate(outputs)
-    ]
     return {
-        "rows": rows,
+        "rows": _rows(range(len(outputs)), outputs),
         "generate_s": generate_s,
         "startup_s": startup_s,
         "engines": 1,
@@ -180,17 +161,9 @@ def _dp_worker(rank: int, dp_size: int, port: int, indices, token_ids, barrier, 
         # All ranks start the timed phase together; the parent waits on the same barrier.
         barrier.wait(timeout=P["startup_timeout_s"])
         outputs = llm.generate(prompts, sampling, use_tqdm=False)
-        result["rows"] = [
-            {
-                "prompt_index": int(idx),
-                "prompt_tokens": len(o.prompt_token_ids),
-                "output_tokens": len(o.outputs[0].token_ids),
-                "output_token_ids": list(o.outputs[0].token_ids),
-                "output_text": o.outputs[0].text,
-                "finish_reason": str(o.outputs[0].finish_reason),
-            }
-            for idx, o in zip(indices, outputs)
-        ]
+        # Record the end time before anything else, so the parent's throughput covers only generation.
+        result["generate_end"] = time.time()
+        result["rows"] = _rows(indices, outputs)
         result["ok"] = True
     except Exception as e:  # Report the failure to the parent instead of hanging at the barrier.
         result["ok"] = False
@@ -218,7 +191,6 @@ def run_dp8_ep(token_ids: list[list[int]], out_dir: Path) -> dict:
         )
         for r in range(dp_size)
     ]
-    start_wall = time.time()
     for p in procs:
         p.start()
     try:
@@ -230,20 +202,20 @@ def run_dp8_ep(token_ids: list[list[int]], out_dir: Path) -> dict:
     generate_start = time.time()
     for p in procs:
         p.join()
-    generate_s = time.time() - generate_start
 
-    rows, startups = [], []
+    rows, startups, generate_ends = [], [], []
     for r in range(dp_size):
         shard = json.loads((out_dir / f"rank_{r}.json").read_text())
         if not shard.get("ok"):
             raise SystemExit(f"DP rank {r} failed: {shard.get('error')}")
         rows.extend(shard["rows"])
         startups.append(shard["startup_s"])
+        generate_ends.append(shard["generate_end"])
         (out_dir / f"rank_{r}.json").unlink()
-    print(
-        f"DP+EP wall time from barrier to last rank: {generate_s:.1f}s "
-        f"(start to end {time.time() - start_wall:.0f}s)"
-    )
+    # Throughput covers only generation, like the tp8 timing: from the shared barrier to the last
+    # rank's generate end, excluding row building, rank JSON writes, and engine teardown.
+    generate_s = max(generate_ends) - generate_start
+    print(f"DP+EP generate time (barrier to last rank's generate end): {generate_s:.1f}s", flush=True)
     rows.sort(key=lambda row: row["prompt_index"])
     return {
         "rows": rows,
@@ -270,7 +242,7 @@ def generate(layout: str) -> None:
     texts, token_ids = load_prompts(tokenizer)
     print(f"{layout}: {len(token_ids)} prompts, max {P['max_new_tokens']} new tokens", flush=True)
 
-    out_dir = Path(P["output_root"]) / os.environ.get("MLFLOW_RUN_ID", "local") / layout
+    out_dir = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"] / layout
     out_dir.mkdir(parents=True, exist_ok=True)
     result = run_tp8(token_ids) if layout == "tp8" else run_dp8_ep(token_ids, out_dir)
 
@@ -294,42 +266,8 @@ def generate(layout: str) -> None:
     _log_mlflow({f"{layout}/{k}": v for k, v in metrics.items()})
 
 
-def _divergence_stats(tp_ids: list[list[int]], ep_ids: list[list[int]]) -> dict:
-    """Token-level agreement between the two layouts' greedy outputs.
-
-    For each prompt, count how many leading tokens the two outputs share. Bit-identical
-    outputs are not expected across layouts: each layout splits every GEMM differently,
-    so floating-point reduction orders differ, and small logit differences flip greedy
-    token choices that then compound.
-    """
-    prefix_fracs = []
-    identical = 0
-    for x, y in zip(tp_ids, ep_ids):
-        n = min(len(x), len(y))
-        p = 0
-        while p < n and x[p] == y[p]:
-            p += 1
-        if p == n and len(x) == len(y):
-            identical += 1
-            prefix_fracs.append(1.0)
-        else:
-            prefix_fracs.append(p / n if n else 0.0)
-    diverging = [f for f in prefix_fracs if f < 1.0]
-    prefix_fracs.sort()
-    n = len(prefix_fracs)
-    return {
-        "prompts": n,
-        "identical_fraction": identical / n if n else 1.0,
-        "mean_prefix_fraction": sum(prefix_fracs) / n if n else 1.0,
-        "median_prefix_fraction": prefix_fracs[n // 2] if n else 1.0,
-        "diverging_prompts": len(diverging),
-        "mean_prefix_fraction_diverging": sum(diverging) / len(diverging) if diverging else 1.0,
-        "median_prefix_fraction_diverging": sorted(diverging)[len(diverging) // 2] if diverging else 1.0,
-    }
-
-
 def summary() -> None:
-    run_dir = Path(P["output_root"]) / os.environ.get("MLFLOW_RUN_ID", "local")
+    run_dir = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
     metrics = {layout: json.loads((run_dir / layout / "metrics.json").read_text()) for layout in ("tp8", "dp8_ep")}
     print("\nlayout   output tok/s   generate s   startup s   engines")
     for layout, m in metrics.items():
@@ -339,27 +277,14 @@ def summary() -> None:
         )
     print("KV-cache size: read the 'GPU KV cache size' line of each engine in the run log.")
 
-    # Greedy decoding: compare the two layouts' outputs token by token.
+    # Greedy decoding does not make the two layouts produce the same text; see the README.
     from datasets import Dataset
 
     a = Dataset.from_parquet(str(run_dir / "tp8" / "generations.parquet")).sort("prompt_index")
     b = Dataset.from_parquet(str(run_dir / "dp8_ep" / "generations.parquet")).sort("prompt_index")
-    stats = _divergence_stats(a["output_token_ids"], b["output_token_ids"])
-    print(
-        f"Greedy outputs identical across layouts: {stats['identical_fraction']:.1%} "
-        f"({stats['prompts']} prompts)."
-    )
-    print(
-        f"The other {stats['diverging_prompts']} prompts diverge at a median of "
-        f"{stats['median_prefix_fraction_diverging']:.0%} of the shorter output "
-        f"(mean {stats['mean_prefix_fraction_diverging']:.0%})."
-    )
-    print(
-        f"Output token totals: tp8 {metrics['tp8']['output_tokens']:,}, "
-        f"dp8_ep {metrics['dp8_ep']['output_tokens']:,} "
-        f"(difference {abs(metrics['tp8']['output_tokens'] - metrics['dp8_ep']['output_tokens']) / metrics['tp8']['output_tokens']:.1%})."
-    )
-    _log_mlflow({f"divergence/{k}": v for k, v in stats.items()})
+    same = sum(x == y for x, y in zip(a["output_text"], b["output_text"])) / len(a)
+    print(f"Identical greedy outputs across the layouts: {same:.1%}")
+    _log_mlflow({"identical_greedy_output_fraction": same})
 
 
 if __name__ == "__main__":
