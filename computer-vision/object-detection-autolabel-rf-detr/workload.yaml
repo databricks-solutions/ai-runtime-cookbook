@@ -9,6 +9,9 @@ environment:
     - huggingface_hub==2.4.0
     # RF-DETR's own COCO evaluator backend. Used directly here so the labeler and RF-DETR share one mAP implementation.
     - faster-coco-eval==1.7.2
+    # rfdetr[train] installs roboflow, which requires opencv-python-headless. 4.12.0.88 is the newest release whose
+    # only Linux x86_64 wheel is manylinux2014; the manylinux_2_28 wheels abort with "FATAL FIPS SELFTEST FAILURE" on AI Runtime.
+    - opencv-python-headless==4.12.0.88
 
 compute:
   num_accelerators: 1
@@ -20,10 +23,6 @@ code_source:
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # rfdetr[train] installs roboflow, which requires opencv-python-headless. Its manylinux_2_28 wheel aborts with
-  # "FATAL FIPS SELFTEST FAILURE" on AI Runtime. This recipe never imports cv2; supervision and RF-DETR import it
-  # only when present, so remove it.
-  python -m pip uninstall -y opencv-python-headless opencv-python || true
   python "$CODE_SOURCE_PATH/train.py"
 
 max_retries: 0
