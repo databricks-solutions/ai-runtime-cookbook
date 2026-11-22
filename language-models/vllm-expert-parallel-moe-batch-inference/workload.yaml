@@ -23,7 +23,8 @@ code_source:
 env_variables:
   # Chunked Xet downloads of the 328 GB checkpoint; high-performance mode uses more parallel range requests.
   HF_XET_HIGH_PERFORMANCE: "1"
-  # The default FlashInfer sampler JIT-compiles a kernel that needs CUDA headers this environment lacks.
+  # The validated configuration keeps vLLM's default sampler instead of FlashInfer's, which also
+  # avoids compiling its sampler kernel.
   VLLM_USE_FLASHINFER_SAMPLER: "0"
   # Loading and compiling a 321B-parameter model across eight GPUs can take well over the default timeout.
   VLLM_ENGINE_READY_TIMEOUT_S: "3600"
@@ -31,6 +32,16 @@ env_variables:
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x+ uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
+  # FlashInfer JIT-compiles its fp8_blockscale_gemm kernel at startup even with the Triton MoE kernel
+  # and the sampler disabled. The build needs curand.h, nvrtc.h and a linkable libnvrtc.so, which the
+  # system CUDA lacks; the NVIDIA pip wheels ship all three (the SGLang recipe does the same).
+  NVIDIA_DIR="$(python -c 'import nvidia; print(nvidia.__path__[0])')"
+  mkdir -p /tmp/cuda-extra-include /tmp/cuda-extra-lib
+  find "$NVIDIA_DIR" \( -name 'curand*.h' -o -name 'nvrtc*.h' \) -exec cp {} /tmp/cuda-extra-include/ \;
+  ln -sf "$(find "$NVIDIA_DIR" -name 'libnvrtc.so.*' -type f -print -quit)" /tmp/cuda-extra-lib/libnvrtc.so
+  export CPATH="/tmp/cuda-extra-include:${CPATH:-}"
+  export LIBRARY_PATH="/tmp/cuda-extra-lib:${LIBRARY_PATH:-}"
+  export LD_LIBRARY_PATH="$(dirname "$(find "$NVIDIA_DIR" -name 'libnvrtc.so.*' -type f -print -quit)"):${LD_LIBRARY_PATH:-}"
   # The environment's flash-attn is compiled for its original PyTorch, and vLLM 0.34 installs a newer torch.
   # vLLM uses its own bundled attention kernels, so remove the incompatible package (the SGLang recipe does too).
   python -m pip uninstall -y flash-attn

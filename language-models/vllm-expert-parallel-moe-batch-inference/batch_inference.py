@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -23,6 +24,22 @@ with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
 
 GIB = 1024**3
 MODEL_NAME = P["model_name"]
+
+
+def _engine_watchdog(seconds: int) -> threading.Timer:
+    """Exit non-zero if engine startup exceeds its budget instead of hanging until the run timeout.
+
+    When an engine dies mid-startup, vLLM's parent process can block after the workers exit; AIR
+    would then hold the GPUs until the workload timeout.
+    """
+
+    def _fire():
+        print(f"Engine startup exceeded {seconds}s; exiting.", flush=True)
+        os._exit(1)
+
+    timer = threading.Timer(seconds, _fire)
+    timer.daemon = True
+    return timer
 
 # Local disk that holds the checkpoint. The download stage checks its free space before writing.
 SCRATCH = Path(P["local_scratch_dir"])
@@ -115,7 +132,10 @@ def run_tp8(token_ids: list[list[int]]) -> dict:
     from vllm import LLM, SamplingParams
 
     start = time.time()
+    watchdog = _engine_watchdog(P["startup_timeout_s"])
+    watchdog.start()
     llm = LLM(**engine_kwargs(num_engines=1), tensor_parallel_size=8, enable_expert_parallel=False)
+    watchdog.cancel()
     startup_s = time.time() - start
     sampling = SamplingParams(temperature=0.0, max_tokens=P["max_new_tokens"])
     prompts = [{"prompt_token_ids": ids} for ids in token_ids]
@@ -148,12 +168,15 @@ def _dp_worker(rank: int, dp_size: int, port: int, indices, token_ids, barrier, 
     result = {"rank": rank}
     try:
         start = time.time()
+        watchdog = _engine_watchdog(P["startup_timeout_s"])
+        watchdog.start()
         llm = LLM(
             **engine_kwargs(num_engines=dp_size),
             tensor_parallel_size=1,
             enable_expert_parallel=True,
             enable_ep_weight_filter=P["ep_weight_filter"],
         )
+        watchdog.cancel()
         result["startup_s"] = time.time() - start
         sampling = SamplingParams(temperature=0.0, max_tokens=P["max_new_tokens"])
         prompts = [{"prompt_token_ids": ids} for ids in token_ids]
@@ -200,12 +223,21 @@ def run_dp8_ep(token_ids: list[list[int]], out_dir: Path) -> dict:
             p.terminate()
         raise SystemExit(f"DP ranks failed before the timed phase: {e!r}") from e
     generate_start = time.time()
+    # Bound the wait so a rank that dies mid-generation cannot hang the run until the workload timeout.
+    join_deadline = generate_start + P["startup_timeout_s"]
     for p in procs:
-        p.join()
+        p.join(max(0.0, join_deadline - time.time()))
+    if any(p.is_alive() for p in procs):
+        for p in procs:
+            p.terminate()
+        raise SystemExit(f"DP ranks did not finish generating within {P['startup_timeout_s']}s of the barrier")
 
     rows, startups, generate_ends = [], [], []
     for r in range(dp_size):
-        shard = json.loads((out_dir / f"rank_{r}.json").read_text())
+        try:
+            shard = json.loads((out_dir / f"rank_{r}.json").read_text())
+        except FileNotFoundError:
+            raise SystemExit(f"DP rank {r} left no result; its engine may have died after startup")
         if not shard.get("ok"):
             raise SystemExit(f"DP rank {r} failed: {shard.get('error')}")
         rows.extend(shard["rows"])
