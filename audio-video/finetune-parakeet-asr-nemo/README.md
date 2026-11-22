@@ -21,13 +21,13 @@ databricks air run -f workload.yaml --watch
 
 Each run writes to `<output_root>/<MLFLOW_RUN_ID>/`:
 
-- `finetuned.nemo`: the model with the lowest normalized validation WER, saved with `save_to`.
+- `finetuned.nemo`: the model with the lowest normalized validation WER, saved with `save_to`. Load it in a fresh process with `ASRModel.restore_from`.
 - `metrics.json`: utterance counts, hyperparameters, the selected step, the validation WER at each check, and baseline and fine-tuned validation and test WER with their bootstrap standard errors.
 - `test_predictions.jsonl`: each test reference alongside the baseline and fine-tuned transcriptions.
 
 The AIR MLflow run logs the WER values and standard errors as metrics, and `metrics.json` and `test_predictions.jsonl` as artifacts.
 
-On the normalized scores in the validated run (`GPU_1xA10`, about 20 minutes in the container), the test improvement is well above its standard error:
+On the normalized scores in the validated run (`GPU_1xA10`, about 17 minutes in the container), the test improvement is well above its standard error:
 
 | Split | Pretrained | Fine-tuned (step 900) |
 | --- | --- | --- |
