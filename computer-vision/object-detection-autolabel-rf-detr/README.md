@@ -29,6 +29,6 @@ A run on one A10 took 14 minutes in the container. Validation F1 at IoU 0.5 peak
 | Model | Test mAP@[.50:.95] | Test mAP@.50 |
 | --- | --- | --- |
 | OWLv2 auto-labeler at threshold 0.2 | 0.153 | 0.357 |
-| RF-DETR Nano on pseudo-labels | 0.231 | 0.497 |
+| RF-DETR Nano on pseudo-labels | 0.235 | 0.507 |
 
 The auto-labeler's mAP is lower at 0.2 than it would be at a lower threshold, because mAP does not penalize extra low-scoring boxes. The student trained on the 0.2 labels outperforms the labeler on both metrics.
