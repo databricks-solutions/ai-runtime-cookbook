@@ -11,7 +11,6 @@ import json
 import os
 import random
 import re
-import shutil
 import statistics
 import time
 from pathlib import Path
@@ -23,6 +22,8 @@ import soundfile as sf
 import torch
 import yaml
 from huggingface_hub import HfApi, hf_hub_download
+from kaldialign import edit_distance
+from nemo.collections.asr.metrics.wer import word_error_rate as nemo_word_error_rate
 from nemo.collections.asr.models import ASRModel
 from nemo.utils.exp_manager import exp_manager
 from omegaconf import OmegaConf
@@ -41,23 +42,10 @@ def normalize(text):
     return " ".join(NON_TEXT.sub(" ", text.lower()).split())
 
 
-def edit_distance(ref, hyp):
-    previous = list(range(len(hyp) + 1))
-    for i, r in enumerate(ref, 1):
-        current = [i]
-        for j, h in enumerate(hyp, 1):
-            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (r != h)))
-        previous = current
-    return previous[-1]
-
-
 def per_utterance_errors(refs, hyps):
-    # Kept per utterance so the bootstrap standard error can resample utterances.
-    return [edit_distance(r.split(), h.split()) for r, h in zip(refs, hyps)]
-
-
-def word_error_rate(refs, hyps):
-    return sum(per_utterance_errors(refs, hyps)) / sum(len(r.split()) for r in refs)
+    # Kept per utterance so the bootstrap standard error can resample utterances; this is the
+    # same measure NeMo's word_error_rate aggregates, so the two stay consistent.
+    return [edit_distance(r.split(), h.split())["total"] for r, h in zip(refs, hyps)]
 
 
 def wer_standard_errors(baseline_errors, finetuned_errors, words, n_resamples=1000, seed=0):
@@ -107,7 +95,7 @@ def build_split(split, num_shards, num_utterances, min_duration, max_duration, d
         (s, r)
         for s, column in enumerate(texts)
         for r in range(len(column))
-        if "<" not in column[r] and normalize(column[r])
+        if normalize(column[r])
     ]
     rng.shuffle(pool)
 
@@ -117,14 +105,7 @@ def build_split(split, num_shards, num_utterances, min_duration, max_duration, d
     for s, r in pool:
         if len(records) == num_utterances:
             break
-        cell = audio[s][r]
-        if not cell or not cell.get("bytes"):
-            continue
-        samples, rate = sf.read(io.BytesIO(cell["bytes"]), dtype="float32")
-        if rate != SAMPLE_RATE:
-            continue
-        if samples.ndim > 1:
-            samples = samples.mean(axis=1)
+        samples, rate = sf.read(io.BytesIO(audio[s][r]["bytes"]), dtype="float32")
         duration = len(samples) / rate
         if not min_duration <= duration <= max_duration:
             continue
@@ -135,7 +116,6 @@ def build_split(split, num_shards, num_utterances, min_duration, max_duration, d
         )
     if len(records) < num_utterances:
         raise RuntimeError(f"{split}: only {len(records)} usable utterances of {num_utterances} requested")
-    del tables, texts, audio
     return records
 
 
@@ -155,20 +135,17 @@ def score(model, records, batch_size):
         outputs = model.transcribe(
             [record["audio_filepath"] for record in records], batch_size=batch_size, verbose=False
         )
-    if isinstance(outputs, tuple):
-        outputs = outputs[0]
-    hyps = [normalize(getattr(output, "text", output)) for output in outputs]
+    # NeMo 3.0.0's transcribe returns a list of Hypothesis objects.
+    hyps = [normalize(output.text) for output in outputs]
     refs = [record["text"] for record in records]
-    return word_error_rate(refs, hyps), hyps
+    return nemo_word_error_rate(hyps, refs), hyps
 
 
 class BestValidationWeights(pl.Callback):
     """Keeps an in-memory copy of the weights with the lowest normalized validation WER.
 
     NeMo's logged val_wer compares cased, punctuated hypotheses with normalized references, so it
-    overstates errors; selection uses the same score as the reported metrics instead. Restoring a
-    .nemo file would call torch.load again, which fails under PyTorch's weights_only default for
-    this checkpoint, so the best state dict is copied in memory.
+    overstates errors; selection uses the same score as the reported metrics instead.
     """
 
     def __init__(self, validation_records, batch_size):
@@ -230,8 +207,6 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
         OmegaConf.create(
             {
                 "manifest_filepath": train_manifest,
-                # NeMo's Lhotse dataloader reads "answer" by default; our manifests store "text".
-                "text_field": "text",
                 "sample_rate": SAMPLE_RATE,
                 "batch_size": p["batch_size"],
                 "shuffle": True,
@@ -239,11 +214,6 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
                 "pin_memory": True,
                 "min_duration": p["min_duration"],
                 "max_duration": p["max_duration"],
-                "is_tarred": False,
-                "tarred_audio_filepaths": None,
-                "shuffle_n": 2048,
-                "bucketing_strategy": "fully_randomized",
-                "bucketing_batch_size": None,
             }
         )
     )
@@ -251,11 +221,9 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
         OmegaConf.create(
             {
                 "manifest_filepath": val_manifest,
-                "text_field": "text",
                 "sample_rate": SAMPLE_RATE,
                 "batch_size": p["eval_batch_size"],
                 "shuffle": False,
-                "use_start_end_token": False,
                 "num_workers": p["num_workers"],
                 "pin_memory": True,
             }
@@ -278,6 +246,8 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
         )
     )
     trainer.fit(model)
+    # Lightning moves the model back to the CPU in teardown; final scoring runs on the GPU.
+    model.to("cuda")
     return best_weights
 
 
@@ -312,7 +282,6 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     data_dir = Path("/tmp/ami_parakeet_data")
     exp_dir = Path("/tmp/parakeet_ami_nemo_experiments")
-    shutil.rmtree(exp_dir, ignore_errors=True)
 
     print("Sampling AMI splits", flush=True)
     validation = build_split(
@@ -355,8 +324,6 @@ def main():
     if best_weights.state is None:
         raise RuntimeError("Training finished without a validation pass to select weights from")
     model.load_state_dict(best_weights.state)
-    best_weights.state = None
-    torch.cuda.empty_cache()
 
     finetuned_path = output_dir / "finetuned.nemo"
     model.save_to(str(finetuned_path))
