@@ -1,12 +1,23 @@
 # Multi-turn tool-use reinforcement learning with TRL's AsyncGRPOTrainer
 
-This recipe trains `Qwen/Qwen3-1.7B` with LoRA to answer SQL questions by calling tools over multiple turns. Each rollout gets a fresh in-memory SQLite database. The model explores it with a read-only `run_query` tool, then submits an answer with `submit_answer`. The reward is 1 when the submitted query returns the same rows as the gold query. It uses [TRL](https://github.com/huggingface/trl) 1.18.0's `AsyncGRPOTrainer`, which decouples generation from training: a `vllm serve` process on GPU 0 generates rollouts while the trainer on GPU 1 trains. `AsyncGRPOTrainer` has no colocate mode, so the server and the trainer need different GPUs, and no single-GPU shape can hold both. The recipe therefore runs on `GPU_8xH100` and uses two of the eight GPUs. It runs 80 steps of GRPO (Group Relative Policy Optimization) and takes about 50 minutes in the container.
+This recipe trains `Qwen/Qwen3-1.7B` with LoRA to answer SQL questions by calling tools over several turns. It runs 80 steps of GRPO (Group Relative Policy Optimization) with [TRL](https://github.com/huggingface/trl) 1.18.0's `AsyncGRPOTrainer` on `GPU_8xH100` and takes about 50 minutes in the container.
 
-The recipe measures task success on 300 held-out test questions before and after training, through the same tool loop. It logs reward curves and before and after success to MLflow.
+Each rollout gets a fresh in-memory SQLite database. The model explores it with a read-only `run_query` tool, then submits an answer with `submit_answer`. The first answer is final. The reward is 1 when the submitted query returns the same rows as the gold query.
+
+`AsyncGRPOTrainer` separates generation from training. A `vllm serve` process on GPU 0 generates rollouts while the trainer on GPU 1 trains. The trainer has no colocate mode and can't share a GPU with the server. The recipe uses two of the node's eight GPUs.
+
+The recipe trains on 2,000 questions from the train split. It measures task success on 300 held-out questions from the test split, before and after training, with the same tools and reward. Both sets skip questions with any of these:
+
+- A database script longer than 1,500 characters. This keeps prompts within the server's 8,192-token window.
+- A gold query that uses `LIMIT`. Without a full `ORDER BY`, it has no single correct answer.
+- A gold result that is empty or has more than 200 rows.
+- A database or gold query that fails to run.
+
+The recipe logs reward curves and before and after success to MLflow.
 
 ## Before you run
 
-- Data: [`gretelai/synthetic_text_to_sql`](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql) (Apache 2.0, public, ungated). The recipe trains on rows from the train split and evaluates on rows from the test split.
+- Data: [`gretelai/synthetic_text_to_sql`](https://huggingface.co/datasets/gretelai/synthetic_text_to_sql) (Apache 2.0, public, ungated).
 - Model: [`Qwen/Qwen3-1.7B`](https://huggingface.co/Qwen/Qwen3-1.7B) (Apache 2.0, public, ungated). Its chat template supports tool calls.
 - The recipe writes to the shared volume `/Volumes/main/default/air_examples/trl-async-grpo-tool-use`. Replace it with another writable volume in `workload.yaml` if you cannot use this one.
 
@@ -18,7 +29,7 @@ databricks air run -f workload.yaml --watch
 
 ## Results
 
-The run writes `metrics.json` and the LoRA adapter (`adapter/`) to `<output_root>/<MLflow run ID>/`. A validation run on an 8×H100 node produced these results; training took about 45 of the 50 container minutes:
+The run writes `metrics.json` and the LoRA adapter (`adapter/`) to `<output_root>/<MLflow run ID>/`. A validation run on an 8×H100 node produced these results. It used model revision `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` and dataset revision `740ab236e64503fba51be1101df7a1be83bf455d`.
 
 | Metric | Base model | After 80 GRPO steps |
 |---|---|---|
@@ -27,9 +38,9 @@ The run writes `metrics.json` and the LoRA adapter (`adapter/`) to `<output_root
 | Tool calls per question | 1.66 ± 0.04 | 2.14 ± 0.04 |
 | Tool calls that returned an error | 6.2% | 4.8% |
 
-Each success rate is a proportion over 300 questions, so its standard error is about 2.7 points, and the standard error of the difference is about 3.8 points treating the two evaluations as independent. The 36.3-point gain is about 10 times that, so the improvement is clear. The test split is only used for this report; no checkpoint is selected on it.
+Each success rate is a proportion over 300 questions. Its standard error is about 2.7 points. Treating the two evaluations as independent, the standard error of the difference is about 3.8 points. The 36.3-point gain is about 10 times that. The test split is used only for this report. No checkpoint is selected on it.
 
-Training reward rose from 0.58 (mean of steps 1 to 10) to 0.74 (steps 71 to 80). Most groups stopped carrying a learning signal along the way: the fraction of groups where all 8 completions got the same reward rose from 0.81 to 0.89, so later steps learn from fewer groups. Entropy fell from 0.037 to 0.028. The logs show generation was the bottleneck: each step waited about 30 seconds on average for rollouts, and the forward and backward pass took about 2 seconds.
+Training reward rose from 0.58 (mean of steps 1 to 10) to 0.74 (steps 71 to 80). The fraction of groups where all 8 completions got the same reward rose from 0.81 to 0.89. Those groups carry no learning signal. Later steps learn from fewer groups. Entropy fell from 0.037 to 0.028. Generation was the bottleneck. Each step waited about 30 seconds on average for rollouts. The forward and backward pass took about 2 seconds.
 
 The run logs these metrics to the AIR MLflow run:
 

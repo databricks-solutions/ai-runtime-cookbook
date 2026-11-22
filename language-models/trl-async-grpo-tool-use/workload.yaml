@@ -38,7 +38,7 @@ env_variables:
   VLLM_USE_FLASHINFER_SAMPLER: "0"
 
 command: |
-  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  # AIR may inherit this obsolete setting. huggingface_hub 1.0 and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
 
   # Start the rollout server on GPU 0. The trainer's weight sync and LoRA adapter loading

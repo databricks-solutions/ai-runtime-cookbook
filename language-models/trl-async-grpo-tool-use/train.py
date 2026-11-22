@@ -192,6 +192,12 @@ class SQLEnv:
         Returns:
             A confirmation message.
         """
+        # TRL's tool loop keeps going until the model stops calling tools, so make the first answer final.
+        if self.submitted_query is not None:
+            return "Error: an answer was already submitted."
+        # get_reward runs the query outside any tool error handling, so a non-string would crash the run.
+        if not isinstance(query, str):
+            return "Error: query must be a string."
         self.submitted_query = query
         return "Answer submitted."
 
@@ -259,6 +265,11 @@ def run_episode(model, row, temperature):
             tool_calls += 1
             tool_errors += result.startswith("Error")
             messages.append({"role": "tool", "tool_call_id": call.get("id"), "name": function["name"], "content": result})
+            # submit_answer ends the task: later calls are not run or counted.
+            if env.submitted_query is not None:
+                break
+        if env.submitted_query is not None:
+            break
     return {
         "success": env.get_reward(),
         "submitted": env.submitted_query is not None,
