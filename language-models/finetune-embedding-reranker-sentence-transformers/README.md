@@ -39,11 +39,13 @@ Results from the validated run (one A10, 57,638 documents, 648 test queries). St
 
 | System | Test nDCG@10 | Test Recall@100 |
 | --- | ---: | ---: |
-| Base embedder | 0.313 ± 0.015 | 0.645 ± 0.014 |
-| Fine-tuned embedder | 0.425 ± 0.015 | 0.747 ± 0.012 |
-| Fine-tuned embedder + fine-tuned reranker (top 20) | 0.387 ± 0.014 | 0.747 |
+| Base embedder | 0.313 ± 0.013 | 0.645 ± 0.015 |
+| Fine-tuned embedder | 0.421 ± 0.014 | 0.750 ± 0.014 |
+| Fine-tuned embedder + fine-tuned reranker (top 20) | 0.387 ± 0.014 | 0.750 ± 0.014 |
 
-Fine-tuning the embedder improves test nDCG@10 by about 11 points, far above the paired standard error of the difference over the same test queries. In this run, the reranker did not beat the fine-tuned bi-encoder: it lowered test nDCG@10. On dev, reranking also lowered nDCG@10 at every depth tried, from 0.432 for the embedder alone to 0.389 at depth 20, 0.343 at depth 50, and 0.311 at depth 100, and dev selected the least aggressive depth. Whether reranking helps depends on that dev-selected depth: if reranking does not improve dev nDCG@10, do not add it to the pipeline. This run trained the reranker for one epoch on one random negative per positive, starting from an MS MARCO checkpoint; treat it as a starting point for your own tuning, not a demonstrated improvement.
+Fine-tuning the embedder improves test nDCG@10 by about 11 points, about ten times the paired standard error of the difference over the same test queries (0.010). In this run, the reranker did not beat the fine-tuned bi-encoder: it lowered test nDCG@10 from 0.421 to 0.387, a drop of about 3 points against a paired standard error of 0.009. On dev, reranking also lowered nDCG@10 at every depth tried, from 0.434 for the embedder alone to 0.387 at depth 20, 0.346 at depth 50, and 0.314 at depth 100, and dev selected the least aggressive depth. Whether reranking helps depends on that dev-selected depth: if reranking does not improve dev nDCG@10, do not add it to the pipeline. This run trained the reranker for one epoch on one random negative per positive, starting from an MS MARCO checkpoint; treat it as a starting point for your own tuning, not a demonstrated improvement.
+
+Two full runs of this code measured the same base score (0.313 test nDCG@10); the fine-tuned embedder scored 0.421 and 0.424, and the reranked system 0.387 and 0.386. Both runs selected rerank depth 20.
 
 The model revisions used were `google/embeddinggemma-2` at `f9972ac22e696a105c482202646979e33e4b5a1e`, `cross-encoder/ms-marco-MiniLM-L12-v2` at `7b0235231ca2674cb8ca8f022859a6eba2b1c968`, `BeIR/fiqa` at `979c07a7cb5ccc6ca009792241fa1250b98055dd`, and `BeIR/fiqa-qrels` at `252958f2d646e22cab6d0c72dd3f0d5de6d0655a`. Recording these revisions is optional provenance and is not needed to run the recipe.
 
