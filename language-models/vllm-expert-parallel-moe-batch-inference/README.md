@@ -2,7 +2,7 @@
 
 This recipe runs offline batch generation with [vLLM](https://github.com/vllm-project/vllm) 0.34.0 on [`zai-org/GLM-5.3-Flash`](https://huggingface.co/zai-org/GLM-5.3-Flash), a 321B-parameter mixture-of-experts (MoE) model with about 18B parameters active per token, on one 8x H100 node. It runs the same 1,000 prompts under two parallel layouts and compares them: tensor parallel 8 (TP8), and data parallel 8 with expert parallel 8 (DP8+EP8). Expert parallelism (EP) spreads each MoE layer's experts across GPUs, so no single GPU holds a full copy of the experts.
 
-The safetensors weights are 328.4 GB (about 306 GiB). The full run takes about 26 minutes in the container, including the download; model startup takes the most time. The workload's timeout is 120 minutes.
+The safetensors weights are 328.4 GB (about 306 GiB). Two validated runs took 26 and 76 minutes in the container; model startup takes the most time, and the difference was the Hub download (about 3 minutes in one run, 54 minutes in the other). The workload's timeout is 120 minutes.
 
 ## Before you run
 
@@ -28,16 +28,16 @@ For each layout, the run writes `generations.parquet` (the prompt, the output te
 
 ### Full-run results
 
-Measured on one `GPU_8xH100` node with the default parameters: 1000 Alpaca prompts, up to 512 new tokens each, greedy decoding. Output tokens per layout were 226,902 (TP8) and 226,447 (DP8+EP8).
+Measured on one `GPU_8xH100` node with the default parameters: 1000 Alpaca prompts, up to 512 new tokens each, greedy decoding. Output tokens per layout were 225,629 (TP8) and 225,201 (DP8+EP8).
 
 | Layout | Output tokens/s | Generation time (s) | Startup (s) | KV-cache tokens (log, per engine) |
 |---|---|---|---|---|
-| TP8 | 4,732 | 48.0 | 765 | 867,737 (one engine) |
-| DP8+EP8 | 2,556 | 88.6 | 305 | 80,749 (eight engines) |
+| TP8 | 4,982 | 45.3 | 763 | 867,737 (one engine) |
+| DP8+EP8 | 2,892 | 77.9 | 310 | 80,749 (eight engines) |
 
-Under this configuration TP8 generated about 1.9x faster than DP8+EP8.
+Under this configuration TP8 generated about 1.7x faster than DP8+EP8.
 
-**Cross-layout output divergence.** Greedy decoding does not make the two layouts produce the same text: in the run above, 14.4% of prompts produced bit-identical outputs. Bit-identical outputs across parallel layouts are not expected — each layout splits matrix multiplications differently, so floating-point reduction orders differ. Compare throughput, not text, across layouts.
+**Cross-layout output divergence.** Greedy decoding does not make the two layouts produce the same text: in the run above, 11.8% of prompts produced bit-identical outputs. Bit-identical outputs across parallel layouts are not expected — each layout splits matrix multiplications differently, so floating-point reduction orders differ. Compare throughput, not text, across layouts.
 
 ### Memory budget
 
