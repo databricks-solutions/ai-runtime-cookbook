@@ -18,12 +18,10 @@ from faster_coco_eval import COCO
 from faster_coco_eval.core.faster_eval_api import COCOeval
 from huggingface_hub import snapshot_download
 from PIL import Image
-from rfdetr import RFDETR, RFDETRNano, RFDETRSmall
+from rfdetr import RFDETR, RFDETRNano
 from torchvision.ops import batched_nms
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
-RFDETR_VARIANTS = {"nano": RFDETRNano, "small": RFDETRSmall}
-# Hugging Face split name -> RF-DETR split directory name.
 HF_SPLITS = ("train", "validation", "test")
 
 
@@ -34,8 +32,6 @@ def load_parameters():
     p["learning_rate"] = float(p["learning_rate"])
     p["nms_iou"] = float(p["nms_iou"])
     p["threshold_grid"] = [float(value) for value in p["threshold_grid"]]
-    if p["rfdetr_model"] not in RFDETR_VARIANTS:
-        raise ValueError(f"rfdetr_model must be one of {sorted(RFDETR_VARIANTS)}")
     if not all(0.0 < value < 1.0 for value in p["threshold_grid"]):
         raise ValueError("threshold_grid values must be in (0, 1)")
     return p
@@ -91,9 +87,11 @@ def run_labeler(records, image_dir, p, detector, processor, device):
         batch = records[start : start + batch_size]
         images = [Image.open(image_dir / record["file_name"]).convert("RGB") for record in batch]
         inputs = processor(text=[class_names] * len(images), images=images, return_tensors="pt").to(device)
-        # bf16 halves inference time on the A10; box decoding below runs on float32 copies.
         with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             outputs = detector(**inputs)
+        # Decode and scale boxes in float32 to avoid bf16 pixel-coordinate rounding.
+        outputs.logits = outputs.logits.float()
+        outputs.pred_boxes = outputs.pred_boxes.float()
         target_sizes = torch.tensor([[image.height, image.width] for image in images], device=device)
         results = processor.post_process_grounded_object_detection(
             outputs=outputs,
@@ -125,17 +123,57 @@ def select_detections(raw_entry, threshold, nms_iou):
     return boxes, scores, labels
 
 
+def xyxy_to_xywh(box):
+    x0, y0, x1, y1 = (float(value) for value in box)
+    return [x0, y0, x1 - x0, y1 - y0]
+
+
+def box_iou_xywh(first, second):
+    x0 = max(first[0], second[0])
+    y0 = max(first[1], second[1])
+    x1 = min(first[0] + first[2], second[0] + second[2])
+    y1 = min(first[1] + first[3], second[1] + second[3])
+    intersection = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    union = first[2] * first[3] + second[2] * second[3] - intersection
+    return intersection / union if union > 0 else 0.0
+
+
+def detection_f1(records, raw, threshold, nms_iou):
+    """Micro-averaged F1 with class-aware, one-to-one matching at IoU 0.5."""
+    true_positives, prediction_count, ground_truth_count = 0, 0, 0
+    for record in records:
+        boxes, scores, labels = select_detections(raw[record["file_name"]], threshold, nms_iou)
+        prediction_count += len(scores)
+        ground_truth_count += len(record["boxes"])
+        matched = set()
+        for box, label in zip(boxes, labels):
+            # NMS returns detections in descending confidence order.
+            candidates = (
+                (box_iou_xywh(xyxy_to_xywh(box), gt_box), index)
+                for index, (gt_box, category) in enumerate(zip(record["boxes"], record["categories"]))
+                if index not in matched and category == int(label) + 1
+            )
+            iou, index = max(candidates, default=(0.0, None))
+            if iou >= 0.5:
+                matched.add(index)
+                true_positives += 1
+    precision = true_positives / prediction_count if prediction_count else 0.0
+    recall = true_positives / ground_truth_count if ground_truth_count else 0.0
+    f1 = 2 * true_positives / (prediction_count + ground_truth_count) if prediction_count + ground_truth_count else 0.0
+    return {"precision": precision, "recall": recall, "f1": f1}
+
+
 def labeler_predictions(records, raw, threshold, nms_iou):
     """Convert the detector's output to COCO result dicts. Image ids follow the order of `records`."""
     predictions = []
     for image_id, record in enumerate(records, start=1):
         boxes, scores, labels = select_detections(raw[record["file_name"]], threshold, nms_iou)
-        for (x0, y0, x1, y1), score, label in zip(boxes, scores, labels):
+        for box, score, label in zip(boxes, scores, labels):
             predictions.append(
                 {
                     "image_id": image_id,
                     "category_id": int(label) + 1,
-                    "bbox": [float(x0), float(y0), float(x1 - x0), float(y1 - y0)],
+                    "bbox": xyxy_to_xywh(box),
                     "score": float(score),
                 }
             )
@@ -148,12 +186,12 @@ def rfdetr_predictions(model, records, image_dir, threshold=0.01):
         image = Image.open(image_dir / record["file_name"]).convert("RGB")
         detections = model.predict(image, threshold=threshold)
         image.close()
-        for (x0, y0, x1, y1), score, class_id in zip(detections.xyxy, detections.confidence, detections.class_id):
+        for box, score, class_id in zip(detections.xyxy, detections.confidence, detections.class_id):
             predictions.append(
                 {
                     "image_id": image_id,
                     "category_id": int(class_id) + 1,
-                    "bbox": [float(x0), float(y0), float(x1 - x0), float(y1 - y0)],
+                    "bbox": xyxy_to_xywh(box),
                     "score": float(score),
                 }
             )
@@ -189,7 +227,7 @@ def stage_dataset(dataset_dir, splits):
 
 
 def train_rfdetr(p, dataset_dir, output_dir):
-    model = RFDETR_VARIANTS[p["rfdetr_model"]]()
+    model = RFDETRNano()
     model.train(
         dataset_dir=str(dataset_dir),
         output_dir=str(output_dir),
@@ -214,15 +252,12 @@ def log_to_air_run(run_id, p, metrics, artifact_paths):
         "labeler_threshold": metrics["labeler_threshold"],
         "labeler_test_map50_95": metrics["labeler_test"]["map50_95"],
         "labeler_test_map50": metrics["labeler_test"]["map50"],
-        "labeler_validation_map50_95": metrics["labeler_threshold_sweep"][str(metrics["labeler_threshold"])][
-            "map50_95"
-        ],
+        "labeler_validation_f1_50": metrics["labeler_threshold_sweep"][str(metrics["labeler_threshold"])]["f1"],
         "pseudo_label_count": metrics["pseudo_label_count"],
+        "rfdetr_test_map50_95": metrics["rfdetr_test"]["map50_95"],
+        "rfdetr_test_map50": metrics["rfdetr_test"]["map50"],
         "duration_seconds": metrics["duration_seconds"],
     }
-    for name, result in metrics["rfdetr_test"].items():
-        flat[f"{name}_test_map50_95"] = result["map50_95"]
-        flat[f"{name}_test_map50"] = result["map50"]
     with mlflow.start_run(run_id=run_id):
         mlflow.log_params({key: str(value) for key, value in p.items()})
         mlflow.log_metrics(flat)
@@ -255,13 +290,12 @@ def main():
     splits = {split: read_split(dataset_root, split) for split in HF_SPLITS}
     image_dirs = {split: dataset_root / split for split in HF_SPLITS}
 
-    # Human labels are read only for validation and test, plus train when the upper-bound option is on.
+    # Human labels are used only for validation and test.
     ground_truth_paths = {}
     for split in ("validation", "test"):
         path = scratch / f"gt_{split}.json"
         path.write_text(json.dumps(coco_ground_truth(splits[split], class_names)))
         ground_truth_paths[split] = path
-    validation_image_ids = list(range(1, len(splits["validation"]) + 1))
     test_image_ids = list(range(1, len(splits["test"]) + 1))
 
     # Run the auto-labeler once per split, then select the threshold on validation only.
@@ -275,70 +309,59 @@ def main():
         split: run_labeler(splits[split], image_dirs[split], p, detector, processor, device)
         for split in ("validation", "test", "train")
     }
-    del detector
-    torch.cuda.empty_cache()
-
     threshold_sweep = {}
     for threshold in p["threshold_grid"]:
-        predictions = labeler_predictions(splits["validation"], raw["validation"], threshold, p["nms_iou"])
-        threshold_sweep[str(threshold)] = coco_map(
-            ground_truth_paths["validation"], predictions, validation_image_ids
+        threshold_sweep[str(threshold)] = detection_f1(
+            splits["validation"], raw["validation"], threshold, p["nms_iou"]
         )
-    best_threshold = max(p["threshold_grid"], key=lambda value: threshold_sweep[str(value)]["map50_95"])
+    best_threshold = max(p["threshold_grid"], key=lambda value: threshold_sweep[str(value)]["f1"])
     print(f"Validation sweep: {threshold_sweep}\nSelected threshold: {best_threshold}", flush=True)
 
     labeler_test_predictions = labeler_predictions(splits["test"], raw["test"], best_threshold, p["nms_iou"])
     labeler_test = coco_map(ground_truth_paths["test"], labeler_test_predictions, test_image_ids)
 
-    # Pseudo-labels for the training split. Human train labels are not read here.
-    pseudo_coco = coco_ground_truth([], class_names)
-    for image_id, record in enumerate(splits["train"], start=1):
+    # Build the training annotations independently of the human train labels.
+    pseudo_records, pseudo_scores = [], []
+    for record in splits["train"]:
         boxes, scores, labels = select_detections(raw["train"][record["file_name"]], best_threshold, p["nms_iou"])
-        pseudo_coco["images"].append(
-            {"id": image_id, "file_name": record["file_name"], "width": record["width"], "height": record["height"]}
+        pseudo_records.append(
+            {
+                "file_name": record["file_name"],
+                "width": record["width"],
+                "height": record["height"],
+                "boxes": [xyxy_to_xywh(box) for box in boxes],
+                "categories": [int(label) + 1 for label in labels],
+            }
         )
-        for (x0, y0, x1, y1), score, label in zip(boxes, scores, labels):
-            pseudo_coco["annotations"].append(
-                {
-                    "id": len(pseudo_coco["annotations"]) + 1,
-                    "image_id": image_id,
-                    "category_id": int(label) + 1,
-                    "bbox": [float(x0), float(y0), float(x1 - x0), float(y1 - y0)],
-                    "area": float((x1 - x0) * (y1 - y0)),
-                    "iscrowd": 0,
-                    "score": float(score),
-                }
-            )
-    pseudo_label_count = len(pseudo_coco["annotations"])
+        pseudo_scores.extend(float(score) for score in scores)
+    training_coco = coco_ground_truth(pseudo_records, class_names)
+    pseudo_label_count = len(training_coco["annotations"])
+    pseudo_coco = {
+        **training_coco,
+        "annotations": [
+            {**annotation, "score": score}
+            for annotation, score in zip(training_coco["annotations"], pseudo_scores)
+        ],
+    }
     pseudo_path = output_dir / "pseudo_labels_train.json"
     pseudo_path.write_text(json.dumps(pseudo_coco, indent=2) + "\n")
-    # RF-DETR trains on standard COCO annotations, so drop the score field used only for the saved file.
-    training_coco = json.loads(json.dumps(pseudo_coco))
-    for annotation in training_coco["annotations"]:
-        annotation.pop("score")
 
     # Validation is the human-labeled split; RF-DETR uses it for best-checkpoint selection only.
     validation_coco = coco_ground_truth(splits["validation"], class_names)
-    runs = {"pseudo_label": training_coco}
-    if p["train_on_human_labels"]:
-        runs["human_label"] = coco_ground_truth(splits["train"], class_names)
-
-    rfdetr_test = {}
-    for mode, train_coco in runs.items():
-        dataset_dir = stage_dataset(
-            scratch / "rfdetr" / mode,
-            {
-                "train": (train_coco, image_dirs["train"]),
-                "valid": (validation_coco, image_dirs["validation"]),
-            },
-        )
-        checkpoint = train_rfdetr(p, dataset_dir, scratch / "runs" / mode)
-        model = RFDETR.from_checkpoint(checkpoint)
-        test_predictions = rfdetr_predictions(model, splits["test"], image_dirs["test"])
-        rfdetr_test[mode] = coco_map(ground_truth_paths["test"], test_predictions, test_image_ids)
-        shutil.copy2(checkpoint, output_dir / f"rfdetr_{mode}_best.pth")
-        del model
-        torch.cuda.empty_cache()
+    dataset_dir = stage_dataset(
+        scratch / "rfdetr",
+        {
+            "train": (training_coco, image_dirs["train"]),
+            "valid": (validation_coco, image_dirs["validation"]),
+        },
+    )
+    training_dir = scratch / "runs"
+    checkpoint = train_rfdetr(p, dataset_dir, training_dir)
+    model = RFDETR.from_checkpoint(checkpoint)
+    test_predictions = rfdetr_predictions(model, splits["test"], image_dirs["test"])
+    rfdetr_test = coco_map(ground_truth_paths["test"], test_predictions, test_image_ids)
+    checkpoint_path = output_dir / "rfdetr_best.pth"
+    shutil.copy2(checkpoint, checkpoint_path)
 
     metrics = {
         "labeler_model": p["detector_model"],
@@ -347,7 +370,7 @@ def main():
         "labeler_test": labeler_test,
         "pseudo_label_count": pseudo_label_count,
         "pseudo_label_images": len(splits["train"]),
-        "rfdetr_model": f"RFDETR{p['rfdetr_model'].capitalize()}",
+        "rfdetr_model": "RFDETRNano",
         "rfdetr_test": rfdetr_test,
         "duration_seconds": time.perf_counter() - started,
     }
@@ -355,7 +378,8 @@ def main():
     metrics_path.write_text(json.dumps(metrics, indent=2) + "\n")
     print(f"Metrics: {json.dumps(metrics, indent=2)}\nArtifacts: {output_dir}", flush=True)
 
-    log_to_air_run(run_id, p, metrics, [metrics_path, pseudo_path] + [output_dir / f"rfdetr_{m}_best.pth" for m in runs])
+    # RF-DETR writes per-epoch loss and validation mAP to scratch space, which is gone after the run.
+    log_to_air_run(run_id, p, metrics, [metrics_path, pseudo_path, checkpoint_path, training_dir / "metrics.csv"])
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ parameters:
   detector_batch_size: 8
   # Class names are text prompts for the detector. Order must match the dataset's category indices (0 luggage, 1 person).
   class_names: [luggage, person]
-  # Candidate confidence thresholds. The validation split picks one; the test split is never used for selection.
+  # Candidate confidence thresholds. The one with the best validation F1 at IoU 0.5 is used; the test split is never used for selection.
   threshold_grid: [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
   nms_iou: 0.5
 
@@ -44,14 +44,10 @@ parameters:
   dataset_repo: abhinand4as/people-luggage-detection
   dataset_revision: 6d9506f2e49b64a00e13225139e9aa4eed49f106
 
-  # RF-DETR variant: nano or small (both Apache-2.0).
-  rfdetr_model: nano
   epochs: 15
   batch_size: 16
   learning_rate: 0.0001
   seed: 42
-  # Upper bound: also train on the human train labels. Off by default to keep the run short.
-  train_on_human_labels: false
 
   # Scratch space for downloads and staged datasets. Not persisted across stop/start.
   data_root: /tmp/object-detection-autolabel-rf-detr
