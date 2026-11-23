@@ -200,8 +200,6 @@ def main():
     ray.init(address="auto")
     # Derive replicas from the live cluster so the example scales when nodes are added.
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
-    if total_gpus < 1:
-        raise RuntimeError("No GPUs found in the Ray cluster; cannot run vLLM inference.")
     print(
         f"Ray cluster ready: {total_gpus} GPU(s); starting {total_gpus} vLLM replicas "
         "with one GPU each (tensor_parallel_size=1)",
