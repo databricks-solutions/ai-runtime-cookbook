@@ -63,10 +63,10 @@ databricks air run -f workload.yaml --watch
 databricks air run -f workload.yaml
 RUN_ID="<job-run-id>"
 databricks air get "$RUN_ID"
-databricks air logs "$RUN_ID"
+databricks air logs "$RUN_ID" --follow
 ```
 
-These commands use the selected profile. If you submitted with `--profile`, include the same flag on both monitoring commands. `air logs` follows an active run until completion and fetches logs for a completed run. Both monitoring commands also work after a watched command exits.
+These commands use the selected profile. If you submitted with `--profile`, include the same flag on both monitoring commands. `air logs` prints the logs available now and exits; `--follow` keeps streaming an active run until it completes. Databricks CLI versions before 1.27.0 stream an active run by default and don't accept `--follow`. Both monitoring commands also work after a watched command exits.
 
 ## Contribute
 
