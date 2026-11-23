@@ -1,6 +1,6 @@
 # Multi-turn tool-use reinforcement learning with TRL's AsyncGRPOTrainer
 
-This recipe trains `Qwen/Qwen3-1.7B` with LoRA to answer SQL questions by calling tools over several turns. It runs 80 steps of GRPO (Group Relative Policy Optimization) with [TRL](https://github.com/huggingface/trl) 1.18.0's `AsyncGRPOTrainer` on `GPU_8xH100` and takes about 50 minutes in the container.
+This recipe trains `Qwen/Qwen3-1.7B` with LoRA to answer SQL questions by calling tools over several turns. It runs 80 steps of GRPO (Group Relative Policy Optimization) with [TRL](https://github.com/huggingface/trl) 1.18.0's `AsyncGRPOTrainer` on `GPU_8xH100` and takes about 49 minutes in the container.
 
 Each rollout gets a fresh in-memory SQLite database. The model explores it with a read-only `run_query` tool, then submits an answer with `submit_answer`. The first answer is final. The reward is 1 when the submitted query returns the same rows as the gold query.
 
@@ -33,14 +33,14 @@ The run writes `metrics.json` and the LoRA adapter (`adapter/`) to `<output_root
 
 | Metric | Base model | After 80 GRPO steps |
 |---|---|---|
-| Held-out test success (300 questions) | 30.7% ± 2.7 | 67.0% ± 2.7 |
-| Submitted an answer | 48.3% ± 2.9 | 95.0% ± 1.3 |
-| Tool calls per question | 1.66 ± 0.04 | 2.14 ± 0.04 |
-| Tool calls that returned an error | 6.2% | 4.8% |
+| Held-out test success (300 questions) | 29.0% ± 2.6 | 67.3% ± 2.7 |
+| Submitted an answer | 47.7% ± 2.9 | 96.0% ± 1.1 |
+| Tool calls per question | 1.66 ± 0.04 | 2.25 ± 0.05 |
+| Tool calls that returned an error | 8.0% | 5.6% |
 
-Each success rate is a proportion over 300 questions. Its standard error is about 2.7 points. Treating the two evaluations as independent, the standard error of the difference is about 3.8 points. The 36.3-point gain is about 10 times that. The test split is used only for this report. No checkpoint is selected on it.
+Each success rate is a proportion over 300 questions. Its standard error is about 2.7 points. Treating the two evaluations as independent, the standard error of the difference is about 3.8 points. The 38.3-point gain is about 10 times that. The test split is used only for this report. No checkpoint is selected on it.
 
-Training reward rose from 0.58 (mean of steps 1 to 10) to 0.74 (steps 71 to 80). The fraction of groups where all 8 completions got the same reward rose from 0.81 to 0.89. Those groups carry no learning signal. Later steps learn from fewer groups. Entropy fell from 0.037 to 0.028. Generation was the bottleneck. Each step waited about 30 seconds on average for rollouts. The forward and backward pass took about 2 seconds.
+Training reward rose from 0.58 (mean of steps 1 to 10) to 0.69 (steps 71 to 80). The fraction of groups where all 8 completions got the same reward rose from 0.80 to 0.92. Those groups carry no learning signal. Later steps learn from fewer groups. Entropy fell from 0.035 to 0.007. Generation was the bottleneck. Each step waited about 30 seconds on average for rollouts. The forward and backward pass took about 2 seconds.
 
 The run logs these metrics to the AIR MLflow run:
 
