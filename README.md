@@ -57,7 +57,7 @@ cd getting-started/air-cli
 databricks air run -f workload.yaml --watch
 ```
 
-`--watch` streams logs until the run completes. To submit in the background, omit `--watch`, save the job run ID printed by `air run`, and use it to inspect the run or follow its logs:
+`--watch` streams logs until the run completes. To submit in the background, omit `--watch`, save the job run ID printed by `air run`, and use it to inspect the run or print the available logs:
 
 ```bash
 databricks air run -f workload.yaml
@@ -66,7 +66,7 @@ databricks air get "$RUN_ID"
 databricks air logs "$RUN_ID"
 ```
 
-These commands use the selected profile. If you submitted with `--profile`, include the same flag on both monitoring commands. `air logs` follows an active run until completion and fetches logs for a completed run. Both monitoring commands also work after a watched command exits.
+These commands use the selected profile. If you submitted with `--profile`, include the same flag on both monitoring commands. In Databricks CLI version 1.27.0 and above, `air logs` prints the available logs and exits. Add `--follow` to stream logs until an active run completes. In versions 1.26.0 or earlier, omit `--follow` because `air logs` follows an active run by default. Both monitoring commands also work after a watched command exits.
 
 ## Contribute
 
