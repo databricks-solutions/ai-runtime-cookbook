@@ -2,7 +2,7 @@
 
 This recipe runs offline batch generation with [vLLM](https://github.com/vllm-project/vllm) 0.34.0 on [`zai-org/GLM-5.3-Flash`](https://huggingface.co/zai-org/GLM-5.3-Flash), a 321B-parameter mixture-of-experts (MoE) model with about 18B parameters active per token, on one 8x H100 node. It runs the same 1,000 prompts under two parallel layouts and compares them: tensor parallel 8 (TP8), and data parallel 8 with expert parallel 8 (DP8+EP8). Expert parallelism (EP) spreads each MoE layer's experts across GPUs, so no single GPU holds a full copy of the experts.
 
-The safetensors weights are 328.4 GB (about 306 GiB). Two validated runs took 26 and 76 minutes in the container; model startup takes the most time, and the difference was the Hub download (about 3 minutes in one run, 54 minutes in the other). The workload's timeout is 120 minutes.
+The safetensors weights are 328.4 GB (about 306 GiB). A validated run on the standard v6 environment took 25 minutes in the container, including a 3-minute Hub download. Two earlier runs on the managed AI environment took 26 and 76 minutes, with downloads of about 3 and 54 minutes respectively. The workload's timeout is 120 minutes.
 
 ## Before you run
 
@@ -28,20 +28,24 @@ For each layout, the run writes `generations.parquet` (the prompt, the output te
 
 ### Full-run results
 
-Measured on one `GPU_8xH100` node with the default parameters: 1000 Alpaca prompts, up to 512 new tokens each, greedy decoding. Output tokens per layout were 225,629 (TP8) and 225,201 (DP8+EP8).
+Measured on one `GPU_8xH100` node with the default parameters: 1000 Alpaca prompts, up to 512 new tokens each, greedy decoding. The standard v6 run generated 227,319 output tokens under TP8 and 226,425 under DP8+EP8.
 
-| Layout | Output tokens/s | Generation time (s) | Startup (s) | KV-cache tokens (log, per engine) |
-|---|---|---|---|---|
-| TP8 | 4,982 | 45.3 | 763 | 867,737 (one engine) |
-| DP8+EP8 | 2,892 | 77.9 | 310 | 80,749 (eight engines) |
+| Run | Layout | Output tokens/s | Generation time (s) | Startup (s) | KV-cache tokens (log, per engine) |
+|---|---|---|---|---|---|
+| Standard v6, 25 min | TP8 | 5,335 | 42.6 | 762 | 867,737 (one engine) |
+| Standard v6, 25 min | DP8+EP8 | 2,836 | 79.8 | 307 | 80,749 (eight engines) |
+| Earlier managed AI, 76 min | TP8 | 4,982 | 45.3 | 763 | 867,737 (one engine) |
+| Earlier managed AI, 76 min | DP8+EP8 | 2,892 | 77.9 | 310 | 80,749 (eight engines) |
+| Earlier managed AI, 26 min | TP8 | 4,732 | 48.0 | 765 | 867,737 (one engine) |
+| Earlier managed AI, 26 min | DP8+EP8 | 2,556 | 88.6 | 305 | 80,749 (eight engines) |
 
-Under this configuration TP8 generated about 1.7x faster than DP8+EP8.
+The 26-minute run used an earlier DP+EP timer that included rank teardown, so its DP+EP throughput is not directly comparable to the other measurements. In the standard v6 run, TP8 generated about 1.9x faster than DP8+EP8.
 
-**Cross-layout output divergence.** Greedy decoding does not make the two layouts produce the same text: in the run above, 11.8% of prompts produced bit-identical outputs. Bit-identical outputs across parallel layouts are not expected — each layout splits matrix multiplications differently, so floating-point reduction orders differ. Compare throughput, not text, across layouts.
+**Cross-layout output divergence.** Greedy decoding does not make the two layouts produce the same text: 12.6% of prompts in the standard v6 run and 11.8% in the 76-minute managed AI run produced bit-identical outputs. Bit-identical outputs across parallel layouts are not expected — each layout splits matrix multiplications differently, so floating-point reduction orders differ. Compare throughput, not text, across layouts.
 
 ### Memory budget
 
-These are estimates from the Hub checkpoint and the model config, with the measured log values from the run above in the last row. They assume 80 GB H100s and `gpu_memory_utilization` 0.90.
+These are estimates from the Hub checkpoint and the model config, with the measured log values from the standard v6 run in the last row. They assume 80 GB H100s and `gpu_memory_utilization` 0.90.
 
 | | TP8 | DP8+EP8 |
 |---|---|---|
@@ -51,4 +55,4 @@ These are estimates from the Hub checkpoint and the model config, with the measu
 
 The measured DP8+EP8 cache is far below the estimate. Under DP8+EP8, each engine holds the full dense attention weights and the full fp32 linear-attention (KDA) recurrent state for every sequence, and only about 9 GiB of each GPU is left for cache.
 
-The checkpoint's main branch at the time of writing is commit `46a050bec13002ad29ee795c16e61cf4fa3c4a9c`.
+For the earlier managed AI results, the checkpoint's main branch was commit `46a050bec13002ad29ee795c16e61cf4fa3c4a9c`. The standard v6 run also downloaded the main branch; its commit was not recorded.

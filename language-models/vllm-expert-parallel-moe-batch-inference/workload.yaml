@@ -4,14 +4,17 @@
 experiment_name: air-vllm-ep-glm53-flash-batch-inference
 
 environment:
-  # vLLM 0.34.0's PyPI wheel is built for CUDA 13.0, which matches databricks_ai_v6.
-  version: databricks_ai_v6
+  version: "6"
   dependencies:
     - vllm==0.34.0
+    # vLLM 0.34.0 resolves this PyTorch version on the standard v6 environment.
+    - torch==2.14.0
     - datasets==5.2.0
     # vLLM 0.34 requires huggingface_hub >= 2.0.0.
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+    - nvidia-ml-py==13.615.71
 
 compute:
   num_accelerators: 8
@@ -30,6 +33,7 @@ env_variables:
   VLLM_ENGINE_READY_TIMEOUT_S: "3600"
 
 command: |
+  set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x+ uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   # FlashInfer JIT-compiles its fp8_blockscale_gemm kernel at startup even with the Triton MoE kernel
@@ -42,13 +46,6 @@ command: |
   export CPATH="/tmp/cuda-extra-include:${CPATH:-}"
   export LIBRARY_PATH="/tmp/cuda-extra-lib:${LIBRARY_PATH:-}"
   export LD_LIBRARY_PATH="$(dirname "$(find "$NVIDIA_DIR" -name 'libnvrtc.so.*' -type f -print -quit)"):${LD_LIBRARY_PATH:-}"
-  # The environment's flash-attn is compiled for its original PyTorch, and vLLM 0.34 installs a newer torch.
-  # vLLM uses its own bundled attention kernels, so remove the incompatible package (the SGLang recipe does too).
-  python -m pip uninstall -y flash-attn
-  # The environment's legacy pynvml package shadows nvidia-ml-py's newer pynvml module, which vLLM's
-  # worker startup needs (the SGLang recipe does the same).
-  python -m pip uninstall -y pynvml
-  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   # Stages run in order. The checkpoint is downloaded once and read by both layouts.
   python "$CODE_SOURCE_PATH/batch_inference.py" download
   python "$CODE_SOURCE_PATH/batch_inference.py" generate --layout tp8
@@ -56,8 +53,8 @@ command: |
   python "$CODE_SOURCE_PATH/batch_inference.py" summary
 
 max_retries: 0
-# The run takes about 26 minutes in the container; the clock starts at submission, so this also covers
-# queue time.
+# The validated standard v6 run took about 25 minutes in the container; the clock starts at submission,
+# so this also covers queue time.
 timeout_minutes: 120
 
 parameters:
