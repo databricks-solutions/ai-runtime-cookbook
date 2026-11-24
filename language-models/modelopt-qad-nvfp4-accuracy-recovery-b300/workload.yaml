@@ -5,13 +5,17 @@
 experiment_name: air-modelopt-qad-nvfp4-b300
 
 environment:
-  # B300 requires environment version 6 or later.
-  version: databricks_ai_v6
+  # B300 requires environment version 6 or later; standard v6 permits pinned dependencies.
+  version: "6"
   dependencies:
     # Same pins as the modelopt-nvfp4-vllm-batch-inference-b300 recipe, which runs ModelOpt 0.48.0
     # and vLLM 0.33.0 together on B300. accelerate is the launcher for the FSDP2 QAD run.
     - vllm==0.33.0
+    # vLLM resolves this PyTorch version; the training scripts import it directly.
+    - torch==2.14.0
     - nvidia-modelopt[hf]==0.48.0
+    - nvidia-ml-py==13.615.71
+    - mlflow-skinny==3.8.1
     - transformers==5.18.0
     - datasets==5.2.0
     - huggingface_hub==2.4.0
@@ -31,13 +35,6 @@ env_variables:
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # vLLM replaces PyTorch in this environment. The preinstalled flash-attn was built for the original
-  # PyTorch, so remove it. Training uses SDPA attention and does not need it.
-  python -m pip uninstall -y flash-attn
-  # The legacy pynvml package shadows nvidia-ml-py's newer pynvml module.
-  python -m pip uninstall -y pynvml
-  # Reinstall the NVIDIA-maintained pynvml module (nvidia-ml-py) that replaces the legacy package above.
-  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   bash "$CODE_SOURCE_PATH/run.sh"
 
 max_retries: 0
