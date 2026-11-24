@@ -18,36 +18,36 @@ databricks air run -f workload.yaml --watch
 
 The run prints each stage's results. It writes `summary.json` to `<output_root>/<MLflow run ID>/` and logs the metrics and the loss curves to the AIR MLflow run.
 
-In the validation run, the on-policy student scored 1.7 points below the untrained student (SE 1.3). That is within noise of zero. The offline student scored 3.2 points below (SE 1.4), about 2.3 standard errors below zero. The teacher scored highest. The cause of the drop is not established. The control arms rule out the save and reload path, but not the training itself.
+In the latest validation run, the on-policy student scored 3.6 points below the untrained student (SE 1.3) and the offline student 2.7 points below (SE 1.4). The teacher scored highest in every run. The cause of the drop is not established. The control arms rule out the save and reload path, but not the training itself.
 
 | Model | GSM8K test accuracy (1,319 questions) | Standard error |
 |---|---|---|
-| Student before training | 47.4% | 1.4 points |
+| Student before training | 47.3% | 1.4 points |
 | Teacher, Qwen2.5-1.5B-Instruct | 70.3% | 1.3 points |
-| Offline distillation | 44.2% | 1.4 points |
-| On-policy distillation | 45.7% | 1.4 points |
-| Control: untrained student, saved and reloaded through the trainer's save path (on-policy path) | 47.3% | 1.4 points |
-| Control: untrained student, saved and reloaded through the trainer's save path (offline path) | 47.8% | 1.4 points |
+| Offline distillation | 44.7% | 1.4 points |
+| On-policy distillation | 43.7% | 1.4 points |
+| Control: untrained student, saved and reloaded through the trainer's save path (on-policy path) | 48.2% | 1.4 points |
+| Control: untrained student, saved and reloaded through the trainer's save path (offline path) | 47.5% | 1.4 points |
 
 The questions are the same for every model, so the differences use paired standard errors:
 
 | Comparison | Difference | Standard error of the difference |
 |---|---|---|
-| On-policy minus student before | -1.7 points | 1.3 points |
-| Offline minus student before | -3.2 points | 1.4 points |
-| On-policy minus offline | +1.5 points | 1.3 points |
-| Control (on-policy path) minus student before | -0.1 points | 0.4 points |
-| Control (offline path) minus student before | +0.4 points | 0.4 points |
+| On-policy minus student before | -3.6 points | 1.3 points |
+| Offline minus student before | -2.7 points | 1.4 points |
+| On-policy minus offline | -0.9 points | 1.3 points |
+| Control (on-policy path) minus student before | +0.9 points | 0.5 points |
+| Control (offline path) minus student before | +0.2 points | 0.4 points |
 
-Every validation run at the default settings is reported, because the results differ between runs. A first default run, before the control arms were added, gave on-policy 43.9% (minus student before: -3.5 points, SE 1.3) and offline 44.0% (minus student before: -3.4 points, SE 1.4). The student before training was 47.4% in both runs. The on-policy result changed by 1.8 points between the two runs, so single-run differences of this size are not reliable. Runs 1 to 4 of the development were smoke runs or environment failures, and they are excluded from these results.
+Every validation run at the default settings is reported, because the results differ between runs. A first default run, before the control arms were added, gave on-policy 43.9% (minus student before: -3.5 points, SE 1.3) and offline 44.0% (minus student before: -3.4 points, SE 1.4). A second default run with the control arms gave on-policy 45.7% (-1.7 points, SE 1.3) and offline 44.2% (-3.2 points, SE 1.4). The student before training was 47.3% to 47.4% in all three runs. The on-policy result varied by about 2 points across the three runs, so single-run differences of this size are not reliable. Runs 1 to 4 of the development were smoke runs or environment failures, and they are excluded from these results.
 
 The control arms check the save and reload path. The untrained student, saved with the same trainer call and reloaded in vLLM, scores within noise of the untrained student loaded from the Hub.
 
-Output format in the validation run. Only 0.4% of the untrained student's answers contain the `####` marker that the prompt asks for, and no distilled student's answers contain it. The scorer therefore effectively measured last-number matches. The share of answers cut off at 512 tokens was 4.2% for the untrained student, 3.7% for on-policy, and 3.6% for offline. The mean completion length ranged from 279 tokens (teacher) to 306 tokens (untrained student).
+Output format in the validation run. Only 0.5% of the untrained student's answers contain the `####` marker that the prompt asks for, and no distilled student's answers contain it. The scorer therefore effectively measured last-number matches. The share of answers cut off at 512 tokens was 4.8% for the untrained student, 4.5% for on-policy, and 3.9% for offline. The mean completion length ranged from 279 tokens (teacher) to 306 tokens (untrained student).
 
 End-of-turn tokens: the first completion of each model ends with `<|im_end|>`, Qwen's end-of-turn token. This is recorded in `last_tokens` in `summary.json`. The offline SFT training example's end is printed in the offline training log.
 
-The validation run takes about 17 minutes in the container (17 min 07 s, including dependency setup and the control evaluations), without queueing time. The on-policy training stage takes about 5 minutes of that (306 s).
+The validation run takes about 17 minutes in the container (17 min 16 s, including dependency setup and the control evaluations), without queueing time. The on-policy training stage takes about 5 minutes of that (309 s).
 
 The learning rate was not tuned, and the test set was not used to choose any setting.
 
@@ -65,5 +65,4 @@ The test set is used only for reporting. Nothing is selected or tuned on it.
 - The teacher and student must share a vocabulary. `DistillationTrainer` checks the two `vocab_size` values and raises an error on a mismatch (TRL 1.18.0, `trainer/distillation_trainer.py`). The 1.5B teacher passes this check with the 0.5B student.
 - `train_opd.py` and `train_offline.py` disable PyTorch's cuDNN attention backend. Both trainers stop with an error if the gradient norm becomes non-finite.
 - The offline run logs to stdout, not MLflow. Its loss keys would overwrite the on-policy curves in the same run.
-- Set `parameters.use_vllm` to `0` to generate with plain Transformers instead of the colocated vLLM engine. This recipe was validated only with `use_vllm: 1`.
-- For a quick check, override the sizes: `databricks air run -f workload.yaml --override parameters.num_train_prompts=32 --override parameters.num_eval_questions=64`. On an earlier version of this recipe, before the control arms were added, the smoke check took about 8 minutes in the container.
+- For a quick check, override the sizes: `databricks air run -f workload.yaml --override parameters.num_train_prompts=32 --override parameters.num_eval_questions=64`. The smoke check runs all eight stages, including the control evaluations, and took about 11 minutes in the container (10 min 34 s).

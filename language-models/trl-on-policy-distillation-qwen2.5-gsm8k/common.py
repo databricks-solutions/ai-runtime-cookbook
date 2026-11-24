@@ -19,7 +19,6 @@ TRAIN_STEPS = NUM_TRAIN_PROMPTS // BATCH_SIZE
 LEARNING_RATE = float(P["learning_rate"])
 BETA = float(P["beta"])
 MAX_COMPLETION_LENGTH = int(P["max_completion_length"])
-USE_VLLM = int(P["use_vllm"]) == 1
 OFFLINE_SAMPLES_PER_QUESTION = int(P["offline_samples_per_question"])
 OFFLINE_TEMPERATURE = float(P["offline_temperature"])
 NUM_EVAL_QUESTIONS = int(P["num_eval_questions"])

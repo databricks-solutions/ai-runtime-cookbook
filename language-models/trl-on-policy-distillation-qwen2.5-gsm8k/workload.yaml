@@ -41,10 +41,7 @@ command: |
   set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # The environment's flash-attn is compiled for its original PyTorch, which vLLM replaces.
-  python -m pip uninstall -y flash-attn
-  # The environment's legacy pynvml package shadows nvidia-ml-py's newer pynvml module.
-  python -m pip uninstall -y pynvml
+  # The environment preinstalls an older nvidia-ml-py; pin the known-good release for vLLM's pynvml usage.
   python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   cd "$CODE_SOURCE_PATH"
 
@@ -79,7 +76,6 @@ parameters:
   learning_rate: 0.00001
   beta: 1.0                    # 1.0 = reverse KL, KL(student || teacher)
   max_completion_length: 512
-  use_vllm: 1                  # 1 = vLLM generation colocated on the GPU; 0 = transformers generate
   offline_samples_per_question: 4
   offline_temperature: 0.7
   num_eval_questions: 1319     # the full GSM8K test set

@@ -21,7 +21,6 @@ from common import (
     STUDENT_MODEL,
     TEACHER_MODEL,
     TRAIN_STEPS,
-    USE_VLLM,
     WORK,
     StopOnNonFiniteGradients,
     messages,
@@ -47,7 +46,7 @@ def main():
         beta=BETA,
         temperature=1.0,
         max_completion_length=MAX_COMPLETION_LENGTH,
-        use_vllm=USE_VLLM,
+        use_vllm=True,
         vllm_mode="colocate",
         # The teacher is loaded first and shares the GPU, so the colocated student engine gets a fixed slice.
         vllm_gpu_memory_utilization=0.3,
