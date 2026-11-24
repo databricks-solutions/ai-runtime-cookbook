@@ -1,0 +1,40 @@
+experiment_name: dicom-xray-batch-inference
+
+# Build and push the bundled Dockerfile before running; see README.md.
+environment:
+  unity_catalog_image: main.default.dicom-xray-inference:8
+
+# One A10 node. AIR DataLoader caches and decodes files concurrently with GPU inference.
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+  include_paths:
+    - batch_inference.py
+
+command: |
+  python "$CODE_SOURCE_PATH/batch_inference.py"
+
+max_retries: 0
+timeout_minutes: 60
+
+env_variables:
+  MLFLOW_TRACKING_URI: databricks
+  BATCH_SIZE: "256"
+  DATALOADER_WORKERS: "12"
+  PREFETCH_FACTOR: "32"
+  USE_AMP: "true"
+  INFERENCE_WORKERS: "2"
+  CHANNELS_LAST: "true"
+  # Run one unlogged warmup pass before the measured pass for warm-cache benchmarks.
+  WARMUP_PASS: "false"
+  # 0 processes every .dcm or .DCM file under INPUT_PATH. Set a small positive
+  # value for a smoke test.
+  MAX_IMAGES: "0"
+  # Replace with a directory containing de-identified, single-frame DX/CR files.
+  INPUT_PATH: /Volumes/main/default/air_examples/dicom-batch-inference-torchxrayvision/input
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  # Each run writes to a subdirectory named after its MLflow run ID.
+  OUTPUT_ROOT: /Volumes/main/default/air_examples/dicom-batch-inference-torchxrayvision/predictions
