@@ -1,0 +1,85 @@
+# Disaggregated prefill/decode vs. colocated vLLM on one 8x H100 node, same GPUs and same request stream.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: vllm-disaggregated-prefill-decode-8xh100
+
+environment:
+  # vLLM 0.34.0's PyPI wheel is built for CUDA 13.0, which matches databricks_ai_v6.
+  version: databricks_ai_v6
+  dependencies:
+    - vllm==0.34.0
+    # vLLM 0.34.0 pins nixl==1.5.2 for the NixlConnector. The package installs both the CUDA 12 and CUDA 13
+    # backends (each bundles UCX), and the CUDA 13 one is selected at runtime.
+    - nixl==1.5.2
+    # vLLM 0.34 requires huggingface_hub >= 2.0.0. This Hub 2.x pin is the one other cookbook recipes use with vLLM 0.34.
+    - huggingface_hub==2.4.0
+    # Logs the summary to the AI Runtime MLflow run. Pin used by other cookbook recipes.
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  root_path: .
+
+env_variables:
+  # Chunked Hub downloads of the model weights.
+  HF_XET_HIGH_PERFORMANCE: "1"
+  # vLLM's FlashInfer sampler JIT-compiles kernels that need CUDA headers this image doesn't ship, so keep it off.
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  # Eight instances compile and capture CUDA graphs in parallel on one node.
+  VLLM_ENGINE_READY_TIMEOUT_S: "1200"
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 2.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  # The environment's flash-attn is built for its original PyTorch, and vLLM 0.34 installs a newer one. vLLM uses its
+  # own attention kernels here. pip exits non-zero when a package is missing, so these lines tolerate that.
+  python -m pip uninstall -y flash-attn || true
+  # The legacy pynvml package shadows nvidia-ml-py, which vLLM's worker startup imports (the GLM recipe does the same).
+  python -m pip uninstall -y pynvml || true
+  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
+  python "$CODE_SOURCE_PATH/disagg_benchmark.py"
+
+max_retries: 0
+# Each layout starts 8 instances, runs 150 seconds of load, and tears down. The default run took about 12 minutes
+# in the container. The timer includes queue time, so the 90-minute limit leaves headroom for queueing.
+timeout_minutes: 90
+
+parameters:
+  # Public and ungated (Apache-2.0). Each instance is one H100 with TP=1.
+  model_name: Qwen/Qwen3-8B
+  # Comma-separated. Use "disagg" alone (or "colocated" alone) to debug one layout with --override.
+  layouts: "colocated,disagg"
+  # Colocated: one full instance per GPU, behind a round-robin router.
+  colocated_instances: 8
+  # Disaggregated: prefill instances on GPUs 0..P-1, decode instances on the rest. P + D must equal 8.
+  # Prefill is roughly one third of GPU time for this mix (an estimate), so 3 + 5 is the split used. Only this
+  # split has been run.
+  prefill_instances: 3
+  decode_instances: 5
+  # Open-loop Poisson arrivals, requests per second, for all instances combined.
+  arrival_rate: 24.0
+  # Length of the arrival stream, in seconds.
+  duration_s: 150.0
+  # Arrivals in the first warmup_s seconds are sent but excluded from the metrics.
+  warmup_s: 20.0
+  # Seconds to wait for in-flight requests after the last arrival.
+  drain_timeout_s: 120.0
+  # Fraction of requests with a long prompt. The rest have a short prompt.
+  long_fraction: 0.2
+  short_prompt_tokens: 256
+  long_prompt_tokens: 4096
+  # Fixed output length. ignore_eos keeps it identical across layouts.
+  max_output_tokens: 256
+  max_model_len: 8192
+  gpu_memory_utilization: 0.85
+  max_num_batched_tokens: 8192
+  max_num_seqs: 256
+  # Startup budget per layout, for all instances to answer /health.
+  startup_timeout_s: 900
+  seed: 0
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/vllm-disaggregated-prefill-decode-8xh100
