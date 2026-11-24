@@ -8,6 +8,14 @@ Data is [CORD-v2](https://huggingface.co/datasets/naver-clova-ix/cord-v2) (CC-BY
 
 The Nemotron VL LoRA recipe in this cookbook also fine-tunes on CORD-v2, but on 8×H100 and it logs training metrics only. This recipe adds a field-extraction evaluation on a single A10.
 
+## Before you run
+
+The default `output_root` in `workload.yaml`, `/Volumes/main/default/air_examples/finetune-qwen3-vl-2b-lora-receipts-a10`, must be an existing Unity Catalog volume path you can write to. To use a different volume, override it at submission:
+
+```bash
+databricks air run -f workload.yaml --watch --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<path>
+```
+
 ## Run
 
 ```bash

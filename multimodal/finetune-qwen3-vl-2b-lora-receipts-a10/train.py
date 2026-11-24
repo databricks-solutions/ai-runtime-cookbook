@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """LoRA fine-tuning of Qwen3-VL-2B-Instruct for receipt field extraction on one A10.
 
-Scores the base model, trains a LoRA adapter on the CORD-v2 train split, then scores the tuned model.
-Both evaluations use the same prompt, greedy decoding and scorer on the CORD-v2 test split. Validation
-loss is reported before and after training as a sanity check; nothing is selected on any split.
+Scores the plain base model and a schema-prompted base model, trains a LoRA adapter on the CORD-v2
+train split, then scores the tuned model. All three rows share greedy decoding and the scorer on the
+CORD-v2 test split; the plain base and tuned rows also share the same prompt, so the tuned-versus-base
+difference isolates the effect of training, while the schema baseline lists the train split's field
+paths, the same paths the tuned model is trained to emit. Validation loss is reported before and after
+training as a sanity check; nothing is selected on any split.
 
 Run from this recipe's directory:
 
