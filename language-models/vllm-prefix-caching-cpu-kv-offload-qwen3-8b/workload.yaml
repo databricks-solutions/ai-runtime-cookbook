@@ -1,0 +1,72 @@
+# Shared-prefix batch requests on one H100: prefix caching off, prefix caching on (GPU only), and prefix caching
+# with vLLM's CPU KV offload. Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: vllm-prefix-caching-cpu-kv-offload-qwen3-8b
+
+environment:
+  # vLLM 0.34.0's PyPI wheel is built for CUDA 13.0, which matches databricks_ai_v6.
+  version: databricks_ai_v6
+  dependencies:
+    - vllm==0.34.0
+    - huggingface_hub==2.4.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xH100
+
+code_source:
+  root_path: .
+
+env_variables:
+  # Chunked Hub downloads of the model weights.
+  HF_XET_HIGH_PERFORMANCE: "1"
+  # vLLM's FlashInfer sampler JIT-compiles kernels that need CUDA headers this image doesn't ship, so keep it off.
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 2.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  # The environment's flash-attn is built for its original PyTorch, and vLLM 0.34 installs a newer one. vLLM uses its
+  # own attention kernels here. pip exits non-zero when a package is missing, so these lines tolerate that.
+  python -m pip uninstall -y flash-attn || true
+  # The legacy pynvml package shadows nvidia-ml-py, which vLLM's worker startup imports.
+  python -m pip uninstall -y pynvml || true
+  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
+  python "$CODE_SOURCE_PATH/prefix_offload_benchmark.py"
+
+max_retries: 0
+# Four fresh vLLM servers (three configurations plus the prefix_off repeat control), each with a model load and CUDA
+# graph capture, plus one 800-request stream per server. The three-configuration validation run took about 11 minutes
+# in the container. The timer includes queue time, so 120 minutes leaves room.
+timeout_minutes: 120
+
+parameters:
+  # Public and ungated (Apache-2.0).
+  model_name: Qwen/Qwen3-8B
+  # Synthetic documents: each is a fixed random token sequence. Its length is a multiple of the 64-token KV block size,
+  # so whole documents land on cache-block boundaries.
+  num_documents: 40
+  doc_tokens: 4096
+  # Each request is one document followed by a unique question of this many random tokens.
+  question_tokens: 64
+  # Documents are drawn uniformly at random, with repeats, from a seeded generator.
+  num_requests: 800
+  max_output_tokens: 64
+  # Must hold doc_tokens + question_tokens + max_output_tokens.
+  max_model_len: 4352
+  # Fixed GPU KV-cache budget (GiB). With Qwen3-8B this is about 58k tokens, about 14 documents, roughly a third of
+  # the 40 document prefixes (about 22.5 GiB of KV in total).
+  gpu_kv_gib: 8.0
+  # CPU tier size for the offload configuration: min(cap, fraction * usable host RAM). The run logs the RAM it measured.
+  cpu_offload_cap_gib: 32.0
+  cpu_offload_host_fraction: 0.5
+  # Requests in flight at once. TTFT is measured from each request's send, after it gets a slot.
+  concurrency: 16
+  max_num_seqs: 128
+  # Seconds to wait for each server's /health.
+  startup_timeout_s: 900
+  seed: 0
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/vllm-prefix-caching-cpu-kv-offload-qwen3-8b
