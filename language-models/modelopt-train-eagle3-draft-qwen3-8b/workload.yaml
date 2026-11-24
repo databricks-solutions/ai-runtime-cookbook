@@ -1,0 +1,61 @@
+# Train an EAGLE-3 speculative-decoding draft for Qwen/Qwen3-8B on one H100, then measure it.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-modelopt-eagle3-draft-qwen3-8b
+
+environment:
+  version: "6"
+  dependencies:
+    # Trains the draft in-process from the frozen HF target. The 0.48.0 EAGLE code is the version tested with transformers 5.8.1.
+    - nvidia-modelopt==0.48.0
+    # Serves the target and the draft. 0.5.14 pins torch 2.11.0 and transformers 5.8.1, so the training stack is unchanged.
+    - sglang==0.5.14
+    - torch==2.11.0
+    - transformers==5.8.1
+    - accelerate==1.13.0
+    - datasets==4.8.5
+    # SGLang's tokenizers pin needs huggingface_hub < 2.
+    - huggingface_hub==1.33.0
+    - fsspec==2026.2.0
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xH100
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  # FlashInfer JIT-compiles some kernels that need curand.h. This environment ships it only inside the nvidia-* wheels,
+  # so expose just those headers to the compiler.
+  mkdir -p /tmp/curand-include
+  find "$(python -c 'import nvidia; print(nvidia.__path__[0])')" -name 'curand*.h' -exec cp {} /tmp/curand-include/ \;
+  export CPATH="/tmp/curand-include:${CPATH:-}"
+  python "$CODE_SOURCE_PATH/train_draft.py"
+  python "$CODE_SOURCE_PATH/benchmark.py"
+
+max_retries: 0
+timeout_minutes: 120
+
+parameters:
+  model_name: Qwen/Qwen3-8B                       # public; no Hugging Face token needed
+  reference_draft_name: AngelSlim/Qwen3-8B_eagle3 # public EAGLE-3 draft, for comparison only
+  num_train_prompts: 2000                         # UltraChat train_sft, shuffled with seed
+  num_eval_prompts: 500                           # UltraChat test_sft; never used for training
+  epochs: 2
+  micro_batch_size: 4
+  grad_accum_steps: 2
+  max_length: 1024                                # 93% of UltraChat conversations fit; longer ones are truncated
+  learning_rate: 1.0e-4
+  seed: 0
+  max_new_tokens: 256
+  max_running_requests: 8
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  include_reference_draft: true
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/modelopt-train-eagle3-draft-qwen3-8b
