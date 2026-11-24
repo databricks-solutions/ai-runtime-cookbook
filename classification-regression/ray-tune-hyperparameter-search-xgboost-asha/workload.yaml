@@ -22,7 +22,7 @@ max_retries: 0
 timeout_minutes: 45
 
 parameters:
-  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE on the
+  # Unity Catalog model-registry target. The schema is auto-created if you have CREATE SCHEMA on the
   # catalog; otherwise create it first or point these at an existing schema you can write to.
   uc_catalog: main
   uc_schema: default

@@ -36,25 +36,6 @@ def load_params() -> dict:
     return {}
 
 
-def ensure_uc_schema(catalog: str, schema: str) -> None:
-    """Create the target UC schema if missing, so a fresh catalog works with no manual setup."""
-    from databricks.sdk import WorkspaceClient
-
-    try:
-        WorkspaceClient().schemas.create(name=schema, catalog_name=catalog)
-        print(f"Created schema {catalog}.{schema}")
-    except Exception as e:  # noqa: BLE001
-        msg = str(e).lower()
-        if "already exists" in msg:
-            return
-        if any(t in msg for t in ("permission", "denied", "does not have", "unauthorized")):
-            raise RuntimeError(
-                f"Cannot create {catalog}.{schema}: grant CREATE on catalog '{catalog}', or set "
-                f"uc_catalog/uc_schema to an existing schema you can write to."
-            ) from e
-        raise
-
-
 def build_data(test_size: float, val_size: float, max_samples: int, random_state: int):
     """Download Forest CoverType and make deterministic train / validation / test splits
     (labels 1..7 -> 0..6). ASHA selects trials on the validation split and the final model is scored
@@ -111,6 +92,15 @@ def main() -> None:
     n_estimators = int(p.get("n_estimators", 200))
     grace_period = int(p.get("grace_period", 20))
 
+    from databricks.sdk import WorkspaceClient
+    from registry import ensure_uc_schema, model_logging_errors, preflight_registration
+
+    run_id = os.environ.get("MLFLOW_RUN_ID")
+    workspace = None
+    if run_id:
+        workspace = WorkspaceClient()
+        preflight_registration(workspace, uc_catalog, uc_schema, model_fqn)
+
     ray.init(address="auto")
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
     if total_gpus < 1:
@@ -163,7 +153,7 @@ def main() -> None:
     from mlflow.models.signature import infer_signature
 
     mlflow.set_registry_uri("databricks-uc")
-    ensure_uc_schema(uc_catalog, uc_schema)
+    ensure_uc_schema(workspace or WorkspaceClient(), uc_catalog, uc_schema)
     x_fit = np.concatenate([x_train, x_val])
     y_fit = np.concatenate([y_train, y_val])
     dtrain = xgb.QuantileDMatrix(x_fit, label=y_fit)
@@ -180,8 +170,8 @@ def main() -> None:
 
     # AIR injects MLFLOW_RUN_ID and the databricks tracking URI on the head; gating on the var keeps
     # this runnable off-platform (where it is unset).
-    if os.environ.get("MLFLOW_RUN_ID"):
-        with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
+    if run_id:
+        with mlflow.start_run(run_id=run_id):
             mlflow.log_params({
                 "dataset": "sklearn.fetch_covtype",
                 "num_samples": num_samples,
@@ -204,10 +194,11 @@ def main() -> None:
             booster.set_param({"device": "cpu"})  # portable artifact
             example = x_train[:5]
             signature = infer_signature(example, booster.predict(xgb.DMatrix(example)))
-            info = mlflow.xgboost.log_model(
-                xgb_model=booster, name="model", signature=signature,
-                input_example=example, registered_model_name=model_fqn,
-            )
+            with model_logging_errors(model_fqn):
+                info = mlflow.xgboost.log_model(
+                    xgb_model=booster, name="model", signature=signature,
+                    input_example=example, registered_model_name=model_fqn,
+                )
             print(f"Registered {model_fqn} version {info.registered_model_version}.", flush=True)
 
     ray.shutdown()
