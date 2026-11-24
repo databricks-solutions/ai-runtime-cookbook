@@ -54,6 +54,8 @@ parameters:
   eval_batch_size: 16
   seed: 42
   # Smoke-test overrides (-1 runs everything): max_train_samples, max_eval_samples, max_steps.
+  # Validated end to end: max_train_samples=8, max_eval_samples=8, max_steps=5 (max_steps must be
+  # at least logging_steps=5 in train.py, or no training loss is logged and the sanity check fails).
   max_train_samples: -1
   max_eval_samples: -1
   max_steps: -1
