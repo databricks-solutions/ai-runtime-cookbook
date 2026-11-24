@@ -1,0 +1,43 @@
+experiment_name: air-finetune-chronos-2-lora-backtest
+
+environment:
+  version: "5"
+  dependencies:
+    - chronos-forecasting==2.3.2
+    # chronos-forecasting only uses peft for finetune_mode="lora", and silently falls back to full fine-tuning without it.
+    - peft==0.21.3
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  python "$CODE_SOURCE_PATH/finetune_backtest.py"
+
+max_retries: 0
+timeout_minutes: 90
+
+parameters:
+  model_name: amazon/chronos-2
+  # Public Monash electricity subset (321 hourly client series, CC BY 4.0) from autogluon/chronos_datasets.
+  data_url: https://huggingface.co/datasets/autogluon/chronos_datasets/resolve/main/monash_electricity_hourly/train-00000-of-00001.parquet
+  prediction_length: 24
+  seasonal_period: 24
+  context_length: 2048
+  # Daily origins: the last num_windows days are the test set, the num_windows days before them are validation.
+  num_windows: 14
+  # 0 uses every series. A positive value keeps evenly spaced series (smoke runs only).
+  max_series: 0
+  # Library-recommended LoRA learning rate, and the library default for full fine-tuning. Fixed before any run.
+  lora_learning_rate: 1.0e-5
+  full_learning_rate: 1.0e-6
+  finetune_steps: 500
+  finetune_batch_size: 64
+  predict_batch_size: 64
+  seed: 0
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/finetune-chronos-2-lora-backtest
