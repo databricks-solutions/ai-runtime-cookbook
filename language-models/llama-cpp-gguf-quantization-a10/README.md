@@ -4,6 +4,14 @@ This recipe runs Qwen3-8B on one 24 GB A10 in bf16 with vLLM, and in three GGUF 
 
 The comparison covers the trade-off between accuracy, throughput and memory for k-quants on a small GPU. It does not claim that either engine is faster in general.
 
+## Before you run
+
+The run writes its results to the Unity Catalog volume directory `/Volumes/main/default/air_examples/llama-cpp-gguf-quantization-a10`, which must already exist and be writable. The models and the dataset are public and ungated, so no Hugging Face token is needed. To write results elsewhere, pass another existing writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
