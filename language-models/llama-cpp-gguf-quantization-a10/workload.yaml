@@ -1,0 +1,53 @@
+# Qwen3-8B on one A10: bf16 on vLLM versus GGUF quantizations on llama.cpp, on the same GPU.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-llama-cpp-gguf-quantization-a10
+
+environment:
+  # databricks_ai_v6 ships PyTorch, vLLM and nvcc, which the bf16 baseline and the CUDA build of
+  # llama.cpp need. v5 has no PyTorch.
+  version: databricks_ai_v6
+  dependencies:
+    - cmake==4.4.5
+    - ninja==1.13.2
+    # Hub 1.x stack, matching the transformers 5.8 that v6 preinstalls (hub must be < 2).
+    - datasets==4.8.5
+    - huggingface_hub==1.33.0
+    - fsspec==2026.2.0
+
+compute:
+  accelerator_type: GPU_1xA10
+  num_accelerators: 1
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  bash "$CODE_SOURCE_PATH/build_llama_server.sh"
+  # FlashInfer JIT-compiles vLLM's sampler at startup. It needs curand.h, which this environment
+  # ships only inside the nvidia-* pip wheels. Expose just those headers, after the llama.cpp build
+  # so they cannot affect its nvcc.
+  mkdir -p /tmp/curand-include
+  find "$(python -c 'import nvidia; print(nvidia.__path__[0])')" -name 'curand*.h' -exec cp {} /tmp/curand-include/ \;
+  export CPATH="/tmp/curand-include:${CPATH:-}"
+  python "$CODE_SOURCE_PATH/gsm8k_gguf_eval.py"
+
+max_retries: 0
+timeout_minutes: 105
+
+parameters:
+  gguf_repo: Qwen/Qwen3-8B-GGUF      # public, ungated, Apache-2.0; bf16 source is Qwen/Qwen3-8B
+  gguf_q8_file: Qwen3-8B-Q8_0.gguf
+  gguf_q4_file: Qwen3-8B-Q4_K_M.gguf
+  q2_type: Q2_K                      # made here from the Q8_0 file; the repo has no 2-bit file
+  num_questions: 500                 # seeded sample of the 1,319-question GSM8K test split
+  max_tokens: 512
+  concurrency: 16                    # requests in flight, and server slots for both engines
+  max_model_len: 2048                # vLLM context
+  llama_ctx: 16384                   # llama-server context, split across the 16 slots (1,024 tokens each)
+  gpu_memory_utilization: 0.90
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/llama-cpp-gguf-quantization-a10
