@@ -1,0 +1,57 @@
+# Quantize Qwen3-1.7B to NVFP4, recover its accuracy with quantization-aware distillation (QAD)
+# from the bf16 model, then compare GSM8K test accuracy of bf16, PTQ and QAD on one 8xB300 node.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-modelopt-qad-nvfp4-b300
+
+environment:
+  # B300 requires environment version 6 or later.
+  version: databricks_ai_v6
+  dependencies:
+    # Same pins as the modelopt-nvfp4-vllm-batch-inference-b300 recipe, which runs ModelOpt 0.48.0
+    # and vLLM 0.33.0 together on B300. accelerate is the launcher for the FSDP2 QAD run.
+    - vllm==0.33.0
+    - nvidia-modelopt[hf]==0.48.0
+    - transformers==5.18.0
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - accelerate==1.15.0
+
+compute:
+  accelerator_type: GPU_8xB300
+  num_accelerators: 8
+
+code_source:
+  root_path: .
+
+env_variables:
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+
+command: |
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  # vLLM replaces PyTorch in this environment. The preinstalled flash-attn was built for the original
+  # PyTorch, so remove it. Training uses SDPA attention and does not need it.
+  python -m pip uninstall -y flash-attn
+  # The legacy pynvml package shadows nvidia-ml-py's newer pynvml module.
+  python -m pip uninstall -y pynvml
+  # Reinstall the NVIDIA-maintained pynvml module (nvidia-ml-py) that replaces the legacy package above.
+  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
+  bash "$CODE_SOURCE_PATH/run.sh"
+
+max_retries: 0
+timeout_minutes: 120
+
+parameters:
+  model_name: Qwen/Qwen3-1.7B        # public, Apache-2.0; no Hugging Face token needed
+  max_length: 512                    # GSM8K train examples longer than this are skipped
+  train_examples: 0                  # 0 = all GSM8K train questions
+  calib_samples: 512                 # PTQ calibration: first 512 of the shuffled GSM8K train questions
+  epochs: 2
+  learning_rate: 0.00001             # QAD learning rate, cosine schedule
+  per_device_batch_size: 4           # 8 GPUs x 4 = 32 sequences per optimizer step
+  eval_limit: 0                      # 0 = the full GSM8K test split (1,319 questions)
+  max_tokens: 1024
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/modelopt-qad-nvfp4-accuracy-recovery-b300

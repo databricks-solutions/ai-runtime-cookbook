@@ -1,0 +1,22 @@
+# accelerate launch config for QAD: one process per GPU on one node, FSDP2 with bf16 mixed precision.
+# Adapted from ModelOpt 0.48.0 examples/llm_qat/configs/accelerate/fsdp2.yaml (Apache-2.0).
+compute_environment: LOCAL_MACHINE
+debug: false
+distributed_type: FSDP
+downcast_bf16: 'no'
+enable_cpu_affinity: false
+fsdp_config:
+  fsdp_activation_checkpointing: true
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  fsdp_cpu_ram_efficient_loading: true
+  fsdp_offload_params: false
+  fsdp_reshard_after_forward: true
+  fsdp_state_dict_type: SHARDED_STATE_DICT
+  fsdp_transformer_layer_cls_to_wrap: Qwen3DecoderLayer
+  fsdp_version: 2
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16
+num_machines: 1
+num_processes: 8
+use_cpu: false
