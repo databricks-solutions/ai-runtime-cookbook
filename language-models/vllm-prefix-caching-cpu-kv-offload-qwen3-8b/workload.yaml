@@ -4,12 +4,15 @@
 experiment_name: vllm-prefix-caching-cpu-kv-offload-qwen3-8b
 
 environment:
-  # vLLM 0.34.0's PyPI wheel is built for CUDA 13.0, which matches databricks_ai_v6.
-  version: databricks_ai_v6
+  # vLLM's dependencies supply the PyTorch and CUDA libraries needed on standard v6.
+  version: "6"
   dependencies:
     - vllm==0.34.0
+    - torch==2.14.0
+    - aiohttp==3.14.5
     - huggingface_hub==2.4.0
     - mlflow-skinny==3.8.1
+    - nvidia-ml-py==13.615.71
 
 compute:
   num_accelerators: 1
@@ -28,18 +31,12 @@ command: |
   set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 2.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # The environment's flash-attn is built for its original PyTorch, and vLLM 0.34 installs a newer one. vLLM uses its
-  # own attention kernels here. pip exits non-zero when a package is missing, so these lines tolerate that.
-  python -m pip uninstall -y flash-attn || true
-  # The legacy pynvml package shadows nvidia-ml-py, which vLLM's worker startup imports.
-  python -m pip uninstall -y pynvml || true
-  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   python "$CODE_SOURCE_PATH/prefix_offload_benchmark.py"
 
 max_retries: 0
 # Four fresh vLLM servers (three configurations plus the prefix_off repeat control), each with a model load and CUDA
-# graph capture, plus one 800-request stream per server. The three-configuration validation run took about 11 minutes
-# in the container. The timer includes queue time, so 120 minutes leaves room.
+# graph capture, plus one 800-request stream per server. The standard-v6 runs took about 12 minutes in the container.
+# The timer includes queue time, so 120 minutes leaves room.
 timeout_minutes: 120
 
 parameters:
