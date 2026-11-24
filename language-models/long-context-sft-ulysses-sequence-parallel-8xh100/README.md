@@ -27,18 +27,6 @@ Each point runs one untimed warm-up step and then 3 timed optimizer steps. A poi
 
 The run took about 7 minutes in the container, including the model and dataset download.
 
-For a cheap smoke run, override the sizes and model. This needs one GPU, so it does not exercise SP=8:
-
-```bash
-databricks air run -f workload.yaml --watch \
-  --override compute.num_accelerators=1 \
-  --override compute.accelerator_type=GPU_1xH100 \
-  --override parameters.model_name=Qwen/Qwen3-0.6B \
-  --override parameters.sp8_seq_lens="" \
-  --override parameters.sp1_seq_lens=4096 \
-  --override parameters.steps=1
-```
-
 ## How it works
 
 - `train_sp.py` runs one point. It builds sequences of up to 131,072 tokens by concatenating chat-formatted conversations, because most LongAlign conversations are 8K to 64K tokens. Attention is not masked across these boundaries, and the loss covers assistant tokens only.
