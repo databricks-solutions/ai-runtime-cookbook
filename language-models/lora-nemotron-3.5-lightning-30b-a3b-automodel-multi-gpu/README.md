@@ -4,13 +4,13 @@ This recipe uses NeMo AutoModel to fine-tune `nvidia/NVIDIA-Nemotron-3.5-Lightni
 
 Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, and rank-8 LoRA. The local batch size is 32 per GPU for a global batch of 256 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. It logs training metrics only; HellaSwag multiple-choice accuracy requires a separate evaluation.
 
-Environment configurations: the workload runs NVIDIA's `nemo-automodel:26.08.00` container image as a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images). This container provides the GMM/DeepEP backend used for training.
+Environment configurations: the workload runs NVIDIA's `nemo-automodel:26.08.00` container image as a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images). This container provides the GMM/DeepEP backend used for training.
 
 Workload execution takes about 9 minutes. For the first run, image upload may take additional time.
 
 ## Before you run
 
-Enable the necessary previews in your workspace (a workspace admin does this) by following the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/docker-images).
+Ask a workspace admin to enable the Databricks Artifact Registry preview, as described in the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/docker-images).
 
 ### Custom image setup
 

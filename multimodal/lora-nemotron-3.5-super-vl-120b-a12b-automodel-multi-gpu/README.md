@@ -4,7 +4,7 @@ This recipe uses NeMo AutoModel to fine-tune `nvidia/NVIDIA-Nemotron-3.5-Super-V
 
 Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, rank-64 LoRA, and the GMM/DeepEP backend. The local batch size is 1 per GPU, for a global batch of 8 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. The recipe logs training metrics only. Measuring CORD-v2 field-extraction quality requires a separate evaluation.
 
-Environment configurations: NVIDIA's stock `nemo-automodel:26.08.00` image does not yet support Super VL. To add it, the recipe builds a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) from the bundled `Dockerfile`, which layers Super VL support on top of that image.
+Environment configurations: NVIDIA's stock `nemo-automodel:26.08.00` image does not yet support Super VL. To add it, the recipe builds a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) from the bundled `Dockerfile`, which layers Super VL support on top of that image.
 
 Workload execution takes about 12 minutes. For the first run, the one-time image build and upload may take additional time.
 
@@ -12,7 +12,7 @@ Workload execution takes about 12 minutes. For the first run, the one-time image
 
 Complete these steps from this recipe's directory.
 
-1. Configure and authenticate the CLI using the [cookbook setup instructions](../../README.md#run-a-recipe). Ask a workspace admin to enable the custom-image previews: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/cli/docker-images).
+1. Configure and authenticate the CLI using the [cookbook setup instructions](../../README.md#run-a-recipe). Ask a workspace admin to enable the Databricks Artifact Registry preview, as described in the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/docker-images).
 
 2. Install [Docker Engine on Linux](https://docs.docker.com/engine/install/) or [Docker Desktop on macOS](https://docs.docker.com/desktop/setup/install/mac-install/) and start it. Keep Docker running through the build and push. On macOS, choose the installer for your chip. AIR requires `linux/amd64`, including on Apple silicon.
 
