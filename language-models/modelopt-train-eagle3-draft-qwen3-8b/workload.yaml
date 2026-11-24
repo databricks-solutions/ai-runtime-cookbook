@@ -4,13 +4,13 @@
 experiment_name: air-modelopt-eagle3-draft-qwen3-8b
 
 environment:
-  # CUDA 13 environment. Its preinstalled torch 2.11.0 and transformers 5.8.1 match the pins below.
-  version: databricks_ai_v6
+  version: "6"
   dependencies:
     # Trains the draft in-process from the frozen HF target. The 0.48.0 EAGLE code is the version tested with transformers 5.8.1.
     - nvidia-modelopt==0.48.0
     # Serves the target and the draft. 0.5.14 pins torch 2.11.0 and transformers 5.8.1, so the training stack is unchanged.
     - sglang==0.5.14
+    - torch==2.11.0
     - transformers==5.8.1
     - accelerate==1.13.0
     - datasets==4.8.5
@@ -29,9 +29,6 @@ command: |
   set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # The environment's legacy pynvml package shadows nvidia-ml-py's newer pynvml module.
-  python -m pip uninstall -y pynvml
-  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   # FlashInfer JIT-compiles some kernels that need curand.h. This environment ships it only inside the nvidia-* wheels,
   # so expose just those headers to the compiler.
   mkdir -p /tmp/curand-include
