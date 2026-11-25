@@ -34,10 +34,11 @@ env_variables:
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  set -e
+  set -eo pipefail
   cd "$CODE_SOURCE_PATH"
-  bash install_transformer_engine.sh
-  bash run_all.sh
+  python install_transformer_engine.py
+  python bench.py prepare
+  python run_all.py
 
 max_retries: 0
 timeout_minutes: 120

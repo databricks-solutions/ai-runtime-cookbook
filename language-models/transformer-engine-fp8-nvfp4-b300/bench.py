@@ -1,7 +1,7 @@
 """Train the same Llama-style model in bf16, FP8 and NVFP4 with Transformer Engine.
 
 `python bench.py prepare` tokenizes WikiText-103 once. `python bench.py train <precision>`
-trains on one GPU and writes tokens/s and loss. run_all.sh starts one precision per GPU,
+trains on one GPU and writes tokens/s and loss. run_all.py starts one precision per GPU,
 so the comparison runs in parallel on a single node.
 """
 
