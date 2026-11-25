@@ -20,7 +20,13 @@ experiment_name: air-b300-qwen3-8-27b-sft
 
 environment:
   version: databricks_ai_v6
-  dependencies: []
+  dependencies:
+    - ninja==1.13.0
+    - packaging==25.0
+    # Qwen3.8 needs a transformers release newer than the image's baked version.
+    - transformers==5.16.1
+    - flash-linear-attention==0.5.2
+    - datasets==4.8.5
 
 compute:
   accelerator_type: GPU_8xB300
@@ -63,20 +69,11 @@ command: |
   #
   echo "Env Setup"
 
-  # The fused causal-conv1d (for the gated-delta layers), built from the upstream Dao-AILab
-  # source against the environment's torch. torch and FlashAttention-2 come from the image.
-  python -m pip install --no-cache-dir ninja==1.13.0 packaging==25.0
-
-  # causal_conv1d, tag v1.6.2.
+  # causal-conv1d (for the gated-delta layers) builds against the image's torch and CUDA, so it
+  # stays here instead of environment.dependencies. Its source is the v1.6.2 tag because PyPI has
+  # no 1.6.2 release (only 1.6.2.post1).
   git clone --depth 1 --branch v1.6.2 https://github.com/Dao-AILab/causal-conv1d.git /tmp/causal-conv1d
   CAUSAL_CONV1D_FORCE_BUILD=TRUE python -m pip install --no-cache-dir --no-build-isolation /tmp/causal-conv1d
-
-  # transformers with Qwen3.8 support (newer than the image's baked version).
-  python -m pip install --no-cache-dir transformers==5.16.1
-  # flash-linear-attention: the fused gated-delta kernel the model uses (installing it is enough).
-  python -m pip install --no-cache-dir flash-linear-attention==0.5.2
-  # datasets: train.py streams the training data from the HF hub.
-  python -m pip install --no-cache-dir datasets==4.8.5
 
   # === ---- Run Main Training Loop ---------------------------------------- ===
   #
