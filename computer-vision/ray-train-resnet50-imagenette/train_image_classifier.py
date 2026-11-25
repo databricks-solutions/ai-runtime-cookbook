@@ -166,12 +166,9 @@ def train_loop_per_worker(config: dict) -> None:
 
 def main() -> None:
     ray.init(address="auto")
+    # ray_bootstrap.sh has already waited for the GPUs that AIR provisioned, so this check
+    # fires only when NUM_GPUS in workload.yaml does not match num_accelerators.
     expected_gpus = int(os.environ["NUM_GPUS"])
-    for _ in range(60):
-        if int(ray.cluster_resources().get("GPU", 0)) >= expected_gpus:
-            break
-        time.sleep(5)
-
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
     if total_gpus < expected_gpus:
         raise SystemExit(f"Expected {expected_gpus} GPU(s) but Ray only sees {total_gpus}")
