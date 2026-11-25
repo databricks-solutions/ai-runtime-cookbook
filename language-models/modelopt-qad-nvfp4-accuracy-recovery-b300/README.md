@@ -61,8 +61,6 @@ QAD minus PTQ is +0.0379 in the standard v6 run (paired SE 0.0128, 95% CI about 
 3. **QAD.** `qad_train.py` builds a `QADTrainer` from ModelOpt 0.48.0. The student is the PTQ checkpoint, with NVFP4 fake quantization in the forward pass. The teacher is the bf16 model. The loss is a forward KL between their logits on the answer tokens of GSM8K train. Training runs for 2 epochs at learning rate 1e-5 with cosine decay, under `accelerate` with FSDP2 on 8 GPUs.
 4. **Export and evaluation.** `export.py` turns the PTQ and QAD checkpoints into NVFP4 checkpoints that vLLM loads. `evaluate.py` scores them, and `summarize.py` computes the comparison.
 
-Before the earlier full runs, a smoke run with reduced settings (64 test questions, 64 training examples, 32 calibration samples, 1 epoch) tested the pipeline. Its numbers are not a result: bf16 0.7656, PTQ 0.6719, QAD 0.6562. The smoke run and the first full validation run used identical files; the second full validation run changed only comments. The later standard v6 run changed the environment and dependencies, not the recipe parameters.
-
 Calibration and training use only the GSM8K train split. The test split is used only for the final evaluation, and no setting was chosen by looking at it.
 
 ## Caveats
