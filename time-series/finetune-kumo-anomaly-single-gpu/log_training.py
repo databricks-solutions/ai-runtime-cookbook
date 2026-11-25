@@ -59,15 +59,14 @@ def main():
             client.log_metric(run_id, key, float(row[key]), step=int(row["epoch"]))
     client.log_metric(run_id, "best_val_loss", float(summary["best_val_loss"]))
     evaluation_path = work_dir / "evaluation.json"
-    if evaluation_path.exists():
-        evaluation = json.loads(evaluation_path.read_text())
-        for model_name, metrics in evaluation["models"].items():
-            client.log_metric(
-                run_id,
-                f"{model_name}_average_precision",
-                float(metrics["average_precision"]),
-            )
-            client.log_metric(run_id, f"{model_name}_f1", float(metrics["f1"]))
+    evaluation = json.loads(evaluation_path.read_text())
+    for model_name, metrics in evaluation["models"].items():
+        client.log_metric(
+            run_id,
+            f"{model_name}_average_precision",
+            float(metrics["average_precision"]),
+        )
+        client.log_metric(run_id, f"{model_name}_f1", float(metrics["f1"]))
     for name in ["checkpoints", "data"]:
         client.log_artifacts(
             run_id, str(work_dir / name), artifact_path=f"kumo_finetune/{name}"
@@ -79,9 +78,7 @@ def main():
         "evaluation.json",
         "evaluation.log",
     ]:
-        path = work_dir / name
-        if path.exists():
-            client.log_artifact(run_id, str(path), artifact_path="kumo_finetune")
+        client.log_artifact(run_id, str(work_dir / name), artifact_path="kumo_finetune")
     print(
         f"Uploaded training artifacts to MLflow run {run_id} under kumo_finetune",
         flush=True,

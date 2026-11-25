@@ -31,8 +31,6 @@ def normal_windows(features, labels, start, stop, window, max_rows):
 
 
 def prepare(source, output, window=100, train_rows=50000, val_rows=10000):
-    if window != 100:
-        raise ValueError("This recipe uses 100-row windows.")
     output.mkdir(parents=True, exist_ok=True)
     x = pd.read_csv(source / "TimeSeries.csv")
     y_frame = pd.read_csv(source / "labelsTimeSeries.csv")
