@@ -20,6 +20,40 @@ databricks air run -f workload.yaml --watch
 
 ## Results
 
-The run prints the training-loss curve. It writes `summary.json` and the fine-tuned policy (`pretrained_model/`) to `<output_root>/<MLflow run ID>/`, and logs the loss summary to MLflow.
+The run prints the training-loss curve. It writes `summary.json` and the fine-tuned policy (`pretrained_model/`, loadable with `SmolVLAPolicy.from_pretrained`) to `<output_root>/<MLflow run ID>/`, and logs the loss summary to MLflow.
 
 In a validation run on an H100, training loss fell from 0.358 at step 50 to 0.082 at step 2,000. The recipe doesn't evaluate the policy on a robot or in simulation.
+
+After training, `load_policy.py` loads the saved policy in a new process and predicts one action for the first training frame. To load the policy yourself, use the same code:
+
+```python
+"""Load the saved SmolVLA policy in a fresh process and predict one action."""
+
+import os
+
+import torch
+import yaml
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.policies.factory import make_pre_post_processors
+from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
+
+with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+    P = yaml.safe_load(f)
+
+policy_dir = f"{P['output_root']}/{os.environ['MLFLOW_RUN_ID']}/pretrained_model"
+policy = SmolVLAPolicy.from_pretrained(policy_dir).to("cuda").eval()
+preprocessor, postprocessor = make_pre_post_processors(policy.config, pretrained_path=policy_dir)
+
+# The first training frame, with the cameras renamed to the names the policy expects.
+frame = LeRobotDataset(P["dataset_repo_id"], video_backend="pyav")[0]
+observation = {
+    "observation.images.camera1": frame["observation.images.top"],
+    "observation.images.camera2": frame["observation.images.wrist"],
+    "observation.state": frame["observation.state"],
+    "task": frame["task"],
+}
+policy.reset()
+action = postprocessor(policy.select_action(preprocessor(observation)))
+assert torch.isfinite(action).all(), "The loaded policy predicted a non-finite action"
+print("Loaded policy predicted an action with shape", tuple(action.shape))
+```
