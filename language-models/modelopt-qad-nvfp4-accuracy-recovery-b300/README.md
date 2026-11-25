@@ -6,7 +6,11 @@ The whole run takes about 17 minutes in the container on one 8xB300 node (16m 28
 
 ## Before you run
 
-The run writes checkpoints and results to `/Volumes/main/default/air_examples/modelopt-qad-nvfp4-accuracy-recovery-b300/<MLflow run ID>/`. That volume must already exist and be writable. Replace the `output_root` parameter in `workload.yaml` if it is not.
+The run writes checkpoints and results to `/Volumes/main/default/air_examples/modelopt-qad-nvfp4-accuracy-recovery-b300/<MLflow run ID>/`. That volume must already exist and be writable. To write elsewhere, pass another existing writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
