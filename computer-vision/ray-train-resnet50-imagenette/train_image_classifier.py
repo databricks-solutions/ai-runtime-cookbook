@@ -85,8 +85,10 @@ def create_data_loaders(batch_size: int) -> dict[str, DataLoader]:
 def run_epoch(model, loader, loss_fn, optimizer=None) -> tuple[float, float]:
     is_training = optimizer is not None
     model.train(is_training)
-    loss_sum = 0.0
-    correct = 0
+    # Accumulate on the GPU and read the totals back once per epoch, not once per batch.
+    device = get_device()
+    loss_sum = torch.zeros((), dtype=torch.float64, device=device)
+    correct = torch.zeros((), dtype=torch.float64, device=device)
     samples = 0
 
     for images, labels in loader:
@@ -98,11 +100,11 @@ def run_epoch(model, loader, loss_fn, optimizer=None) -> tuple[float, float]:
             if is_training:
                 loss.backward()
                 optimizer.step()
-        loss_sum += loss.item() * labels.size(0)
-        correct += (logits.argmax(dim=1) == labels).sum().item()
+        loss_sum += loss.detach().double() * labels.size(0)
+        correct += (logits.argmax(dim=1) == labels).sum()
         samples += labels.size(0)
 
-    totals = torch.tensor([loss_sum, correct, samples], dtype=torch.float64, device=get_device())
+    totals = torch.stack([loss_sum, correct, torch.tensor(float(samples), dtype=torch.float64, device=device)])
     dist.all_reduce(totals, op=dist.ReduceOp.SUM)
     return totals[0].item() / totals[2].item(), totals[1].item() / totals[2].item()
 
