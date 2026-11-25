@@ -4,6 +4,14 @@ This recipe teaches the `Tongyi-MAI/Z-Image` text-to-image model (6B parameters)
 
 The recipe then batch-generates images for 8 prompts twice: once with the LoRA and once without it. The whole run takes about 8 minutes.
 
+## Before you run
+
+The recipe writes its outputs to `/Volumes/main/default/air_examples/diffusion-lora-z-image-batch-generation`. The volume must exist and be writable. To write to another volume, override `parameters.output_root`:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
