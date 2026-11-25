@@ -20,8 +20,7 @@ environment:
     - hf_transfer==0.1.9
     - fsspec==2024.9.0
 
-# One 8xH100 node; Ray Data runs one ASR+diarization actor per GPU. Increase
-# num_accelerators to add nodes — ray_bootstrap.sh forms the multi-node cluster.
+# One 8xH100 node; Ray Data runs one ASR+diarization actor per GPU.
 compute:
   num_accelerators: 8
   accelerator_type: GPU_8xH100
@@ -46,7 +45,7 @@ secrets:
 
 env_variables:
   NCCL_SOCKET_IFNAME: eth0
-  # faster-whisper model to load on each GPU actor (e.g. large-v3, medium, small).
+  # faster-whisper model to load on each GPU actor.
   WHISPER_MODEL: large-v3
   NUM_CLIPS: '24'
   # Shared UC volume paths. Replace with writable volumes that already exist;

@@ -34,8 +34,7 @@ databricks air run -f workload.yaml --watch
 ```
 
 Configure `WHISPER_MODEL`, `NUM_CLIPS`, `INPUT_DIR`, `OUTPUT_PATH`, and the `HF_TOKEN` secret in
-`workload.yaml`. Add nodes by raising `compute.num_accelerators` — `ray_bootstrap.sh`
-forms the cluster and Ray Data scales the actor pool to the available GPUs.
+`workload.yaml`.
 
 Each run writes its Parquet results to `<OUTPUT_PATH>/<MLFLOW_RUN_ID>`. Reruns don't overwrite
 earlier output. The run id is shown on the AIR attempt's MLflow page.
