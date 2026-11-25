@@ -139,25 +139,22 @@ def main() -> None:
     # Own the MLflow run ourselves. AIR sets MLFLOW_RUN_ID (the run the CLI shows); we POP it and
     # resume that run explicitly BEFORE training. With the env var gone and a run already active,
     # the HF Trainer's MLflow callback logs its loss/eval curves into our run instead of starting —
-    # and auto-ending — its own. (On transformers 5.x the callback otherwise closes the run at
-    # train-end, so the later model logging would hang the job.)
+    # and auto-ending — its own. Otherwise the callback ends the run at train end, and the model
+    # logging below goes to a new run.
     run_id = os.environ.pop("MLFLOW_RUN_ID", None)
-    run = mlflow.start_run(run_id=run_id) if run_id else mlflow.start_run(run_name="modernbert-agnews")
+    if not run_id:
+        raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+    run = mlflow.start_run(run_id=run_id)
     with run:
         trainer.train()   # callback streams loss/eval curves into this run (no run of its own)
         metrics = trainer.evaluate()
         print("Eval:", metrics)
 
-        # Add our extra config under distinct keys (HF already logged the Trainer args + model
-        # config); skip any that would collide with an already-logged key.
-        for k, v in {
+        # Extra config under distinct keys; HF already logs the Trainer args and model config.
+        mlflow.log_params({
             "base_model": model_name, "dataset": dataset_name, "tokenizer_max_length": max_length,
             "max_train_samples": max_train_samples, "training_mode": "single-gpu",
-        }.items():
-            try:
-                mlflow.log_param(k, v)
-            except Exception:  # noqa: BLE001
-                pass
+        })
         # Final eval metrics under distinct final_* keys so they don't overwrite the per-step
         # training `loss` curve the callback already streamed.
         mlflow.log_metrics({
