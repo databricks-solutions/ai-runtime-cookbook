@@ -2,12 +2,12 @@
 
 Distributed speech-to-text with speaker diarization on a Ray cluster. Ray Data runs one
 GPU actor per GPU — each loads faster-whisper (ASR) and pyannote (diarization) once and
-pulls clips off Ray's shared queue, so long clips don't strand fast GPUs. Results are
+pulls clips off Ray's shared queue. Long clips don't strand fast GPUs. Results are
 written to a Unity Catalog volume as Parquet.
 
 Input is the public, ungated `diarizers-community/voxconverse` multi-speaker dataset
-(CC-BY-4.0); the entrypoint stages `NUM_CLIPS` clips to `INPUT_DIR` on the Ray head, so
-no separate prep step is needed.
+(CC-BY-4.0); the entrypoint stages `NUM_CLIPS` clips to `INPUT_DIR` on the Ray head.
+No separate prep step is needed.
 
 ## Before you run
 
@@ -24,22 +24,18 @@ no separate prep step is needed.
    Store the token in a Databricks secret, then set `secrets.HF_TOKEN` in
    `workload.yaml` to that `scope/key` (default `my_scope/hf_token`). Follow the
    [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/)
-   before your first run in a workspace or with these models. Agents can follow the
-   [preflight guide](../../docs/agents/hugging-face-preflight.md).
+   before your first run in a workspace or with these models. Before you submit, check both
+   models and the secret with the [preflight guide](../../docs/agents/hugging-face-preflight.md).
 
 ## Run
 
 ```bash
-python ../../scripts/hf_preflight.py --profile "<profile-name>" \
-  --model pyannote/speaker-diarization-3.1 \
-  --model pyannote/segmentation-3.0
-# Submit only after both model checks pass and run-as secret access is confirmed.
-databricks air run -f workload.yaml --watch --profile "<profile-name>"
+databricks air run -f workload.yaml --watch
 ```
 
 Configure `WHISPER_MODEL`, `NUM_CLIPS`, `INPUT_DIR`, `OUTPUT_PATH`, and the `HF_TOKEN` secret in
 `workload.yaml`. Add nodes by raising `compute.num_accelerators` — `ray_bootstrap.sh`
 forms the cluster and Ray Data scales the actor pool to the available GPUs.
 
-Each run writes its Parquet results to `<OUTPUT_PATH>/<MLFLOW_RUN_ID>`, so reruns
-don't overwrite earlier output (the run id is shown on the AIR attempt's MLflow page).
+Each run writes its Parquet results to `<OUTPUT_PATH>/<MLFLOW_RUN_ID>`. Reruns don't overwrite
+earlier output. The run id is shown on the AIR attempt's MLflow page.
