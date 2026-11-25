@@ -45,6 +45,5 @@ parameters:
   max_steps: 30
   learning_rate: 0.0002
   sample_prompt: "Solve x^5 + 3x^4 - 10 = 3."
-  save_adapter: false
   # Requires access to this existing volume; replace it with another writable volume if needed.
   output_root: /Volumes/main/default/air_examples/unsloth-moe-lora-gpt-oss-20b-a10

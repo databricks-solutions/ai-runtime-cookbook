@@ -20,7 +20,7 @@ databricks air run -f workload.yaml --watch
 
 ## Results
 
-The run prints the training loss, peak GPU memory, time per step and a sample answer. It writes `metrics.json` and `sample.txt` to `<output_root>/<MLflow run ID>/`. Set `save_adapter: true` to also save the LoRA adapter there.
+The run prints the training loss, peak GPU memory, time per step and a sample answer. It writes `metrics.json` and `sample.txt` to `<output_root>/<MLflow run ID>/`.
 
 A validation run on an A10 produced these results:
 
