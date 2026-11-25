@@ -15,3 +15,14 @@ databricks air run -f workload.yaml --watch
 ## Results
 
 A new model version is registered in Unity Catalog, and the run's config, boosting curves, and evaluation metrics are logged to the AIR MLflow run.
+
+To load a registered version in a new Python process, use the version number that the run prints:
+
+```python
+import mlflow
+
+mlflow.set_registry_uri("databricks-uc")
+model = mlflow.xgboost.load_model("models:/main.default.xgboost_covertype/<version>")
+```
+
+Replace `main.default` with your `uc_catalog` and `uc_schema`.
