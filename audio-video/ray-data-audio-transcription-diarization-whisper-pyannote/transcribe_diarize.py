@@ -33,7 +33,6 @@ MODEL_SOURCE = os.environ.get("WHISPER_MODEL", "large-v3")
 DIARIZATION_MODEL = "pyannote/speaker-diarization-3.1"
 SEGMENTATION_MODEL = "pyannote/segmentation-3.0"
 NUM_CLIPS = int(os.environ.get("NUM_CLIPS", "24"))
-TARGET_SR = 16000
 # Shared UC volume paths. Set these in workload.yaml; the volumes must exist.
 INPUT_DIR = os.environ.get("INPUT_DIR", "/Volumes/main/default/air_examples/voxconverse_wavs")
 OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/audio_diarization_results")
@@ -52,6 +51,13 @@ def model_access_error():
     )
 
 
+def raise_model_access_error(error):
+    """Map a Hub 401, 403 or 404 to the model access error, and re-raise any other HTTP error."""
+    if error.response is not None and error.response.status_code in (401, 403, 404):
+        raise model_access_error() from error
+    raise error
+
+
 def check_model_access():
     """Check both gated configs before staging audio or starting GPU actors."""
     from huggingface_hub import get_hf_file_metadata, hf_hub_url
@@ -64,9 +70,7 @@ def check_model_access():
             # A HEAD request checks the current token even if files are cached.
             get_hf_file_metadata(hf_hub_url(repository, "config.yaml"), token=HF_TOKEN)
         except HfHubHTTPError as error:
-            if error.response is not None and error.response.status_code in (401, 403, 404):
-                raise model_access_error() from error
-            raise
+            raise_model_access_error(error)
 
 
 def stage_audio() -> list:
@@ -139,9 +143,7 @@ class WhisperDiarizer:
                 DIARIZATION_MODEL, use_auth_token=HF_TOKEN
             )
         except HfHubHTTPError as error:
-            if error.response is not None and error.response.status_code in (401, 403, 404):
-                raise model_access_error() from error
-            raise
+            raise_model_access_error(error)
         finally:
             torch.load = _orig_load
         # pyannote can print an access warning and return None instead of raising.
