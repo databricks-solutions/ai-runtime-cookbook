@@ -62,6 +62,12 @@ def build_dataset(tokenizer, dataset_name: str, max_seq_len: int):
 
 
 def main():
+    # AIR sets MLFLOW_RUN_ID. Check it on every rank before any collective call, so a missing run
+    # fails at startup instead of hanging the other ranks.
+    run_id = os.environ.get("MLFLOW_RUN_ID")
+    if not run_id:
+        raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+
     rank = int(os.environ["RANK"])
     local_rank = int(os.environ["LOCAL_RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
@@ -111,9 +117,8 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    use_mlflow = rank == 0 and bool(os.environ.get("MLFLOW_RUN_ID"))
-    if use_mlflow:
-        mlflow.start_run(run_id=os.environ.get("MLFLOW_RUN_ID"))
+    if rank == 0:
+        mlflow.start_run(run_id=run_id)
         mlflow.log_params({"model_name": model_name, "lr": lr, "batch_size": batch_size, "world_size": world_size})
 
     model.train()
@@ -135,8 +140,7 @@ def main():
             step += 1
             if rank == 0:
                 print(f"step={step}/{max_steps} loss={out.loss.item():.4f}", flush=True)
-                if use_mlflow:
-                    mlflow.log_metric("train_loss", out.loss.item(), step=step)
+                mlflow.log_metric("train_loss", out.loss.item(), step=step)
             if step >= max_steps:
                 break
 
@@ -148,8 +152,7 @@ def main():
         model.module.save_pretrained(output_dir, state_dict=cpu_state)
         tokenizer.save_pretrained(output_dir)
         print(f"Saved checkpoint to {output_dir}", flush=True)
-        if use_mlflow:
-            mlflow.end_run()
+        mlflow.end_run()
 
     dist.barrier()
     dist.destroy_process_group()
