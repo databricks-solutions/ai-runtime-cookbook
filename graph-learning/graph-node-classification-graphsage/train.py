@@ -106,7 +106,8 @@ def main():
     with mlflow.start_run(run_id=run_id):
         mlflow.log_params({"dataset": "ogbn-arxiv", "protocol": "transductive", **p})
         mlflow.log_params({f"{key}_nodes": len(value) for key, value in splits.items()})
-        mlflow.log_params({"nodes": len(labels), "undirected_edges": adjacency._nnz()})
+        # The symmetric adjacency stores each undirected edge in both directions.
+        mlflow.log_params({"nodes": len(labels), "undirected_edges": adjacency._nnz() // 2})
         started = time.perf_counter()
         for epoch in range(1, p["epochs"] + 1):
             model.train()
