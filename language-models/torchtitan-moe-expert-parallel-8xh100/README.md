@@ -4,6 +4,14 @@ This recipe pretrains a mixture-of-experts (MoE) language model from scratch on 
 
 Experts are split across the 8 GPUs with expert parallelism (EP=8, 16 experts per GPU per layer), and tokens move between GPUs with all-to-all communication. The rest of the model is sharded with FSDP. The run trains for 100 steps (64K tokens per step) and takes about 3 minutes.
 
+## Before you run
+
+The default `OUTPUT_ROOT` in `workload.yaml` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/torchtitan-moe-expert-parallel-8xh100`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override env_variables.OUTPUT_ROOT=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
