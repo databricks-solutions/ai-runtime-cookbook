@@ -4,6 +4,14 @@ This recipe runs QLoRA fine-tuning of `unsloth/gpt-oss-20b` on a single 24 GB A1
 
 The run takes about 10 minutes. About half of that is downloading and loading the model.
 
+## Before you run
+
+The default `output_root` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/unsloth-moe-lora-gpt-oss-20b-a10`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
