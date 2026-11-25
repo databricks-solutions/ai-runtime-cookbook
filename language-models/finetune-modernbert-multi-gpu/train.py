@@ -20,6 +20,7 @@ import time
 import mlflow
 import numpy as np
 import torch
+import torch.distributed as dist
 import yaml
 from datasets import load_dataset
 from sklearn.metrics import accuracy_score, f1_score
@@ -131,6 +132,12 @@ def main() -> None:
     train_seconds = time.time() - t0
     metrics = trainer.evaluate()
     print(f"[rank {rank}/{world_size}] train_seconds={train_seconds:.1f} eval={metrics}")
+
+    # Tear down NCCL on every rank before rank 0 registers the model. If registration fails, rank 0
+    # exits with no communicator left to wait on, and torchrun ends the job.
+    if dist.is_initialized():
+        dist.barrier()
+        dist.destroy_process_group()
 
     if is_main:
         # Extra config under distinct keys; HF already logs the Trainer args and model config.
