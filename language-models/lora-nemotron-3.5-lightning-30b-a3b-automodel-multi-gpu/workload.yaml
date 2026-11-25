@@ -8,9 +8,7 @@ mlflow_run_name: fifty-step-lora-demo
 environment:
   # Custom NeMo AutoModel container, referenced by its Unity Catalog coordinates
   # (<catalog>.<schema>.<image>:<tag>). Push the NGC image into your UC Artifact
-  # Registry once before the first run (see README "Before you run"):
-  #   databricks air images push -s nvcr.io/nvidia/nemo-automodel:26.08.00 \
-  #     --pull --catalog main --schema default --artifact nemo-automodel:26.08.00
+  # Registry once before the first run (see README "Before you run").
   unity_catalog_image: main.default.nemo-automodel:26.08.00
 
 compute:
@@ -31,11 +29,7 @@ env_variables:
   # volume; replace it with another writable volume if needed.
   ADAPTER_OUTPUT_ROOT: /Volumes/main/default/air_examples/lora-nemotron-3.5-lightning-30b-a3b-automodel-multi-gpu
   MLFLOW_TRACKING_URI: databricks
-  MLFLOW_ENABLE_DB_SDK: "false"
-  TORCHINDUCTOR_COMPILE_THREADS: "1"
-  TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"
   PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
-  OPENSSL_FORCE_FIPS_MODE: "0"
 
 timeout_minutes: 240
 
