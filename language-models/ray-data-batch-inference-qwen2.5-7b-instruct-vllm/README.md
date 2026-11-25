@@ -18,4 +18,4 @@ databricks air run -f workload.yaml --watch
 
 ## Results
 
-The recipe writes a Parquet dataset with `instruction` and `output` columns to `OUTPUT_PATH`.
+The recipe writes a Parquet dataset with `instruction` and `output` columns to `OUTPUT_PATH/<MLflow run ID>`.

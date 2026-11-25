@@ -27,5 +27,6 @@ timeout_minutes: 60
 
 env_variables:
   NCCL_SOCKET_IFNAME: eth0
-  # Replace with a writable Unity Catalog volume path. The volume must already exist.
-  OUTPUT_PATH: /Volumes/main/default/air_examples/batch-inference-qwen2.5-7b-instruct-vllm
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  # Results go to <OUTPUT_PATH>/<MLFLOW_RUN_ID>.
+  OUTPUT_PATH: /Volumes/main/default/air_examples/ray-data-batch-inference-qwen2.5-7b-instruct-vllm

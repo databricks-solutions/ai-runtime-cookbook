@@ -75,8 +75,9 @@ def main():
     out = processor(ds).materialize()
     # Print Ray Data execution statistics for diagnosing pipeline bottlenecks.
     print(out.stats(), flush=True)
-    out.write_parquet(OUTPUT_PATH)
-    print(f"Wrote {out.count()} rows to {OUTPUT_PATH}", flush=True)
+    output_dir = os.path.join(OUTPUT_PATH, os.environ["MLFLOW_RUN_ID"])
+    out.write_parquet(output_dir)
+    print(f"Wrote {out.count()} rows to {output_dir}", flush=True)
     for row in out.take(2):
         print("INSTRUCTION:", row["instruction"][:120], flush=True)
         print("OUTPUT:", row["output"][:200], flush=True)
