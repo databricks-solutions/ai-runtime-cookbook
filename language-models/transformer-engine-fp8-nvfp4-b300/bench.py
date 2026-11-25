@@ -125,11 +125,13 @@ def train(precision):
         opt.step()
         sched.step()
         opt.zero_grad(set_to_none=True)
-        losses.append(loss.item())
+        losses.append(loss.detach())
         if step % 25 == 0:
-            print(f"[{precision}] step {step} loss {losses[-1]:.4f}", flush=True)
+            print(f"[{precision}] step {step} loss {loss.item():.4f}", flush=True)
     torch.cuda.synchronize()
     elapsed = time.time() - t_start
+    # Converting per step would sync with the GPU inside the timed loop, so convert once here.
+    losses = torch.stack(losses).tolist()
 
     tokens = P["steps"] * b * s
     result = {
