@@ -8,8 +8,7 @@ environment:
   # B300 requires environment version 6 or later; standard v6 permits pinned dependencies.
   version: "6"
   dependencies:
-    # Same pins as the modelopt-nvfp4-vllm-batch-inference-b300 recipe, which runs ModelOpt 0.48.0
-    # and vLLM 0.33.0 together on B300. accelerate is the launcher for the FSDP2 QAD run.
+    # accelerate is the launcher for the FSDP2 QAD run.
     - vllm==0.33.0
     # vLLM resolves this PyTorch version; the training scripts import it directly.
     - torch==2.14.0
@@ -63,7 +62,7 @@ parameters:
   model_name: Qwen/Qwen3-1.7B        # public, Apache-2.0; no Hugging Face token needed
   max_length: 512                    # GSM8K train examples longer than this are skipped
   train_examples: 0                  # 0 = all GSM8K train questions
-  calib_samples: 512                 # PTQ calibration: first 512 of the shuffled GSM8K train questions
+  calib_samples: 512                 # PTQ calibration: first 512 shuffled GSM8K train examples that fit max_length
   epochs: 2
   learning_rate: 0.00001             # QAD learning rate, cosine schedule
   per_device_batch_size: 4           # 8 GPUs x 4 = 32 sequences per optimizer step

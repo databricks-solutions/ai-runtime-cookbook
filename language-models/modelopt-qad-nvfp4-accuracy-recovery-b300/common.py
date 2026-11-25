@@ -61,6 +61,7 @@ def train_examples(tok, limit):
             raise ValueError("chat template: the answer rendering does not extend the prompt")
         p_ids = tok(prompt, add_special_tokens=False)["input_ids"]
         f_ids = tok(full, add_special_tokens=False)["input_ids"]
+        # Drops examples longer than max_length tokens; the count is printed below.
         if len(f_ids) > P["max_length"]:
             continue
         rows.append({"input_ids": f_ids, "labels": [-100] * len(p_ids) + f_ids[len(p_ids):]})
