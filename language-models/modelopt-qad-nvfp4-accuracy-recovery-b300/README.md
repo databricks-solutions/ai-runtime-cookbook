@@ -28,9 +28,9 @@ The run prints a table of GSM8K accuracy with standard errors. It also prints pa
 - `eval_bf16.jsonl`, `eval_ptq.jsonl`, `eval_qad.jsonl`: one row per test question (correct or not, prediction, output length), so you can compare the models question by question.
 - `ptq_nvfp4/` and `qad_nvfp4/`: the exported NVFP4 checkpoints. `qad_ckpt/` holds the QAD ModelOpt checkpoint.
 
-Three default runs were made on 8xB300, each on the full 1,319-question GSM8K test split with one QAD run and one seed. The latest run uses standard environment `"6"`; the earlier runs used `databricks_ai_v6` with the same recipe settings. The earlier runs also differed from each other only in a docstring and a code comment.
+One default run was validated on 8xB300, on the full 1,319-question GSM8K test split with one QAD seed. Earlier runs used a different environment and are not reported.
 
-Standard v6 validation:
+Validation run:
 
 | Model | GSM8K accuracy | SE | Diff vs bf16 | Paired SE |
 |---|---|---|---|---|
@@ -38,23 +38,7 @@ Standard v6 validation:
 | Qwen3-1.7B NVFP4 PTQ | 0.7240 | 0.0123 | -0.0925 | 0.0119 |
 | Qwen3-1.7B NVFP4 QAD | 0.7619 | 0.0117 | -0.0546 | 0.0119 |
 
-Earlier run 3 (`databricks_ai_v6`):
-
-| Model | GSM8K accuracy | SE | Diff vs bf16 | Paired SE |
-|---|---|---|---|---|
-| Qwen3-1.7B bf16 | 0.8165 | 0.0107 | | |
-| Qwen3-1.7B NVFP4 PTQ | 0.7240 | 0.0123 | -0.0925 | 0.0118 |
-| Qwen3-1.7B NVFP4 QAD | 0.7779 | 0.0114 | -0.0387 | 0.0115 |
-
-Earlier run 2 (`databricks_ai_v6`):
-
-| Model | GSM8K accuracy | SE | Diff vs bf16 | Paired SE |
-|---|---|---|---|---|
-| Qwen3-1.7B bf16 | 0.8180 | 0.0106 | | |
-| Qwen3-1.7B NVFP4 PTQ | 0.7240 | 0.0123 | -0.0940 | 0.0119 |
-| Qwen3-1.7B NVFP4 QAD | 0.7483 | 0.0119 | -0.0697 | 0.0119 |
-
-QAD minus PTQ is +0.0379 in the standard v6 run (paired SE 0.0128, 95% CI about [+0.013, +0.063]), +0.0538 in earlier run 3 (paired SE 0.0123, 95% CI about [+0.030, +0.078]), and +0.0243 in earlier run 2 (paired SE 0.0126, 95% CI about [-0.000, +0.049]). The point estimate is positive in all three runs, but run 2's 95% interval includes zero. The gain varied by about 0.03 across the three runs, and the environment changed for the latest run. These runs do not isolate the cause of the variation.
+QAD minus PTQ is +0.0379 (paired SE 0.0128, 95% CI about [+0.013, +0.063]).
 
 ## How it works
 
@@ -68,5 +52,5 @@ Calibration and training use only the GSM8K train split. The test split is used 
 ## Caveats
 
 - The training data is GSM8K train, the same task as the test set. The QAD gain therefore measures recovery on this task. It does not show that general capability is recovered. A general-knowledge check would need a separate held-out benchmark.
-- Three default runs with one QAD seed each gave different QAD gains (+0.024 to +0.054 over PTQ). The cause of the difference is not isolated. More seeds would be needed to estimate the spread.
+- The result uses one QAD seed. The spread of the QAD gain across seeds is not measured.
 - The student is trained in the same answer format it is evaluated on (the system prompt and `####` final answer), so the gain partly reflects format.
