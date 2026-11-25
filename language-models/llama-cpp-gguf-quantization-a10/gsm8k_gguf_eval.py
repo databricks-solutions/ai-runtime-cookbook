@@ -10,6 +10,7 @@ import json
 import math
 import os
 import re
+import shutil
 import signal
 import statistics
 import subprocess
@@ -20,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import mlflow
+import nvidia
 import yaml
 from datasets import load_dataset
 from huggingface_hub import hf_hub_download, snapshot_download
@@ -233,7 +235,22 @@ def quantize_q2(q8_path):
     return q2_path
 
 
+def expose_curand_headers():
+    """Put curand.h on CPATH for vLLM's FlashInfer JIT.
+
+    FlashInfer JIT-compiles vLLM's sampler at startup. In this environment curand.h ships only
+    inside the nvidia-* pip wheels, so copy just those headers to one include directory. Runs
+    after the llama.cpp build, so the headers cannot affect its nvcc.
+    """
+    include = Path("/tmp/curand-include")
+    include.mkdir(parents=True, exist_ok=True)
+    for header in Path(nvidia.__path__[0]).rglob("curand*.h"):
+        shutil.copy(header, include)
+    os.environ["CPATH"] = f"{include}:{os.environ.get('CPATH', '')}"
+
+
 def main():
+    expose_curand_headers()
     print(subprocess.run(
         ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
         capture_output=True, text=True, check=True,

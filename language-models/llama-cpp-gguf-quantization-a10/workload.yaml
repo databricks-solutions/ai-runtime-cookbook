@@ -27,12 +27,6 @@ command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   bash "$CODE_SOURCE_PATH/build_llama_server.sh"
-  # FlashInfer JIT-compiles vLLM's sampler at startup. It needs curand.h, which this environment
-  # ships only inside the nvidia-* pip wheels. Expose just those headers, after the llama.cpp build
-  # so they cannot affect its nvcc.
-  mkdir -p /tmp/curand-include
-  find "$(python -c 'import nvidia; print(nvidia.__path__[0])')" -name 'curand*.h' -exec cp {} /tmp/curand-include/ \;
-  export CPATH="/tmp/curand-include:${CPATH:-}"
   python "$CODE_SOURCE_PATH/gsm8k_gguf_eval.py"
 
 max_retries: 0
