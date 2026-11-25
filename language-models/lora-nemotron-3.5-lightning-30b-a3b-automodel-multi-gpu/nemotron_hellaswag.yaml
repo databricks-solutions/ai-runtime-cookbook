@@ -6,7 +6,6 @@
 #
 # To run this recipe:
 # automodel nemotron_hellaswag.yaml --nproc-per-node 8
-# Adjust --nproc-per-node to the number of GPUs available on your machine.
 
 recipe: TrainFinetuneRecipeForNextTokenPrediction
 

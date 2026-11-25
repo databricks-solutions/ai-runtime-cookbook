@@ -16,7 +16,7 @@ Ask a workspace admin to enable the Databricks Artifact Registry preview, as des
 
 Install Docker and start it on your machine. Choose a Unity Catalog schema where you have permission to push images; this example uses `main.default`. See the guide above for the required Artifact Registry privileges.
 
-The image `nvcr.io/nvidia/nemo-automodel:26.08.00` is public — you do not need an NGC account, API key, or Docker login to pull it. If you switch to an NGC image that requires authentication, run `docker login nvcr.io` first, with `$oauthtoken` as the username and your NGC API key as the password.
+The image `nvcr.io/nvidia/nemo-automodel:26.08.00` is public — you do not need an NGC account, API key, or Docker login to pull it.
 
 Push the NVIDIA NeMo AutoModel image into Unity Catalog:
 
