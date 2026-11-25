@@ -11,6 +11,7 @@ from transformers import AutoTokenizer
 def load_split(split, n, seed):
     ds = load_dataset("HuggingFaceH4/ultrachat_200k", split=split)
     ds = ds.shuffle(seed=seed).select(range(min(n, len(ds))))
+    # Keeps single-turn user/assistant pairs; rows without one are dropped.
     return [(row["messages"][0]["content"], row["messages"][1]["content"])
             for row in ds if len(row["messages"]) >= 2 and row["messages"][0]["role"] == "user"
             and row["messages"][1]["role"] == "assistant"]

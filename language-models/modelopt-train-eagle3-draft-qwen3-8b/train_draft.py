@@ -106,8 +106,10 @@ def main():
     tok = tokenizer(P["model_name"])
 
     train_pairs = load_split("train_sft", int(P["num_train_prompts"]), SEED)
+    # Drops conversations encode_example rejects: a template mismatch or no reply within MAX_LEN.
     train = [e for e in (encode_example(tok, u, a, MAX_LEN) for u, a in train_pairs) if e]
     eval_pairs = load_split("test_sft", int(P["num_eval_prompts"]), SEED)
+    # Drops held-out conversations that encode_example rejects, as for the training set.
     heldout = [e for e in (encode_example(tok, u, a, MAX_LEN) for u, a in eval_pairs[:100]) if e]
     # Drops the last partial micro-batch when the kept count is not a multiple of MICRO_BS.
     heldout = heldout[: len(heldout) // MICRO_BS * MICRO_BS]
