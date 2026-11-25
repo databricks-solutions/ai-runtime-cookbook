@@ -29,7 +29,7 @@ A validation run on an H100 produced these results:
 | Baseline | 1,136 | 1.00 |
 | EAGLE-3 (3 steps, top-1, 4 draft tokens) | 2,007 | 2.24 |
 
-EAGLE-3 was 1.77× faster. 48% of greedy outputs were identical to the baseline. Speculative decoding doesn't change the target model's output distribution. However, bf16 kernels round slightly differently at different batch shapes, and long greedy generations can drift apart after a small difference. Raise `max_running_requests` to see the speedup shrink as the GPU becomes compute-bound.
+EAGLE-3 was 1.77× faster. 48% of greedy outputs were identical to the baseline. Speculative decoding doesn't change the target model's output distribution.
 
 Notes on the environment:
 
