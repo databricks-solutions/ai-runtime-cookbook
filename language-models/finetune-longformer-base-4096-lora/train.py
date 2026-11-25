@@ -64,7 +64,6 @@ def main():
     lora_r = int(p.get("lora_r", 16))
     lora_alpha = int(p.get("lora_alpha", 32))
     lora_dropout = float(p.get("lora_dropout", 0.05))
-    max_steps = int(p.get("max_steps", -1))
 
     # Per-attempt output dir keyed by the AIR MLflow run, so reruns and retries
     # don't overwrite a previous run's adapter.
@@ -112,7 +111,6 @@ def main():
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
-        max_steps=max_steps,  # -1 = unbounded (use num_train_epochs)
         learning_rate=learning_rate,
         per_device_train_batch_size=per_device_batch_size,
         per_device_eval_batch_size=per_device_batch_size,

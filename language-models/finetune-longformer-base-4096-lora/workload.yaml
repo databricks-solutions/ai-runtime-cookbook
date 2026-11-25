@@ -41,7 +41,7 @@ parameters:
   # Longformer supports sequences up to 4096 tokens (its local attention window
   # is 512); the collator pads each batch to a multiple of 512.
   max_length: 4096
-  # Subsets of IMDB's 25k/25k splits keep the example quick; raise for a fuller run.
+  # Subsets of IMDB's 25k/25k splits keep the example quick.
   train_samples: 2000
   eval_samples: 500
 
@@ -54,5 +54,3 @@ parameters:
   # Smaller batch keeps memory safe when a batch contains a long (4096-token) doc.
   per_device_batch_size: 4
   gradient_accumulation_steps: 1
-  # Cap total steps for a quick end-to-end smoke test. -1 = full num_epochs run.
-  max_steps: -1
