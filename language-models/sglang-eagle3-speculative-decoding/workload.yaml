@@ -46,7 +46,6 @@ parameters:
   num_prompts: 256
   max_new_tokens: 512
   # Speculative decoding helps most when the GPU is not saturated (latency-bound serving).
-  # Raise this to see the speedup shrink at large batch sizes.
   max_running_requests: 8
   speculative_num_steps: 3
   speculative_eagle_topk: 1
