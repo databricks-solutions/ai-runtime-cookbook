@@ -4,6 +4,14 @@ This recipe runs [SGLang](https://github.com/sgl-project/sglang) offline batch i
 
 The run limits concurrency to 8 requests (`max_running_requests`), the latency-bound regime where speculative decoding helps most. The whole run takes about 8 minutes.
 
+## Before you run
+
+The default `output_root` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/sglang-eagle3-speculative-decoding`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
