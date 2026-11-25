@@ -2,6 +2,14 @@
 
 This recipe uses plain PyTorch and FSDP2 to supervised-fine-tune `Qwen/Qwen3.8-27B` on UltraChat 200k for one full pass (983 steps) across four 8x H100 nodes. It packs conversations into 8,192-token blocks. No example attends to another. Rank 0 logs the training loss every 100 steps. The run takes about 1 hour 45 minutes, including about 35 minutes of setup before training starts.
 
+## Before you run
+
+The default `output_root` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/sft-qwen3.8-27b-fsdp2-multinode`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
