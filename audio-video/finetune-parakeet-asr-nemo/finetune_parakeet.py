@@ -361,7 +361,7 @@ def main():
     metrics = {
         "model": p["model_name"],
         "dataset": f"{DATASET_ID} ({DATASET_CONFIG})",
-        "text_normalization": "lowercase; punctuation removed; hyphens become spaces",
+        "text_normalization": "lowercase; punctuation other than apostrophes removed; hyphens become spaces",
         "train_utterances": len(train_records),
         "validation_utterances": len(validation),
         "test_utterances": len(test),
