@@ -7,6 +7,8 @@ The recipe evaluates the tuned model in two ways, both on UltraFeedback test dat
 - **Preference accuracy:** on 500 test pairs, how often the tuned model ranks the chosen answer above the rejected one, relative to the base model. A random guess would score 50%.
 - **Reward-model win rate:** on 300 more test prompts, the base model and the DPO model each answer greedily. The `Skywork/Skywork-Reward-V2-Qwen3-0.6B` reward model scores both answers, and the win rate counts how often the DPO answer scores higher, with a tie counting as half a win.
 
+Both evaluations use subsets of the test split. The subsets keep generation and reward-model scoring within the run's time limit.
+
 The run takes about 33 minutes in the container, plus provisioning and queueing.
 
 ## Before you run
