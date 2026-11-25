@@ -83,7 +83,8 @@ def main():
     grad_accum = int(p["gradient_accumulation_steps"])
     lr = float(p["learning_rate"])
     max_steps = int(p["max_steps"])
-    output_dir = p["output_dir"]
+    # Keyed by the MLflow run, so a rerun does not overwrite the previous checkpoint.
+    output_dir = os.path.join(p["output_dir"], run_id)
 
     if rank == 0:
         print(f"World size={world_size} | model={model_name} | dataset={dataset_name}", flush=True)
