@@ -29,3 +29,11 @@ The AIR MLflow run contains:
 - `test_predictions.csv` with scores, relevance grades, and query IDs
 
 The model takes the 46 features in LETOR order and returns one score per document. To rank, group documents by query and sort by score, highest first. Scores are not probabilities and can't be compared across queries.
+
+To load the model in a new Python process, pass the model URI that the run prints:
+
+```python
+import mlflow
+
+model = mlflow.xgboost.load_model("<model URI printed by the run>")
+```
