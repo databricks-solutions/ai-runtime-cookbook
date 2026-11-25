@@ -37,7 +37,8 @@ DATASET_FILE = "data/test-00000-of-00001.parquet"
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
 OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/batch-inference-qwen3-vl-8b-vllm")
 # AI Runtime creates an MLflow run per attempt, so each attempt gets its own output directory.
-RUN_OUTPUT_PATH = os.path.join(OUTPUT_PATH, os.environ.get("MLFLOW_RUN_ID") or "local")
+# Read without a default so importing this module never fails; main() requires it.
+MLFLOW_RUN_ID = os.environ.get("MLFLOW_RUN_ID")
 
 # Oxford-IIIT Pet class names, in label-index order.
 BREEDS = [
@@ -175,11 +176,8 @@ def prepare_output_directory(path, run_path):
         raise RuntimeError(message) from exc
 
 
-def log_to_mlflow(params, metrics, tables):
+def log_to_mlflow(run_id, params, metrics, tables):
     """Attach params, metrics, and result tables to the MLflow run AI Runtime creates for the workload."""
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    if not run_id:
-        return
     from mlflow.tracking import MlflowClient
 
     client = MlflowClient()
@@ -192,7 +190,10 @@ def log_to_mlflow(params, metrics, tables):
 
 
 def main():
-    prepare_output_directory(OUTPUT_PATH, RUN_OUTPUT_PATH)
+    if not MLFLOW_RUN_ID:
+        raise RuntimeError("MLFLOW_RUN_ID is not set. AI Runtime sets it for each run.")
+    run_output_path = os.path.join(OUTPUT_PATH, MLFLOW_RUN_ID)
+    prepare_output_directory(OUTPUT_PATH, run_output_path)
     ray.init(address="auto")
     # Derive replicas from the live cluster so the example scales when nodes are added.
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
@@ -235,7 +236,7 @@ def main():
     # Include operator/actor execution statistics for diagnosing uneven GPU activity.
     print(out.stats(), flush=True)
     # Overwrite so a re-run into the same directory replaces it instead of appending to it.
-    out.drop_columns(["completed_at"]).write_parquet(RUN_OUTPUT_PATH, mode="overwrite")
+    out.drop_columns(["completed_at"]).write_parquet(run_output_path, mode="overwrite")
 
     results = out.to_pandas()
     num_rows = len(results)
@@ -253,13 +254,14 @@ def main():
     rest = done[done > done[0] + 1.0]
     if len(rest):
         metrics["inference_images_per_sec"] = round(len(rest) / (rest[-1] - done[0]), 1)
-    print(f"Wrote {num_rows} rows to {RUN_OUTPUT_PATH}", flush=True)
+    print(f"Wrote {num_rows} rows to {run_output_path}", flush=True)
     print("METRICS " + json.dumps(metrics), flush=True)
 
     errors = results[results["breed_correct"] == 0]
     confusions = errors.groupby(["true_breed", "pred_breed"]).size().reset_index(name="count")
     log_to_mlflow(
-        params={"model": MODEL_SOURCE, "dataset": DATASET_REPO, "num_gpus": total_gpus, "output_path": RUN_OUTPUT_PATH},
+        MLFLOW_RUN_ID,
+        params={"model": MODEL_SOURCE, "dataset": DATASET_REPO, "num_gpus": total_gpus, "output_path": run_output_path},
         metrics=metrics,
         tables={
             "sample_predictions.json": results[["image_id", "true_breed", "pred_breed", "caption"]].head(50),
