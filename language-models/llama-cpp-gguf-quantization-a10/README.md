@@ -37,7 +37,7 @@ The GGUF replies begin with an empty `<think></think>` block: 500 of 500 replies
 
 Accuracy compares the number after `####` (or the last number in the reply) with the gold answer as a number. Each configuration gets a paired difference from bf16 on the same questions. Its standard error is the standard error of the mean per-question difference.
 
-The 500 questions are a seeded random sample (seed 0) of the 1,319-question test split. The sample keeps the container time for four configurations on one A10 within the recipe's time budget. The wall time of each pass in the default run was 335.8 s (bf16), 294.3 s (Q8_0), 238.0 s (Q4_K_M) and 250.5 s (Q2_K), so these four passes took about 19 minutes in total. Scaling them linearly to 1,319 questions would add roughly 30 minutes (an estimate, not a measured run).
+The 500 questions are a seeded random sample (seed 0) of the 1,319-question test split. The sample keeps the container time for four configurations on one A10 within the recipe's time budget. The wall time of each pass in the default run was 335.8 s (bf16), 294.3 s (Q8_0), 238.0 s (Q4_K_M) and 250.5 s (Q2_K), so these four passes took about 19 minutes in total.
 
 Output tokens per second is total completion tokens divided by the wall time of the whole pass. The pass includes the ramp-up and tail of each run.
 
