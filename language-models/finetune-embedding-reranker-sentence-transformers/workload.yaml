@@ -26,6 +26,8 @@ command: |
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/finetune_retrieval.py"
+  # Loads the saved models in a fresh process and scores one pair.
+  python "$CODE_SOURCE_PATH/check_artifacts.py"
 
 max_retries: 0
 # Counts from submission, so it includes queueing and setup in addition to time in the container.
