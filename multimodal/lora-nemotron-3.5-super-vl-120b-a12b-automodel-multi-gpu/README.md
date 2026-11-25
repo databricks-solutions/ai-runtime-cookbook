@@ -16,10 +16,16 @@ Complete these steps from this recipe's directory.
 
 2. Install [Docker Engine on Linux](https://docs.docker.com/engine/install/) or [Docker Desktop on macOS](https://docs.docker.com/desktop/setup/install/mac-install/) and start it. Keep Docker running through the build and push. On macOS, choose the installer for your chip. AIR requires `linux/amd64`, including on Apple silicon.
 
-3. Choose an existing Unity Catalog schema where you can push images; this example uses `main.default`. See the custom-image guide above for privileges. Set `ADAPTER_OUTPUT_ROOT` in `workload.yaml` to a directory in an existing writable volume. Its default is:
+3. Choose an existing Unity Catalog schema where you can push images; this example uses `main.default`. See the custom-image guide above for privileges. The adapter is copied to `ADAPTER_OUTPUT_ROOT`, which must be a directory in an existing writable volume. Its default in `workload.yaml` is:
 
    ```text
    /Volumes/main/default/air_examples/lora-nemotron-3.5-super-vl-120b-a12b-automodel-multi-gpu
+   ```
+
+   To write to another volume, override `env_variables.ADAPTER_OUTPUT_ROOT` when you submit the run, instead of editing `workload.yaml`:
+
+   ```bash
+   databricks air run -f workload.yaml --override env_variables.ADAPTER_OUTPUT_ROOT=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
    ```
 
 4. Check the CLI and Docker engine before building:
