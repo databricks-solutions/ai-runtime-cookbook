@@ -6,7 +6,7 @@ Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert 
 
 Environment configurations: the workload runs NVIDIA's `nemo-automodel:26.08.00` container image as a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images). This container provides the GMM/DeepEP backend used for training.
 
-Workload execution takes about 9 minutes. For the first run, image upload may take additional time.
+Time in the container is about 6 minutes. For the first run, image upload may take additional time.
 
 ## Before you run
 
