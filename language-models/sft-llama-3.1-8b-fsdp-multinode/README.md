@@ -4,7 +4,7 @@ This recipe uses PyTorch FSDP to supervised-fine-tune `meta-llama/Llama-3.1-8B` 
 
 ## Before you run
 
-Request access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) with the token owner's account and wait for approval. Follow the [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/) before your first run in a workspace or with this model. Agents can follow the [preflight guide](../../docs/agents/hugging-face-preflight.md). For an ungated model, use the separate [Qwen2.5 TorchTrainer recipe](../ray-train-sft-qwen2.5-3b-torchtrainer/).
+Select and verify your workspace profile before submitting, and run the preflight checks in the guide below first. Request access to [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B) with the token owner's account and wait for approval. Follow the [published token guidance](https://huggingface.co/docs/hub/security-tokens) and [Databricks secret setup](https://docs.databricks.com/aws/en/security/secrets/) before your first run in a workspace or with this model. Agents can follow the [preflight guide](../../docs/agents/hugging-face-preflight.md). For an ungated model, use the separate [Qwen2.5 TorchTrainer recipe](../ray-train-sft-qwen2.5-3b-torchtrainer/).
 
 Set `secrets.HF_TOKEN` in `workload.yaml` to the secret containing the checked token (default `my_scope/hf_token`). Set `parameters.output_dir` to an existing writable Unity Catalog volume if the default location is unsuitable. The checkpoint is written to `<output_dir>/<MLflow run ID>`. To write elsewhere, pass another existing writable volume directory:
 
@@ -14,15 +14,10 @@ databricks air run -f workload.yaml --override parameters.output_dir=/Volumes/<c
 
 ## Run
 
-[Select and verify your workspace profile](../../README.md#select-a-workspace-profile) before submitting. Keep that profile selected when [checking status or logs](../../README.md#submit-and-monitor).
-
 ```bash
-python ../../scripts/hf_preflight.py --profile "<profile-name>" \
-  --model meta-llama/Llama-3.1-8B
-# Submit only after the checks pass and run-as secret access is confirmed.
-databricks air run -f workload.yaml --watch --profile "<profile-name>"
+databricks air run -f workload.yaml --watch
 ```
 
 ## Results
 
-The model and tokenizer checkpoint are saved to `parameters.output_dir`.
+The model and tokenizer checkpoint are saved to `parameters.output_dir/<MLflow run ID>`.
