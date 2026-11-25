@@ -4,6 +4,14 @@ This recipe uses plain PyTorch and FSDP2 to supervised-fine-tune `Qwen/Qwen3.8-2
 
 The recipe adapts [`sft-qwen3.8-27b-fsdp2-multinode`](../sft-qwen3.8-27b-fsdp2-multinode), which runs on four 8x H100 nodes. Each B300 GPU has 288 GB of HBM and fits 4x the H100 recipe's sequence length. As a result, one B300 node trains on as many tokens per step as the four H100 nodes. FlashAttention-3 runs only on Hopper GPUs such as the H100. This recipe uses the FlashAttention-2 build that ships in the `databricks_ai_v6` environment instead.
 
+## Before you run
+
+The default `output_root` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/sft-qwen3.8-27b-fsdp2-b300`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
