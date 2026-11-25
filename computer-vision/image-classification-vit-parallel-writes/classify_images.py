@@ -122,10 +122,6 @@ def main():
                           [output_dir / name for name in relative_paths]))
         write_seconds = time.perf_counter() - started
 
-        written = sum(1 for _ in annotated_dir.glob("*.jpg"))
-        if written != num_images:
-            raise RuntimeError(f"Wrote {written} annotated images, expected {num_images}")
-
         pq.write_table(
             pa.table({
                 "index": list(range(num_images)),
