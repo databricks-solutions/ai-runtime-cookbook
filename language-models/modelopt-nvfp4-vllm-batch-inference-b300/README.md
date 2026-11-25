@@ -4,6 +4,14 @@ This recipe quantizes `Qwen/Qwen3-32B` to NVFP4 (4-bit floating point) with [NVI
 
 The whole run takes about 11 minutes. `quantize.py` also accepts `quant_format: fp8`, but only NVFP4 has been validated.
 
+## Before you run
+
+The run writes generations to `output_root` in `workload.yaml`, under a subdirectory named for the MLflow run ID. That Unity Catalog volume must already exist and be writable. To write elsewhere, pass another existing writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
