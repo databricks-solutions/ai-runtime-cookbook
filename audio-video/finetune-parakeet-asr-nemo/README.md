@@ -60,7 +60,7 @@ print("Fine-tuned transcription:", hypothesis.text)
 
 The AIR MLflow run logs the training loss at each step and the WER values with their standard errors as metrics. It also stores `metrics.json`, `test_predictions.jsonl`, and the NeMo training logs as artifacts.
 
-On the normalized scores in the validated run (`GPU_1xA10`, about 17 minutes in the container), the test improvement is well above its standard error:
+On the normalized scores in the validated run (`GPU_1xA10`, about 15 minutes in the container), the test improvement is well above its standard error:
 
 | Split | Pretrained | Fine-tuned (step 900) |
 | --- | --- | --- |
