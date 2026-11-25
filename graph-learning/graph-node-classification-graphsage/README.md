@@ -35,5 +35,3 @@ The AIR MLflow run contains loss and accuracy curves, test accuracy, and macro F
 - `class_labels.json`: topic ID to arXiv category
 - `metrics.json`: final metrics
 - `test_predictions.csv`: paper IDs and predicted topics
-
-To reuse the model, build `GraphSAGE` from `train.py` with the saved dimensions and load the weights with `weights_only=True`. Predictions need the graph as well as the features. Pass node features and an adjacency matrix built with `mean_adjacency`.
