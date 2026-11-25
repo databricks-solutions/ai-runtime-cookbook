@@ -69,7 +69,6 @@ def main():
     per_device_batch_size = int(p.get("per_device_batch_size", 2))
     gradient_accumulation_steps = int(p.get("gradient_accumulation_steps", 2))
     warmup_steps = int(p.get("warmup_steps", 20))
-    max_steps = int(p.get("max_steps", -1))
 
     # prep_data.py stages the datasets under <output_root>/data (stable across
     # runs). Checkpoints and the final model go under a per-attempt directory
@@ -89,15 +88,6 @@ def main():
     print(f"Loading datasets from {data_dir} ...", flush=True)
     train_dataset = load_from_disk(f"{data_dir}/invoice_train_dataset")
     eval_dataset = load_from_disk(f"{data_dir}/invoice_eval_dataset")
-
-    # Quick end-to-end validation mode: shrink the data so a full
-    # train -> eval -> checkpoint-save pipeline completes in minutes.
-    step_capped = max_steps is not None and max_steps > 0
-    if step_capped:
-        train_dataset = train_dataset.select(range(min(256, len(train_dataset))))
-        eval_dataset = eval_dataset.select(range(min(64, len(eval_dataset))))
-        print(f"[validation mode] max_steps={max_steps}, "
-              f"capped to {len(train_dataset)} train / {len(eval_dataset)} eval samples", flush=True)
 
     # Suppress Qwen3 <think> blocks during chat template rendering.
     def _add_template_kwargs(example):
@@ -132,7 +122,6 @@ def main():
         output_dir=f"{attempt_base}/output",
         run_name="qwen3-8b-fullweight-sft-invoice",
         num_train_epochs=num_epochs,
-        max_steps=max_steps,                 # -1 = unbounded (use num_train_epochs)
         per_device_train_batch_size=per_device_batch_size,
         per_device_eval_batch_size=per_device_batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
@@ -140,13 +129,9 @@ def main():
         weight_decay=0.01,
         warmup_steps=warmup_steps,           # transformers 5.x removed warmup_ratio
         lr_scheduler_type="cosine",
-        logging_steps=1 if step_capped else 10,
-        # When step-capped for validation, eval/save on a step cadence so the
-        # save + load_best_model_at_end path still runs within the cap.
-        eval_strategy="steps" if step_capped else "epoch",
-        save_strategy="steps" if step_capped else "epoch",
-        eval_steps=max_steps if step_capped else None,
-        save_steps=max_steps if step_capped else None,
+        logging_steps=10,
+        eval_strategy="epoch",
+        save_strategy="epoch",
         save_total_limit=2,
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
