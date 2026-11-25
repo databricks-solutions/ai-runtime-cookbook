@@ -30,6 +30,15 @@ The AIR MLflow run contains the selected threshold, test mean average precision 
 
 The MLflow run also has RF-DETR's `metrics.csv`, with per-epoch training loss and validation mAP.
 
+To load the checkpoint in a new process, set `output_dir` to `<output_root>/<MLFLOW_RUN_ID>`, set `image` to a PIL image, and run the lines below. The recipe runs the same lines in [check_artifacts.py](check_artifacts.py) after training, in a fresh process, on one test image.
+
+```python
+from rfdetr import RFDETR
+
+model = RFDETR.from_checkpoint(output_dir / "rfdetr_best.pth")
+detections = model.predict(image, threshold=0.1)
+```
+
 A run on one A10 took about 17 minutes in the container. Validation F1 at IoU 0.5 peaked at threshold 0.2 (precision 0.44, recall 0.62, F1 0.51); at 0.05, F1 was 0.21. At 0.2 the auto-labeler produced 25,197 pseudo-label boxes for 1,456 training images, about 17 per image, against about 10 per image in the human validation labels. The table reports COCO box mean average precision (mAP) on the full test split, averaged across classes and, for mAP@[.50:.95], IoU thresholds from 0.50 to 0.95.
 
 | Model | Test mAP@[.50:.95] | Test mAP@.50 |
