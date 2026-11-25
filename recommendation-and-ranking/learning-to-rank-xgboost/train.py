@@ -45,9 +45,10 @@ def load_data(p):
 
 
 def mean_ndcg(labels, scores, queries, k):
-    """Macro NDCG with exponential gains; zero relevance means zero NDCG."""
-    if k < 1 or len(labels) == 0 or np.any(queries[1:] < queries[:-1]):
-        raise ValueError("Require k >= 1, nonempty input, and rows sorted by query ID")
+    """Macro NDCG with exponential gains; zero relevance means zero NDCG.
+
+    One function scores both the model and the random baseline, so both use the same definition.
+    """
     boundaries = np.r_[0, np.flatnonzero(queries[1:] != queries[:-1]) + 1, len(queries)]
     ndcgs = []
     for start, end in zip(boundaries[:-1], boundaries[1:]):
