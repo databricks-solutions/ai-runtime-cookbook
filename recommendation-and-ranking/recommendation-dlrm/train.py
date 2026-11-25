@@ -78,8 +78,9 @@ def evaluate(model, split, p, ctr, device):
         totals[2] += len(labels)
     dist.all_reduce(totals)
     model.train()
+    # Rows are split evenly across ranks and cut into whole batches, so trailing rows are not evaluated.
     return {"auroc": auroc.compute().item(), "log_loss": (totals[0] / totals[2]).item(),
-            "baseline_log_loss": (totals[1] / totals[2]).item()}
+            "baseline_log_loss": (totals[1] / totals[2]).item(), "evaluated_rows": totals[2].item()}
 
 
 def prefixed(prefix, metrics):
