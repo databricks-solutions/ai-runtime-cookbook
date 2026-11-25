@@ -11,6 +11,12 @@ Parakeet is trained on a large general-purpose corpus, but meeting speech contai
 - **Data.** The recipe downloads only the Parquet shards it samples (about 2 GB) from the Hub's auto-converted branch, then decodes and writes WAV files to local scratch space. Nothing is copied into the output volume except the results.
 - **Storage.** Results go to `parameters.output_root` in `workload.yaml`, which points to the shared `/Volumes/main/default/air_examples/finetune-parakeet-asr-nemo` volume. Replace it with another writable volume if you cannot use that one. The fine-tuned checkpoint is about 2.5 GB.
 
+To write to another volume, override `parameters.output_root` when you submit the run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
