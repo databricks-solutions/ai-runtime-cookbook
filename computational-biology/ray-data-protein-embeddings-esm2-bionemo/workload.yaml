@@ -5,7 +5,10 @@ experiment_name: ray-data-esm2-protein-embeddings
 # install_transformer_engine.sh in the command below.
 environment:
   version: databricks_ai_v6
-  dependencies: []
+  dependencies:
+    - cmake==4.4.3
+    - ninja==1.13.0
+    - pybind11==3.1.0
 
 # One 8xH100 node; Ray Data runs one ESM-2 actor per GPU.
 compute:

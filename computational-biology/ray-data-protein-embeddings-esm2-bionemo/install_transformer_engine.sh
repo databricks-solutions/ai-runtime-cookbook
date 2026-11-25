@@ -17,8 +17,6 @@ if python te_probe.py import >/dev/null 2>&1; then
 fi
 
 echo "Building Transformer Engine ${TE_VERSION} for CUDA archs ${NVTE_CUDA_ARCHS}..."
-# Build tools for the binding. The environment already has a recent setuptools.
-python -m pip install cmake==4.4.3 ninja==1.13.0 pybind11==3.1.0
 
 # The CUDA math-library headers (cusparse.h, nvtx3, ...) are not under
 # /usr/local/cuda/include in this environment; they ship inside the nvidia-*
