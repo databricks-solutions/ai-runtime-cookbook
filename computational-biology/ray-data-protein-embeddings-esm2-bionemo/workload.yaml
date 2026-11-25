@@ -16,7 +16,7 @@ code_source:
   root_path: .
 
 command: |
-  set -e
+  set -eo pipefail
   cd "$CODE_SOURCE_PATH"
   bash install_transformer_engine.sh
   RAY_ENTRYPOINT=embed_proteins.py bash ray_bootstrap.sh

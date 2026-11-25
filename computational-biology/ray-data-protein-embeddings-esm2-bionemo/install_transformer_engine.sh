@@ -11,7 +11,7 @@ TE_VERSION="${TE_VERSION:-2.17.1}"
 # 90 = H100. Use "90;100" to also cover B200, or "86" for A10.
 export NVTE_CUDA_ARCHS="${NVTE_CUDA_ARCHS:-90}"
 
-if python -c "import transformer_engine.pytorch" >/dev/null 2>&1; then
+if python te_probe.py import >/dev/null 2>&1; then
   echo "Transformer Engine is already installed."
   exit 0
 fi
@@ -23,11 +23,11 @@ python -m pip install cmake==4.4.3 ninja==1.13.0 pybind11==3.1.0
 # The CUDA math-library headers (cusparse.h, nvtx3, ...) are not under
 # /usr/local/cuda/include in this environment; they ship inside the nvidia-*
 # pip wheels that PyTorch depends on. Put them on the compiler include path.
-NV_INCLUDES=$(python -c 'import glob, nvidia; print(":".join(sorted({d for p in nvidia.__path__ for d in glob.glob(p + "/*/include")})))')
+NV_INCLUDES=$(python te_probe.py include-dirs)
 export CPATH="${NV_INCLUDES}:/usr/local/cuda/include:${CPATH:-}"
 export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 export MAX_JOBS="${MAX_JOBS:-$(nproc)}"
 
 python -m pip install --no-build-isolation "transformer_engine[pytorch]==${TE_VERSION}"
 
-python -c "import importlib.metadata as md, transformer_engine.pytorch; print('Transformer Engine ready:', md.version('transformer_engine'))"
+python te_probe.py version
