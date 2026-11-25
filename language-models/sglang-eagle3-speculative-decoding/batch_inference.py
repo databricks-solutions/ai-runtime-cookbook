@@ -7,10 +7,12 @@ average accept length (tokens produced per target-model forward pass).
 
 import json
 import os
+import shutil
 import time
 from pathlib import Path
 
 import mlflow
+import nvidia
 import sglang as sgl
 import yaml
 from datasets import load_dataset
@@ -18,6 +20,20 @@ from transformers import AutoTokenizer
 
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
+
+
+def expose_curand_headers():
+    """Make curand.h visible to FlashInfer's JIT compiler.
+
+    FlashInfer JIT-compiles some kernels at startup. This environment ships curand.h only inside
+    the nvidia-* pip wheels, so copy just those headers: the wheels' other CUDA headers don't
+    match the system nvcc. SGLang's worker processes inherit CPATH from this process.
+    """
+    include_dir = Path("/tmp/curand-include")
+    include_dir.mkdir(exist_ok=True)
+    for header in Path(nvidia.__path__[0]).rglob("curand*.h"):
+        shutil.copy(header, include_dir)
+    os.environ["CPATH"] = f"{include_dir}:{os.environ.get('CPATH', '')}"
 
 
 def build_prompts():
@@ -61,6 +77,7 @@ def run(label, prompts, **spec_kwargs):
 
 
 def main():
+    expose_curand_headers()
     prompts = build_prompts()
     base, base_text = run("baseline", prompts)
     spec, spec_text = run(
