@@ -22,6 +22,7 @@ import os
 os.environ.setdefault("HF_HOME", "/tmp/hf_home")
 os.environ.setdefault("HF_DATASETS_CACHE", "/tmp/hf_home/datasets")
 
+import mlflow
 import numpy as np
 import yaml
 from datasets import load_dataset
@@ -65,10 +66,12 @@ def main():
     lora_alpha = int(p.get("lora_alpha", 32))
     lora_dropout = float(p.get("lora_dropout", 0.05))
 
-    # Per-attempt output dir keyed by the AIR MLflow run, so reruns and retries
-    # don't overwrite a previous run's adapter.
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    output_dir = f"{output_root}/{run_id}" if run_id else output_root
+    # AIR sets MLFLOW_RUN_ID. Pop it so the run is opened here, not by the Trainer's MLflow callback.
+    # The output dir is keyed by the run, so reruns and retries don't overwrite a previous adapter.
+    run_id = os.environ.pop("MLFLOW_RUN_ID", None)
+    if not run_id:
+        raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+    output_dir = f"{output_root}/{run_id}"
 
     # --- Data (public IMDB) ---
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -135,13 +138,11 @@ def main():
         compute_metrics=compute_metrics,
     )
 
-    # report_to="mlflow" lets Trainer's MLflowCallback manage the run. AIR sets
-    # MLFLOW_RUN_ID in the environment, which the callback resumes, so metrics log
-    # into the run AIR injected rather than a new one. We must NOT open the run
-    # ourselves here — a manual mlflow.start_run() leaves a run active and the
-    # callback's own start_run() then raises "Run ... is already active".
-    trainer.train()
-    eval_metrics = trainer.evaluate()
+    # The MLflow callback logs into an active run and does not end it, so the training
+    # curves and the final evaluation both land in the AIR run.
+    with mlflow.start_run(run_id=run_id):
+        trainer.train()
+        eval_metrics = trainer.evaluate()
     print(f"\nEval accuracy: {eval_metrics['eval_accuracy']:.4f}  |  f1: {eval_metrics['eval_f1']:.4f}", flush=True)
 
     # Save the LoRA adapter (+ the classifier head via modules_to_save) and tokenizer.
