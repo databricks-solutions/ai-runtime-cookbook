@@ -88,6 +88,7 @@ def sample_frames(path, count):
                 frames[index] = frame.to_image()
             if index == indices[-1]:
                 break
+    # Fires only if the second decoding pass returns fewer frames than the first.
     if frames.keys() != wanted:
         raise ValueError(f"Video frame count changed between decoding passes: {path}")
     return [frames[index] for index in indices]
