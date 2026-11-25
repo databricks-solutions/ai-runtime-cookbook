@@ -4,6 +4,14 @@ This recipe fine-tunes `lerobot/smolvla_base`, a 450M-parameter vision-language-
 
 The run trains for 2,000 steps at batch size 64 and takes about 17 minutes.
 
+## Before you run
+
+The recipe writes its outputs to `/Volumes/main/default/air_examples/lerobot-smolvla-finetune`. The volume must exist and be writable. To write to another volume, override `parameters.output_root`:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
