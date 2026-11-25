@@ -6,9 +6,7 @@ experiment_name: air-modelopt-eagle3-draft-qwen3-8b
 environment:
   version: "6"
   dependencies:
-    # Trains the draft in-process from the frozen HF target. The 0.48.0 EAGLE code is the version tested with transformers 5.8.1.
     - nvidia-modelopt==0.48.0
-    # Serves the target and the draft. 0.5.14 pins torch 2.11.0 and transformers 5.8.1, so the training stack is unchanged.
     - sglang==0.5.14
     - torch==2.11.0
     - transformers==5.8.1

@@ -26,6 +26,8 @@ The recipe uses the standard v6 environment with PyTorch 2.11.0 and transformers
 
 `train_draft.py` logs the training loss and the held-out loss before and after training to the AIR MLflow run. `benchmark.py` logs throughput, accept length, identical-output rates and first-divergence positions. The draft is written to `<output_root>/<MLflow run ID>/draft/`, the untrained head to `draft_untrained/`, and the full benchmark to `benchmark.json` in the same directory.
 
+The target is `Qwen/Qwen3-8B` at revision `b968826d9c46dd6066d109eabc6255188de91218`, and the reference draft is `AngelSlim/Qwen3-8B_eagle3` at revision `9629dfce7a4a10564dd48d3e5485c3976095653c`.
+
 Measured on one H100 with 500 UltraChat test prompts, greedy decoding and up to 256 new tokens (about 117,600 generated tokens per configuration). The first run used managed AI v6; the second used standard v6. Each configuration was timed once per run, so throughput differences of a few percent are within timing noise. Standard errors are across prompts.
 
 | Environment | Draft | Output tokens/s | Mean accept length (± SE) | Speedup vs no draft | Greedy output identical to no draft | Median first divergence (tokens) |
