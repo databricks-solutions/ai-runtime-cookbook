@@ -33,11 +33,7 @@ def to_model_inputs(batch):
 
 def make_loader(table_name, split, batch_size):
     # The filter runs as UCDataset reads the table's files, so rows from the other split never reach this process.
-    df = (
-        table(table_name)
-        .filter((col("split") == split) & col("label").isNotNull())
-        .select(*FEATURES, "label")
-    )
+    df = table(table_name).filter(col("split") == split).select(*FEATURES, "label")
     dataset = UCDataset(df=df, batch_size=batch_size)
     # UCDataset already yields whole batches, so the DataLoader must not batch again.
     return dataset, DataLoader(dataset, batch_size=None, collate_fn=to_model_inputs)
