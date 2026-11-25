@@ -58,8 +58,12 @@ command: |
   # The trainer runs on GPU 1 and reaches the server at localhost:8000.
   CUDA_VISIBLE_DEVICES=1 python "$CODE_SOURCE_PATH/train.py"
 
+  # Load the saved adapter in a fresh process, the way a reader would.
+  CUDA_VISIBLE_DEVICES=1 python "$CODE_SOURCE_PATH/check_adapter.py"
+
 max_retries: 0
-timeout_minutes: 90
+# Training takes about 45 minutes; the two evaluations over every usable test row add more, and queue time counts.
+timeout_minutes: 150
 
 parameters:
   model_name: Qwen/Qwen3-1.7B   # public; no Hugging Face token needed. Chat template supports tool calls.

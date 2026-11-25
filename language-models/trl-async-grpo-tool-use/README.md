@@ -31,6 +31,14 @@ databricks air run -f workload.yaml --watch
 
 The run writes `metrics.json` and the LoRA adapter (`adapter/`) to `<output_root>/<MLflow run ID>/`. A validation run on an 8×H100 node produced these results. It used model revision `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` and dataset revision `740ab236e64503fba51be1101df7a1be83bf455d`.
 
+`check_adapter.py` runs after training. It loads the adapter in a fresh process and answers one question:
+
+```python
+tokenizer = AutoTokenizer.from_pretrained(P["model_name"])
+base = AutoModelForCausalLM.from_pretrained(P["model_name"], dtype=torch.bfloat16).to("cuda")
+model = PeftModel.from_pretrained(base, str(ADAPTER)).eval()
+```
+
 | Metric | Base model | After 80 GRPO steps |
 |---|---|---|
 | Held-out test success (300 questions) | 29.0% ± 2.6 | 67.3% ± 2.7 |
