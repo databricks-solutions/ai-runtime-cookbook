@@ -16,6 +16,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainerCallback
 from trl import SFTConfig, SFTTrainer
 
 
+# Stops early only when max_steps runs longer than max_train_minutes.
 class TrainTimeBudget(TrainerCallback):
     """Stop optimization at the time budget; evaluation and saving still run."""
 
