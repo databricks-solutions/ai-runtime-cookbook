@@ -1,5 +1,4 @@
 """Unity Catalog checks for the Ray head's model registration target."""
-from contextlib import contextmanager
 from importlib.metadata import version
 
 from databricks.sdk.errors import AlreadyExists, DatabricksError, PermissionDenied, ResourceAlreadyExists
@@ -134,34 +133,3 @@ def ensure_uc_schema(workspace, catalog, schema):
     except DatabricksError as exc:
         if exc.error_code != "SCHEMA_ALREADY_EXISTS":
             raise
-
-
-@contextmanager
-def model_logging_errors(model):
-    from mlflow.exceptions import MlflowException
-
-    try:
-        yield
-    except (PermissionDenied, MlflowException, RuntimeError) as exc:
-        cause = exc
-        # MLflow may wrap a service failure when logging the artifact and registering the model.
-        seen = set()
-        while id(cause) not in seen and (isinstance(cause, RuntimeError) or (
-            isinstance(cause, MlflowException) and cause.error_code == "INTERNAL_ERROR"
-        )):
-            seen.add(id(cause))
-            if cause.__cause__ is not None or cause.__suppress_context__:
-                cause = cause.__cause__
-            else:
-                cause = cause.__context__
-        if isinstance(cause, PermissionDenied) or (
-            isinstance(cause, MlflowException) and cause.error_code == "PERMISSION_DENIED"
-        ):
-            exc.add_note(
-                f"Permission denied while logging/registering {model}. Check the service error "
-                "for the failing operation. For UC registration, check USE CATALOG and USE SCHEMA, "
-                "CREATE MODEL (or CREATE FUNCTION) on the schema for MLflow's model-create call, "
-                "and ownership or CREATE MODEL VERSION for an existing model. Set uc_catalog, "
-                "uc_schema and registered_model_name to select another writable target."
-            )
-        raise

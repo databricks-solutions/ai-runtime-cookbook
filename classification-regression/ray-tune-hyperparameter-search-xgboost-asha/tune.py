@@ -93,13 +93,11 @@ def main() -> None:
     grace_period = int(p.get("grace_period", 20))
 
     from databricks.sdk import WorkspaceClient
-    from registry import ensure_uc_schema, model_logging_errors, preflight_registration
+    from registry import ensure_uc_schema, preflight_registration
 
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    workspace = None
-    if run_id:
-        workspace = WorkspaceClient()
-        preflight_registration(workspace, uc_catalog, uc_schema, model_fqn)
+    run_id = os.environ["MLFLOW_RUN_ID"]
+    workspace = WorkspaceClient()
+    preflight_registration(workspace, uc_catalog, uc_schema, model_fqn)
 
     ray.init(address="auto")
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
@@ -153,7 +151,7 @@ def main() -> None:
     from mlflow.models.signature import infer_signature
 
     mlflow.set_registry_uri("databricks-uc")
-    ensure_uc_schema(workspace or WorkspaceClient(), uc_catalog, uc_schema)
+    ensure_uc_schema(workspace, uc_catalog, uc_schema)
     x_fit = np.concatenate([x_train, x_val])
     y_fit = np.concatenate([y_train, y_val])
     dtrain = xgb.QuantileDMatrix(x_fit, label=y_fit)
@@ -168,38 +166,34 @@ def main() -> None:
     test_auc = float(roc_auc_score(y_test, proba, multi_class="ovr", average="macro"))
     print(f"Held-out test: accuracy={test_accuracy:.4f} auc_ovr_macro={test_auc:.4f}", flush=True)
 
-    # AIR injects MLFLOW_RUN_ID and the databricks tracking URI on the head; gating on the var keeps
-    # this runnable off-platform (where it is unset).
-    if run_id:
-        with mlflow.start_run(run_id=run_id):
-            mlflow.log_params({
-                "dataset": "sklearn.fetch_covtype",
-                "num_samples": num_samples,
-                "n_estimators": n_estimators,
-                "scheduler": "ASHA",
-                "asha_max_t": n_estimators,
-                "asha_grace_period": grace_period,
-                **{f"best_{k}": v for k, v in best.config.items()},
-            })
-            mlflow.log_metrics({
-                "best_val_mlogloss": float(best.metrics["val_mlogloss"]),
-                "test_accuracy": test_accuracy,
-                "test_auc_ovr_macro": test_auc,
-            })
-            # Every trial's final validation mlogloss, for comparison in the Experiments UI.
-            for i, r in enumerate(results):
-                if r.metrics and "val_mlogloss" in r.metrics:
-                    mlflow.log_metric("trial_val_mlogloss", float(r.metrics["val_mlogloss"]), step=i)
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_params({
+            "dataset": "sklearn.fetch_covtype",
+            "num_samples": num_samples,
+            "n_estimators": n_estimators,
+            "scheduler": "ASHA",
+            "asha_max_t": n_estimators,
+            "asha_grace_period": grace_period,
+            **{f"best_{k}": v for k, v in best.config.items()},
+        })
+        mlflow.log_metrics({
+            "best_val_mlogloss": float(best.metrics["val_mlogloss"]),
+            "test_accuracy": test_accuracy,
+            "test_auc_ovr_macro": test_auc,
+        })
+        # Every trial's final validation mlogloss, for comparison in the Experiments UI.
+        for i, r in enumerate(results):
+            if r.metrics and "val_mlogloss" in r.metrics:
+                mlflow.log_metric("trial_val_mlogloss", float(r.metrics["val_mlogloss"]), step=i)
 
-            booster.set_param({"device": "cpu"})  # portable artifact
-            example = x_train[:5]
-            signature = infer_signature(example, booster.predict(xgb.DMatrix(example)))
-            with model_logging_errors(model_fqn):
-                info = mlflow.xgboost.log_model(
-                    xgb_model=booster, name="model", signature=signature,
-                    input_example=example, registered_model_name=model_fqn,
-                )
-            print(f"Registered {model_fqn} version {info.registered_model_version}.", flush=True)
+        booster.set_param({"device": "cpu"})  # portable artifact
+        example = x_train[:5]
+        signature = infer_signature(example, booster.predict(xgb.DMatrix(example)))
+        info = mlflow.xgboost.log_model(
+            xgb_model=booster, name="model", signature=signature,
+            input_example=example, registered_model_name=model_fqn,
+        )
+        print(f"Registered {model_fqn} version {info.registered_model_version}.", flush=True)
 
     ray.shutdown()
 
