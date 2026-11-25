@@ -240,15 +240,15 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
     checkpoint_every = int(params.get("checkpoint_every_steps", 0))
     resume_from = params.get("resume_from") or None
     start_step = load_checkpoint(model, opt, resume_from) if resume_from else 0
-    checkpoint_dir = f"{params.get('output_root')}/{os.environ.get('MLFLOW_RUN_ID', 'local')}"
+    run_id = os.environ["MLFLOW_RUN_ID"]
+    checkpoint_dir = f"{params.get('output_root')}/{run_id}"
     pending_save = None
 
     if RANK == 0 and resume_from:
         log.info(f"resumed from {resume_from}; skipping the first {start_step} blocks")
 
-    use_mlflow = RANK == 0 and "MLFLOW_RUN_ID" in os.environ
-    if use_mlflow:
-        mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"])
+    if RANK == 0:
+        mlflow.start_run(run_id=run_id)
         mlflow.log_params(
             {
                 "model": MODEL,
@@ -299,14 +299,13 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             loss = out.loss
         if (step + 1) % 100 == 0 and RANK == 0:
             log.info(f"[train] step {step + 1}, loss={loss.item():.3f}")
-            if use_mlflow:
-                mlflow.log_metric("train_loss", loss.item(), step=step + 1)
+            mlflow.log_metric("train_loss", loss.item(), step=step + 1)
 
         # .item() is a sync point, so check it at the end rather than before the step.
         done = bool(ran_out.item())
         if checkpoint_every > 0 and ((step + 1) % checkpoint_every == 0 or done):
-            if done and pending_save is not None:
-                pending_save.result()  # the last periodic save may be only a few steps back
+            if pending_save is not None:
+                pending_save.result()  # surfaces a failed write before the next save starts
             # async_save copies the state to host memory before it returns, then writes it to
             # storage in the background while training continues.
             model_sd, optim_sd = get_state_dict(model, opt)
@@ -325,13 +324,12 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
         log.info(
             f"[train] {trained} steps in {elapsed:.2f}s ({elapsed / trained:.2f}s/step), final loss={loss.item():.3f}"
         )
-        if use_mlflow:
-            mlflow.log_metrics(
-                {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
-            )
+        mlflow.log_metrics(
+            {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
+        )
     if pending_save is not None:
         pending_save.result()  # don't exit before the final checkpoint is fully written
-    if use_mlflow:
+    if RANK == 0:
         mlflow.end_run()
 
 
