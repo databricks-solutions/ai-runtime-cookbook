@@ -147,15 +147,15 @@ def main():
 
     mlflow.start_run(run_id=RUN_ID)
     mlflow.log_metrics({"heldout_loss_before": base_loss, "heldout_loss_before_se": base_se}, step=0)
-    step, window, t0 = 0, [], time.time()
+    step, window_sum, window_n, t0 = 0, torch.zeros((), device="cuda"), 0, time.time()
     for epoch in range(EPOCHS):
         random.Random(SEED + epoch).shuffle(train)
         for i in range(0, len(train), MICRO_BS):
             loss = batch_loss(model, train[i:i + MICRO_BS])
-            if not math.isfinite(loss.item()):
-                raise RuntimeError(f"non-finite training loss at example {i} of epoch {epoch}")
             (loss / GRAD_ACCUM).backward()
-            window.append(loss.item())
+            # Sum on the GPU. Reading the loss syncs the device, so it is read once per logging window.
+            window_sum += loss.detach()
+            window_n += 1
             if (i // MICRO_BS + 1) % GRAD_ACCUM == 0:
                 torch.nn.utils.clip_grad_norm_(params, 1.0)
                 opt.step()
@@ -163,11 +163,14 @@ def main():
                 opt.zero_grad(set_to_none=True)
                 step += 1
                 if step % 25 == 0 or step == total_steps:
-                    avg = sum(window) / len(window)
+                    avg = window_sum.item() / window_n
+                    if not math.isfinite(avg):
+                        raise RuntimeError(f"non-finite training loss at step {step} of epoch {epoch}")
                     print(f"epoch {epoch} step {step}/{total_steps} loss {avg:.4f} "
                           f"lr {sched.get_last_lr()[0]:.2e} elapsed {time.time() - t0:.0f}s", flush=True)
                     mlflow.log_metric("train_loss", avg, step=step)
-                    window = []
+                    window_sum.zero_()
+                    window_n = 0
 
     after_loss, after_se = mean_loss(model, heldout)
     print(f"held-out loss after training: {after_loss:.4f} +- {after_se:.4f}", flush=True)
