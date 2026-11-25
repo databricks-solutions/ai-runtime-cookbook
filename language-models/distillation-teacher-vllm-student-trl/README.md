@@ -22,6 +22,8 @@ databricks air run -f workload.yaml --watch
 
 The run prints each stage's results. It writes `summary.json` to `<output_root>/<MLflow run ID>/` and logs the metrics to MLflow.
 
+The models were `Qwen/Qwen2.5-7B-Instruct` at revision `a09a35458c702b33eeacc393d103063234e8bc28` and `Qwen/Qwen2.5-0.5B-Instruct` at revision `7ae557604adf67be50417f59c2c2f167def9a775`.
+
 A validation run on an H100 produced these results:
 
 | Stage | Result |
