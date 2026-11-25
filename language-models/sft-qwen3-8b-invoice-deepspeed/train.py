@@ -17,10 +17,12 @@ import json
 import os
 import tempfile
 
+import mlflow
 import torch
 import yaml
 from datasets import load_from_disk
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.integrations import MLflowCallback
 from trl import SFTConfig, SFTTrainer
 
 
@@ -73,9 +75,9 @@ def main():
     # prep_data.py stages the datasets under <output_root>/data (stable across
     # runs). Checkpoints and the final model go under a per-attempt directory
     # keyed by the AIR MLflow run id, so reruns and retries never overwrite each
-    # other (falls back to an lr/epoch tag for local runs with no run id).
+    # other.
     data_dir = f"{output_root}/data"
-    run_id = os.environ.get("MLFLOW_RUN_ID") or f"lr{learning_rate}_ep{num_epochs}"
+    run_id = os.environ["MLFLOW_RUN_ID"]
     attempt_base = f"{output_root}/{run_id}"
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
@@ -165,8 +167,14 @@ def main():
     train_result = trainer.train()
     metrics = train_result.metrics
     trainer.log_metrics("train", metrics)
+
+    # The MLflow callback ends the AIR run when training finishes. Remove it so
+    # evaluate() does not start a new run, then reopen the AIR run for the eval metrics.
+    trainer.remove_callback(MLflowCallback)
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_metrics(eval_metrics)
 
     if local_rank == 0:
         print("\nTraining complete!", flush=True)
