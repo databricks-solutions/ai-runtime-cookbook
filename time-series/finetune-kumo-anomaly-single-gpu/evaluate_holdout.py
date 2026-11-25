@@ -34,7 +34,7 @@ from sdk.anomaly_analysis import perform_anomaly_analysis_with_diffusion  # noqa
 FEATURE_COLUMNS = [f"v{i}" for i in range(1, 12)]
 
 
-def load_holdout(source, manifest_path, eval_rows):
+def load_holdout(source, manifest_path):
     """Return the held-out features and labels after the 80% boundary."""
     manifest = json.loads(Path(manifest_path).read_text())
     # temporal_boundaries is [0, train_end (60%), val_end (80%)]; rows after the
@@ -48,9 +48,6 @@ def load_holdout(source, manifest_path, eval_rows):
         )
     features = x.iloc[boundary:].reset_index(drop=True)
     labels = y.label.to_numpy()[boundary:]
-    if eval_rows:
-        features = features.iloc[:eval_rows].reset_index(drop=True)
-        labels = labels[:eval_rows]
     return features, labels
 
 
@@ -85,19 +82,14 @@ def main():
     parser.add_argument("--finetuned-config", required=True, type=Path)
     parser.add_argument("--base-model", type=Path, help="Optional base checkpoint for a before/after comparison.")
     parser.add_argument("--base-config", type=Path)
-    parser.add_argument("--eval-rows", type=int, default=0, help="Held-out rows to score; 0 uses the whole test set.")
     parser.add_argument("--nsample", type=int, default=15)
     args = parser.parse_args()
-    if args.eval_rows < 0:
-        parser.error("--eval-rows must be nonnegative; 0 uses the whole test set.")
     if bool(args.base_model) != bool(args.base_config):
         parser.error("Pass --base-model and --base-config together, or neither.")
 
-    features, labels = load_holdout(args.source, args.manifest, args.eval_rows)
+    features, labels = load_holdout(args.source, args.manifest)
     if labels.sum() == 0:
-        raise ValueError(
-            "The held-out evaluation slice has no labeled anomalies; increase --eval-rows."
-        )
+        raise ValueError("The held-out test set has no labeled anomalies.")
 
     checkpoints = {"finetuned": (args.finetuned_model, args.finetuned_config)}
     if args.base_model:

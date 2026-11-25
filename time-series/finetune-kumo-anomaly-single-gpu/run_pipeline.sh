@@ -78,7 +78,6 @@ uv run --frozen --no-dev python "$CODE_SOURCE_PATH/evaluate_holdout.py" \
     --finetuned-config "$WORK_DIR/checkpoints/finetune_config.yaml" \
     --base-model "$WORK_DIR/weights/final_model.pth" \
     --base-config "$WORK_DIR/weights/curriculum_medium.yaml" \
-    --eval-rows "$EVAL_ROWS" \
     --output "$WORK_DIR/evaluation.json" \
     2>&1 | tee "$WORK_DIR/evaluation.log"
 

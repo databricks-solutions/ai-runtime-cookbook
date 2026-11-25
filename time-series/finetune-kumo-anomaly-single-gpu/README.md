@@ -44,8 +44,6 @@ Training and validation use normal data only, so the losses do not show how well
 
 After training, the recipe scores the held-out rows with the base checkpoint and the fine-tuned checkpoint. For each one it reports average precision and F1 against the labels. Average precision suits this task because anomalies are rare and it needs no threshold. Comparing the base and fine-tuned numbers shows the effect of fine-tuning.
 
-Anomalies are rare, so scoring is the slowest part of the recipe. `EVAL_ROWS` sets how many held-out rows to score. The default of 2500 keeps the run short. Set it to 0 to score the whole test set for a less noisy metric, and raise `timeout_minutes` to match.
-
 To run the evaluation on its own, change to the upstream `Kumo-Anomaly` directory, then run this recipe's `evaluate_holdout.py` with that directory's `uv` environment. It scores the held-out rows with the given checkpoints and writes the metrics to the output file:
 
 ```bash
