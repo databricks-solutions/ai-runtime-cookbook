@@ -48,44 +48,44 @@ def main():
     }
     (work_dir / "training_summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2), flush=True)
-    if run_id := os.environ.get("MLFLOW_RUN_ID"):
-        from mlflow.tracking import MlflowClient
+    run_id = os.environ["MLFLOW_RUN_ID"]
+    from mlflow.tracking import MlflowClient
 
-        client = MlflowClient()
-        for key, value in parameters.items():
-            client.log_param(run_id, key, str(value))
-        for row in history:
-            for key in ["train_loss", "val_loss"]:
-                client.log_metric(run_id, key, float(row[key]), step=int(row["epoch"]))
-        client.log_metric(run_id, "best_val_loss", float(summary["best_val_loss"]))
-        evaluation_path = work_dir / "evaluation.json"
-        if evaluation_path.exists():
-            evaluation = json.loads(evaluation_path.read_text())
-            for model_name, metrics in evaluation["models"].items():
-                client.log_metric(
-                    run_id,
-                    f"{model_name}_average_precision",
-                    float(metrics["average_precision"]),
-                )
-                client.log_metric(run_id, f"{model_name}_f1", float(metrics["f1"]))
-        for name in ["checkpoints", "data"]:
-            client.log_artifacts(
-                run_id, str(work_dir / name), artifact_path=f"kumo_finetune/{name}"
+    client = MlflowClient()
+    for key, value in parameters.items():
+        client.log_param(run_id, key, str(value))
+    for row in history:
+        for key in ["train_loss", "val_loss"]:
+            client.log_metric(run_id, key, float(row[key]), step=int(row["epoch"]))
+    client.log_metric(run_id, "best_val_loss", float(summary["best_val_loss"]))
+    evaluation_path = work_dir / "evaluation.json"
+    if evaluation_path.exists():
+        evaluation = json.loads(evaluation_path.read_text())
+        for model_name, metrics in evaluation["models"].items():
+            client.log_metric(
+                run_id,
+                f"{model_name}_average_precision",
+                float(metrics["average_precision"]),
             )
-        for name in [
-            "training.log",
-            "data_preparation.log",
-            "training_summary.json",
-            "evaluation.json",
-            "evaluation.log",
-        ]:
-            path = work_dir / name
-            if path.exists():
-                client.log_artifact(run_id, str(path), artifact_path="kumo_finetune")
-        print(
-            f"Uploaded training artifacts to MLflow run {run_id} under kumo_finetune",
-            flush=True,
+            client.log_metric(run_id, f"{model_name}_f1", float(metrics["f1"]))
+    for name in ["checkpoints", "data"]:
+        client.log_artifacts(
+            run_id, str(work_dir / name), artifact_path=f"kumo_finetune/{name}"
         )
+    for name in [
+        "training.log",
+        "data_preparation.log",
+        "training_summary.json",
+        "evaluation.json",
+        "evaluation.log",
+    ]:
+        path = work_dir / name
+        if path.exists():
+            client.log_artifact(run_id, str(path), artifact_path="kumo_finetune")
+    print(
+        f"Uploaded training artifacts to MLflow run {run_id} under kumo_finetune",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
