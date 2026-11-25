@@ -53,8 +53,6 @@ def main():
     for name in ("batch_size", "loader_workers", "write_workers", "jpeg_quality"):
         if not isinstance(p[name], int) or p[name] < 1:
             raise ValueError(f"{name} must be a positive integer")
-    if not isinstance(p["max_images"], int) or p["max_images"] < 0:
-        raise ValueError("max_images must be 0 (the whole split) or a positive integer")
     if p["jpeg_quality"] > 100:
         raise ValueError("jpeg_quality must be between 1 and 100")
     if not torch.cuda.is_available():
@@ -79,8 +77,6 @@ def main():
         # Keep the encoded bytes so the write phase annotates the original image.
         started = time.perf_counter()
         split = load_dataset(p["dataset_name"], split=p["dataset_split"])
-        if p["max_images"]:
-            split = split.select(range(min(p["max_images"], len(split))))
         split = split.cast_column("image", ImageFeature(decode=False))
         encoded = [item["bytes"] for item in split["image"]]
         image_ids = [str(value) for value in split["image_id"]]

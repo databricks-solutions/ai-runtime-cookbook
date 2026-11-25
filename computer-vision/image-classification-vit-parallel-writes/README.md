@@ -22,7 +22,7 @@ From the recipe directory, run:
 databricks air run -f workload.yaml --watch
 ```
 
-For a quick test, set `max_images` to a small number. To compare parallel and serial writes, run once with the default `write_workers` of 32 and again with `write_workers` set to 1. Keep the other settings the same and compare `write_seconds`.
+To compare parallel and serial writes, run once with the default `write_workers` of 32 and again with `write_workers` set to 1. Keep the other settings the same and compare `write_seconds`.
 
 ## Results
 
