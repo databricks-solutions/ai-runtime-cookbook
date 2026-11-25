@@ -6,7 +6,13 @@ One file per prediction, rather than one table, is the point of the recipe. Thos
 
 ## Before you run
 
-In `workload.yaml`, set `parameters.output_root` to an existing Unity Catalog volume path you can write to. Keep the shared default if you have write access. The model (Apache 2.0) and dataset (CC BY-SA 4.0) download automatically without a Hugging Face token.
+The recipe writes its outputs to `/Volumes/main/default/air_examples/image-classification-vit-parallel-writes`. The volume must exist and be writable. To write to another volume, override `parameters.output_root`:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
+The model (Apache 2.0) and dataset (CC BY-SA 4.0) download automatically without a Hugging Face token.
 
 ## Run
 
