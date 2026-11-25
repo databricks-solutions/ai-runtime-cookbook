@@ -20,7 +20,7 @@ environment:
 
 compute:
   num_accelerators: 1
-  accelerator_type: GPU_1xH100   # SmolVLA also fits a 24 GB A10 with a smaller batch_size
+  accelerator_type: GPU_1xH100
 
 code_source:
   root_path: .
