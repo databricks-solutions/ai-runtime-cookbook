@@ -4,6 +4,14 @@ This recipe trains the same 2.2B-parameter Llama-style model from scratch in fou
 
 The whole run takes about 5 minutes. The first run also compiles TE's PyTorch binding, which takes about 2 minutes. It saves the compiled binding to `TE_WHEEL_CACHE` in the output volume, and later runs install it from there.
 
+## Before you run
+
+The default `output_root` and `TE_WHEEL_CACHE` are Unity Catalog volumes under `/Volumes/main/default/air_examples/transformer-engine-fp8-nvfp4-b300`. The volume must already exist and be writable. To write the outputs to another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
