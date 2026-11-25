@@ -20,4 +20,4 @@ databricks air run -f workload.yaml --watch
 
 Each run writes one Parquet row per image to `OUTPUT_PATH/<MLflow run ID>`, with the true and predicted species and breed, the caption, and per-image correctness flags. The workload's MLflow run records the accuracy and throughput metrics, a `sample_predictions.json` table with the first 50 predictions, and a `breed_confusions.json` table with the 20 most common mistakes.
 
-On the full test split, every response is valid JSON, species accuracy is about 100%, zero-shot breed accuracy is about 88%, and steady-state throughput on one node is about 37 images per second.
+On the full test split, every response is valid JSON, species accuracy is about 100%, zero-shot breed accuracy is about 88%, and steady-state throughput on one node is about 187 images per second. The run takes 4 minutes 7 seconds in the container.
