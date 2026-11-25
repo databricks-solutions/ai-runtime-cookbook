@@ -265,12 +265,14 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
     for step, (batch, ran_out) in enumerate(data):
         exhausted = bool(ran_out)  # this rank's own flag; its final all-masked block has a NaN loss
         # Ranks get different numbers of batches, so they must stop on the same step: a rank that
-        # stopped early would hang the others in the next collective.
-        ran_out = ran_out.cuda(non_blocking=True)
-        dist.all_reduce(ran_out, op=dist.ReduceOp.MAX)
+        # stopped early would hang the others in the next collective. The flag is reduced on CPU
+        # (gloo), so the check never waits on the GPU stream.
+        stop = ran_out.clone()
+        dist.all_reduce(stop, op=dist.ReduceOp.MAX)
+        done = bool(stop)
         if step < start_step:
             # Resuming: replay the deterministic stream up to where the checkpoint left off.
-            if ran_out.item():
+            if done:
                 break
             loop_start = time.perf_counter()
             continue
@@ -301,8 +303,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             log.info(f"[train] step {step + 1}, loss={loss.item():.3f}")
             mlflow.log_metric("train_loss", loss.item(), step=step + 1)
 
-        # .item() is a sync point, so check it at the end rather than before the step.
-        done = bool(ran_out.item())
         if checkpoint_every > 0 and ((step + 1) % checkpoint_every == 0 or done):
             if pending_save is not None:
                 pending_save.result()  # surfaces a failed write before the next save starts
