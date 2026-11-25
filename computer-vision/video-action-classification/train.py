@@ -173,34 +173,37 @@ def main():
             model.parameters(), lr=p["learning_rate"], weight_decay=p["weight_decay"]
         )
         checkpoint = output_dir / "classifier.pt"
-        best_accuracy, best_epoch = -1.0, 0
+        best_accuracy, best_epoch, best_state = -1.0, 0, None
         validation_labels = labels[manifest["split"].eq("validation").to_numpy()].numpy()
         started = time.perf_counter()
         for epoch in range(1, p["epochs"] + 1):
             model.train()
-            loss_sum = 0.0
+            # Accumulate on the GPU and read the total once per epoch, not once per batch.
+            loss_sum = torch.zeros((), dtype=torch.float64, device=device)
             for batch, target in loaders["train"]:
                 optimizer.zero_grad(set_to_none=True)
                 loss = torch.nn.functional.cross_entropy(model(batch.to(device)), target.to(device))
-                if not torch.isfinite(loss):
-                    raise ValueError("Non-finite training loss")
                 loss.backward()
                 optimizer.step()
-                loss_sum += loss.item() * len(target)
+                loss_sum += loss.detach().double() * len(target)
+            # Checked once per epoch: a NaN or inf in any batch makes the epoch total non-finite.
+            if not torch.isfinite(loss_sum):
+                raise ValueError("Non-finite training loss")
             validation_predictions = predict(model, loaders["validation"], device).argmax(axis=1)
             accuracy = float(accuracy_score(validation_labels, validation_predictions))
-            metrics = {"train_loss": loss_sum / len(loaders["train"].dataset),
+            metrics = {"train_loss": loss_sum.item() / len(loaders["train"].dataset),
                        "validation_accuracy": accuracy}
             mlflow.log_metrics(metrics, step=epoch)
             if accuracy > best_accuracy:
                 best_accuracy, best_epoch = accuracy, epoch
-                torch.save({"state_dict": model.state_dict(), "model_config": config,
-                            "class_names": class_names, "parameters": p}, checkpoint)
+                # Keep the best weights in CPU memory; they are written once after training.
+                best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
             print(f"Epoch {epoch}/{p['epochs']}: {metrics}", flush=True)
 
         # Select on validation accuracy; evaluate the chosen checkpoint on test data once.
-        saved = torch.load(checkpoint, map_location=device, weights_only=True)
-        model.load_state_dict(saved["state_dict"])
+        torch.save({"state_dict": best_state, "model_config": config,
+                    "class_names": class_names, "parameters": p}, checkpoint)
+        model.load_state_dict(best_state)
         probabilities = predict(model, loaders["test"], device)
         predictions = probabilities.argmax(axis=1)
         test = manifest.loc[manifest["split"].eq("test"), ["video", "label", "group"]].copy()
