@@ -168,8 +168,20 @@ class BestValidationWeights(pl.Callback):
             self.state = {key: value.detach().to("cpu", copy=True) for key, value in pl_module.state_dict().items()}
 
 
+class TrainingLoss(pl.Callback):
+    """Keeps each training step's loss on the GPU; main() reads them back once after training."""
+
+    def __init__(self):
+        self.steps = []
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        # NeMo's training_step returns {"loss": ...}.
+        self.steps.append((trainer.global_step, outputs["loss"].detach()))
+
+
 def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
     best_weights = BestValidationWeights(validation_records, p["eval_batch_size"])
+    loss_history = TrainingLoss()
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
@@ -184,7 +196,7 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
         enable_checkpointing=False,
         log_every_n_steps=10,
         num_sanity_val_steps=0,
-        callbacks=[best_weights],
+        callbacks=[best_weights, loss_history],
     )
     # exp_manager writes NeMo logs under exp_dir (local scratch). Its checkpoint callback is off:
     # best weights are kept in memory instead, so no checkpoint is written or reloaded during training.
@@ -248,10 +260,10 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
     trainer.fit(model)
     # Lightning moves the model back to the CPU in teardown; final scoring runs on the GPU.
     model.to("cuda")
-    return best_weights
+    return best_weights, loss_history
 
 
-def log_to_mlflow(metrics, artifacts):
+def log_to_mlflow(metrics, artifacts, training_loss, nemo_logs):
     # Reopens the AIR-provided run; a logging failure raises and fails the workload.
     with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
         mlflow.log_params(
@@ -264,8 +276,11 @@ def log_to_mlflow(metrics, artifacts):
                 if key.endswith(("_wer", "_stderr", "_seconds"))
             }
         )
+        for step, loss in training_loss:
+            mlflow.log_metric("train_loss", loss, step=step)
         for artifact in artifacts:
             mlflow.log_artifact(str(artifact))
+        mlflow.log_artifacts(str(nemo_logs), artifact_path="nemo_logs")
 
 
 def main():
@@ -313,10 +328,11 @@ def main():
 
     print("Fine-tuning", flush=True)
     started = time.perf_counter()
-    best_weights = train(
+    best_weights, loss_history = train(
         p, model, str(manifests["train"]), str(manifests["validation"]), validation, exp_dir
     )
     train_seconds = time.perf_counter() - started
+    training_loss = [(step, loss.item()) for step, loss in loss_history.steps]
     print(
         f"Selected step {best_weights.best_step} with validation WER {best_weights.best_wer:.4f}",
         flush=True,
@@ -380,7 +396,7 @@ def main():
     metrics_path = output_dir / "metrics.json"
     metrics_path.write_text(json.dumps(metrics, indent=2))
     print(json.dumps(metrics, indent=2), flush=True)
-    log_to_mlflow(metrics, [metrics_path, predictions])
+    log_to_mlflow(metrics, [metrics_path, predictions], training_loss, exp_dir)
 
 
 if __name__ == "__main__":

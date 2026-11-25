@@ -31,7 +31,7 @@ Each run writes to `<output_root>/<MLFLOW_RUN_ID>/`:
 - `metrics.json`: utterance counts, hyperparameters, the selected step, the validation WER at each check, and baseline and fine-tuned validation and test WER with their bootstrap standard errors.
 - `test_predictions.jsonl`: each test reference alongside the baseline and fine-tuned transcriptions.
 
-The AIR MLflow run logs the WER values and standard errors as metrics, and `metrics.json` and `test_predictions.jsonl` as artifacts.
+The AIR MLflow run logs the training loss at each step and the WER values with their standard errors as metrics. It also stores `metrics.json`, `test_predictions.jsonl`, and the NeMo training logs as artifacts.
 
 On the normalized scores in the validated run (`GPU_1xA10`, about 17 minutes in the container), the test improvement is well above its standard error:
 
