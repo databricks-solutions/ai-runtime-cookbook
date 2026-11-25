@@ -3,15 +3,14 @@ experiment_name: air-finetune-embedding-reranker-sentence-transformers
 environment:
   version: "5"
   dependencies:
-    # Sentence Transformers 6 requires Transformers 5. Transformers 5.22.2 includes EmbeddingGemma 2 support.
     - torch==2.14.1
-    # EmbeddingGemma 2's processor imports torchvision even for text-only inputs. torchvision 0.29 matches torch 2.14.
+    # EmbeddingGemma 2's processor imports torchvision even for text-only inputs.
     - torchvision==0.29.2
     - sentence-transformers==6.3.0
     - transformers==5.22.2
     - datasets==5.2.0
     - accelerate==1.15.0
-    # Known-good Hugging Face Hub and fsspec pins for this datasets release.
+    # Newer fsspec releases break load_dataset with this huggingface_hub ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
 
@@ -23,6 +22,7 @@ code_source:
   root_path: .
 
 command: |
+  set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/finetune_retrieval.py"
@@ -39,9 +39,6 @@ parameters:
   dataset_name: BeIR/fiqa
   qrels_dataset_name: BeIR/fiqa-qrels
   seed: 42
-  # Number of training and evaluation queries. 0 uses every query in the split.
-  max_train_queries: 0
-  max_eval_queries: 0
   # Tokens per document or query for the embedder.
   max_seq_length: 256
   # Bi-encoder fine-tuning with in-batch and mined hard negatives.
