@@ -54,7 +54,7 @@ def require_uc_schema(catalog: str, schema: str) -> None:
         ) from e
 
 
-def load_data(test_size: float, max_samples: int, random_state: int):
+def load_data(test_size: float, random_state: int):
     """Download Forest CoverType and make a deterministic train/test split.
 
     581,012 rows x 54 numeric features, 7 classes. Source labels are 1..7; XGBoost multi-class
@@ -65,9 +65,6 @@ def load_data(test_size: float, max_samples: int, random_state: int):
     data = fetch_covtype()
     X = data.data.astype(np.float32)
     y = (data.target - 1).astype(np.int32)  # 1..7 -> 0..6
-    if 0 < max_samples < len(X):
-        idx = np.sort(np.random.default_rng(random_state).permutation(len(X))[:max_samples])
-        X, y = X[idx], y[idx]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
@@ -98,7 +95,7 @@ def main() -> None:
     print(f"Training XGBoost on device={device}")
 
     X_train, X_test, y_train, y_test = load_data(
-        float(p.get("test_size", 0.2)), int(p.get("max_samples", -1)), int(p.get("random_state", 42))
+        float(p.get("test_size", 0.2)), int(p.get("random_state", 42))
     )
     num_class = int(y_train.max()) + 1
 

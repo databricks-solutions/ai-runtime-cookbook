@@ -8,7 +8,7 @@ environment:
 
 compute:
   num_accelerators: 1
-  accelerator_type: GPU_1xA10   # any single GPU works (e.g. GPU_1xH100); A10 is the cheapest here
+  accelerator_type: GPU_1xA10   # A10 is the cheapest here
 
 code_source:
   root_path: .
@@ -27,7 +27,6 @@ parameters:
   # Data and split. The split is deterministic (test_size + random_state) so a downstream
   # batch-inference job can reproduce the identical held-out set.
   test_size: 0.2
-  max_samples: -1        # -1 = all 581,012 rows; set a small number (e.g. 50000) for a quick smoke test
   random_state: 42
   # XGBoost hyperparameters.
   n_estimators: 200
