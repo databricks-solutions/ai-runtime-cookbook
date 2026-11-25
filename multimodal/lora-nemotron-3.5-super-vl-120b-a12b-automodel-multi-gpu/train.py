@@ -17,12 +17,9 @@ def experiment_name():
 
 
 def find_adapter_dir(checkpoint_dir):
-    # Locate the adapter from AutoModel's completed final checkpoint.
+    # AutoModel writes LATEST as a symlink and writes LATEST.txt only where symlinks fail.
     if (checkpoint_dir / "LATEST").is_dir():
         return checkpoint_dir / "LATEST" / "model"
-    pointer = checkpoint_dir / "LATEST.txt"
-    if pointer.is_file() and pointer.stat().st_size > 0:
-        return checkpoint_dir / pointer.read_text().strip() / "model"
     sys.exit(f"No completed LATEST checkpoint found in {checkpoint_dir}")
 
 
@@ -49,8 +46,6 @@ def main():
 
     # Also persist the adapter to a Unity Catalog volume (durable storage, keyed by
     # the MLflow run id so retries never overwrite a prior attempt).
-    if not os.environ.get("ADAPTER_OUTPUT_ROOT"):
-        sys.exit("ADAPTER_OUTPUT_ROOT is not set; set it to a writable volume in workload.yaml")
     volume_dir = Path(os.environ["ADAPTER_OUTPUT_ROOT"]) / run_id / "final_adapter"
     shutil.copytree(adapter_dir, volume_dir, dirs_exist_ok=True)
     print(f"Copied final adapter to {volume_dir}")
