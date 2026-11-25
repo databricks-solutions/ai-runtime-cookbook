@@ -6,8 +6,7 @@ A torch + HF-transformers + FSDP2 training loop, one process per GPU via torchru
   - build:  load the pretrained Qwen3.8-27B checkpoint on every rank, then FSDP2-shard it
   - data:   stream UltraChat 200k (SFT), chat-template + tokenize with a response-only loss
             mask (loss on the assistant turns only), and pack into fixed seq-len blocks
-  - train:  one full pass over the dataset, logging to the AIR MLflow run, with optional
-            resumable checkpoints
+  - train:  one full pass over the dataset, logging to the AIR MLflow run
 
 Packing is block-diagonal: examples are concatenated into SEQ_LEN blocks, but no token
 attends across an example boundary. _pack_block derives the per-block signals (position_ids,
@@ -24,15 +23,12 @@ import time
 import mlflow
 import torch
 import torch.distributed as dist
-import torch.distributed.checkpoint as dcp
-import yaml
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
 from datasets import load_dataset
 from datasets.distributed import split_dataset_by_node
 from transformers import AutoModelForImageTextToText, AutoTokenizer
 
-from torch.distributed.checkpoint.state_dict import StateDictOptions, get_state_dict, set_state_dict
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
 RANK = int(os.environ["RANK"])
@@ -60,15 +56,6 @@ DATASET_REVISION = "8049631c405ae6576f93f445c6b8166f76f5505a"
 SPLIT = "train_sft"
 SEQ_LEN = 8192  # tokens per packed block
 LEARNING_RATE = 1e-5
-
-
-def load_params() -> dict:
-    """Read the `parameters:` block of workload.yaml, which AIR writes to HYPERPARAMETERS_PATH."""
-    path = os.environ.get("HYPERPARAMETERS_PATH")
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    return {}
 
 
 class PackedTokenDataset(IterableDataset):
@@ -204,40 +191,11 @@ def build_sharded_model() -> torch.nn.Module:
     return model
 
 
-def load_checkpoint(model: torch.nn.Module, opt: torch.optim.Optimizer, path: str) -> int:
-    """Load a checkpoint saved by run_training_loop in place and return its step count."""
-    # get_state_dict also creates the optimizer state, so the load has tensors to fill.
-    model_sd, optim_sd = get_state_dict(model, opt)
-    # Training is text-only, so the vision tower never gets a gradient or optimizer state, and
-    # the checkpoint has none for it. Leave it out of the load (and let set_state_dict allow that).
-    saved = dcp.FileSystemReader(path).read_metadata().state_dict_metadata
-    optim_sd["state"] = {fqn: s for fqn, s in optim_sd["state"].items() if f"optim.state.{fqn}.step" in saved}
-    state = {"model": model_sd, "optim": optim_sd, "step": torch.tensor(0)}
-    dcp.load(state, checkpoint_id=path)
-    set_state_dict(
-        model,
-        opt,
-        model_state_dict=state["model"],
-        optim_state_dict=state["optim"],
-        options=StateDictOptions(strict=False),
-    )
-    return int(state["step"])
-
-
-def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
+def run_training_loop(model: torch.nn.Module, data) -> None:
     opt = torch.optim.AdamW(
         model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.95), weight_decay=0.0, fused=True
     )
     model.train()
-
-    checkpoint_every = int(params.get("checkpoint_every_steps", 0))
-    resume_from = params.get("resume_from") or None
-    start_step = load_checkpoint(model, opt, resume_from) if resume_from else 0
-    checkpoint_dir = f"{params.get('output_root')}/{os.environ.get('MLFLOW_RUN_ID', 'local')}"
-    pending_save = None
-
-    if RANK == 0 and resume_from:
-        log.info(f"resumed from {resume_from}; skipping the first {start_step} blocks")
 
     use_mlflow = RANK == 0 and "MLFLOW_RUN_ID" in os.environ
     if use_mlflow:
@@ -248,8 +206,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
                 "seq_len": SEQ_LEN,
                 "learning_rate": LEARNING_RATE,
                 "world_size": WORLD_SIZE,
-                "checkpoint_every_steps": checkpoint_every,
-                "resume_from": resume_from,
             }
         )
 
@@ -261,12 +217,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
         # stopped early would hang the others in the next collective.
         ran_out = ran_out.cuda(non_blocking=True)
         dist.all_reduce(ran_out, op=dist.ReduceOp.MAX)
-        if step < start_step:
-            # Resuming: replay the deterministic stream up to where the checkpoint left off.
-            if ran_out.item():
-                break
-            loop_start = time.perf_counter()
-            continue
 
         ids, labels, position_ids, cu_seqlens, seq_idx, max_len = batch
         # The loader builds batches on CPU (a worker can't return CUDA tensors); move to GPU here.
@@ -297,24 +247,12 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
 
         # .item() is a sync point, so check it at the end rather than before the step.
         done = bool(ran_out.item())
-        if checkpoint_every > 0 and ((step + 1) % checkpoint_every == 0 or done):
-            if done and pending_save is not None:
-                pending_save.result()  # the last periodic save may be only a few steps back
-            # async_save copies the state to host memory before it returns, then writes it to
-            # storage in the background while training continues.
-            model_sd, optim_sd = get_state_dict(model, opt)
-            pending_save = dcp.async_save(
-                {"model": model_sd, "optim": optim_sd, "step": torch.tensor(step + 1)},
-                checkpoint_id=f"{checkpoint_dir}/step-{step + 1}",
-            )
         if done:
             break
     torch.cuda.synchronize()  # let all queued GPU work finish before we stop the clock
     elapsed = time.perf_counter() - loop_start
-    trained = step + 1 - start_step
-    if RANK == 0 and trained == 0:
-        log.info(f"[train] {resume_from} is already at the end of the data; nothing left to train")
-    elif RANK == 0:
+    trained = step + 1
+    if RANK == 0:
         log.info(
             f"[train] {trained} steps in {elapsed:.2f}s ({elapsed / trained:.2f}s/step), final loss={loss.item():.3f}"
         )
@@ -322,8 +260,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
             mlflow.log_metrics(
                 {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
             )
-    if pending_save is not None:
-        pending_save.result()  # don't exit before the final checkpoint is fully written
     if use_mlflow:
         mlflow.end_run()
 
@@ -331,7 +267,6 @@ def run_training_loop(model: torch.nn.Module, data, params: dict) -> None:
 def main() -> None:
     torch.cuda.set_device(LOCAL_RANK)
     torch.manual_seed(0)
-    # async_save writes in the background over the CPU (gloo) backend.
     dist.init_process_group("cpu:gloo,cuda:nccl")
     try:
         model = build_sharded_model()
@@ -344,7 +279,7 @@ def main() -> None:
             batch_size=None, num_workers=1, prefetch_factor=4, pin_memory=True,
         )
 
-        run_training_loop(model, data, load_params())
+        run_training_loop(model, data)
     finally:
         if dist.is_initialized():
             dist.destroy_process_group()
