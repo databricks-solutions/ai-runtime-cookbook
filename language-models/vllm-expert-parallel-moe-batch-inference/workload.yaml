@@ -7,14 +7,11 @@ environment:
   version: "6"
   dependencies:
     - vllm==0.34.0
-    # vLLM 0.34.0 resolves this PyTorch version on the standard v6 environment.
     - torch==2.14.0
+    # Newer fsspec breaks load_dataset here ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
     - datasets==5.2.0
-    # vLLM 0.34 requires huggingface_hub >= 2.0.0.
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
-    - mlflow-skinny==3.8.1
-    - nvidia-ml-py==13.615.71
 
 compute:
   num_accelerators: 8
@@ -26,20 +23,17 @@ code_source:
 env_variables:
   # Chunked Xet downloads of the 328 GB checkpoint; high-performance mode uses more parallel range requests.
   HF_XET_HIGH_PERFORMANCE: "1"
-  # The validated configuration keeps vLLM's default sampler instead of FlashInfer's, which also
-  # avoids compiling its sampler kernel.
-  VLLM_USE_FLASHINFER_SAMPLER: "0"
   # Loading and compiling a 321B-parameter model across eight GPUs can take well over the default timeout.
   VLLM_ENGINE_READY_TIMEOUT_S: "3600"
 
 command: |
   set -eo pipefail
-  # AIR may inherit this obsolete setting; Hub 1.x+ uses Xet for downloads.
+  # AIR may inherit this obsolete setting. Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # FlashInfer JIT-compiles its fp8_blockscale_gemm kernel at startup even with the Triton MoE kernel
-  # and the sampler disabled. The build needs curand.h, nvrtc.h and a linkable libnvrtc.so, which the
-  # system CUDA lacks; the NVIDIA pip wheels ship all three (the SGLang recipe does the same).
-  NVIDIA_DIR="$(python -c 'import nvidia; print(nvidia.__path__[0])')"
+  # FlashInfer JIT-compiles its fp8_blockscale_gemm kernel at startup even with the Triton MoE kernel.
+  # The build needs curand.h, nvrtc.h and a linkable libnvrtc.so, which the system CUDA lacks. The NVIDIA
+  # pip wheels ship all three, and the SGLang recipe does the same.
+  NVIDIA_DIR="$(python "$CODE_SOURCE_PATH/batch_inference.py" nvidia-dir)"
   mkdir -p /tmp/cuda-extra-include /tmp/cuda-extra-lib
   find "$NVIDIA_DIR" \( -name 'curand*.h' -o -name 'nvrtc*.h' \) -exec cp {} /tmp/cuda-extra-include/ \;
   ln -sf "$(find "$NVIDIA_DIR" -name 'libnvrtc.so.*' -type f -print -quit)" /tmp/cuda-extra-lib/libnvrtc.so
@@ -53,24 +47,22 @@ command: |
   python "$CODE_SOURCE_PATH/batch_inference.py" summary
 
 max_retries: 0
-# The validated standard v6 run took about 25 minutes in the container; the clock starts at submission,
-# so this also covers queue time.
+# timeout_minutes counts queue time as well as the run, so leave room for it.
 timeout_minutes: 120
 
 parameters:
-  # Public, ungated (MIT). Main-branch commit used for the README's measured numbers is recorded there.
+  # Public, ungated (MIT). The download stage uses the model's main branch at the commit it logs.
   model_name: zai-org/GLM-5.3-Flash
   # Public, ungated. CC BY-NC 4.0: non-commercial use only.
   dataset_name: tatsu-lab/alpaca
   num_prompts: 1000
   max_new_tokens: 512
   max_model_len: 4096
-  # Low reasoning effort keeps the batch output short. The default ("max") generates long thinking traces.
+  # Passed to the chat template.
   reasoning_effort: low
   # Concurrency is split evenly across engines, so tp8 runs 256 sequences in one engine and dp8_ep runs 32 per GPU.
   concurrent_seqs_total: 256
-  # Caps tokens per scheduler step for the whole run. vLLM's default (16384) ran out of GPU memory in
-  # the DP+EP warm-up.
+  # Caps tokens per scheduler step for the whole run. vLLM's default (16384) ran out of GPU memory in the DP+EP warm-up.
   max_num_batched_tokens: 2048
   # vLLM's Triton fused-MoE kernel, used for both layouts.
   moe_backend: triton
@@ -82,7 +74,7 @@ parameters:
   download_workers: 16
   # Free space required on the scratch disk, as a multiple of the checkpoint size.
   disk_headroom: 1.10
-  # Local disk for the checkpoint. The tested 8x H100 node had about 28 TB free on /tmp.
+  # Local disk for the checkpoint. The download needs about 336 GiB free.
   local_scratch_dir: /tmp
   # Startup budget per engine (model load, CUDA graph capture, compile) before the run fails.
   startup_timeout_s: 3600
