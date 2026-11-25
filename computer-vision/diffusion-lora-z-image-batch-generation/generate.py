@@ -9,9 +9,23 @@ import mlflow
 import torch
 import yaml
 from diffusers import ZImagePipeline
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
+
+# train.py passes output_dir/logs to diffusers, which writes TensorBoard scalars there.
+TRAINING_LOGS = "/tmp/z-image-lora/logs"
+
+
+def training_loss():
+    """Return the (step, loss) series that train.py wrote to TensorBoard."""
+    accumulator = EventAccumulator(TRAINING_LOGS)
+    accumulator.Reload()
+    losses = [(event.step, event.value) for event in accumulator.Scalars("loss")]
+    if not losses:
+        raise RuntimeError(f"No loss scalars found in {TRAINING_LOGS}")
+    return losses
 
 
 def generate(pipe, prompts, out_dir):
@@ -51,6 +65,9 @@ def main():
     print(f"Wrote images and the LoRA weights to {out}")
     with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
         mlflow.log_metrics(stats)
+        for step, loss in training_loss():
+            mlflow.log_metric("loss", loss, step=step)
+        mlflow.log_artifacts(TRAINING_LOGS, artifact_path="tensorboard")
 
 
 if __name__ == "__main__":

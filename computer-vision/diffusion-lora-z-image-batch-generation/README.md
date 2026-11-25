@@ -26,6 +26,8 @@ The run writes these files to `<output_root>/<MLflow run ID>/`:
 - `pytorch_lora_weights.safetensors`: the trained LoRA. Load it with `pipe.load_lora_weights(...)`.
 - `prompts.json` and `stats.json`.
 
+The AIR MLflow run records the training loss at each step and uploads the TensorBoard logs as the `tensorboard` artifact.
+
 In a validation run on an H100, training took 4 minutes 40 seconds (1.07 steps/s). Generation took about 44 seconds per 8 images (30 steps at 768×768). With the LoRA, "sks dog" prompts show the dog from the training photos. Without it, the base model draws a generic dog.
 
 Edit `prompts` in `workload.yaml` to try other scenes. To train on your own subject, replace the dataset download in `train.py` with a directory of 3–10 images, and change `subject`.
