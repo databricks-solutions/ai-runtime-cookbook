@@ -13,7 +13,7 @@ from ray.data.llm import build_processor, vLLMEngineProcessorConfig
 MODEL_SOURCE = "Qwen/Qwen2.5-7B-Instruct"
 NUM_PROMPTS = 1000
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
-OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/ray_batch_inference")
+OUTPUT_PATH = os.environ["OUTPUT_PATH"]
 
 
 def build_prompts():
