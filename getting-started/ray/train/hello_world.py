@@ -20,8 +20,6 @@ ray.init(address="auto")
 
 num_nodes = int(os.environ.get("NUM_NODES", 1))
 total_gpus = int(ray.cluster_resources().get("GPU", 0))
-if total_gpus < 1:
-    raise SystemExit("No GPUs registered with Ray; check GPU discovery on the cluster.")
 print(f"Cluster ready: {num_nodes} node(s), {total_gpus} GPU(s) available")
 print(f"Launching a Ray Train run with {total_gpus} worker(s), one per GPU\n")
 
