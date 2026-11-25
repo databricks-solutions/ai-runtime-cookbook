@@ -20,6 +20,8 @@ databricks air run -f workload.yaml --watch
 
 ## Results
 
+The model revision is `Qwen/Qwen3-1.7B` at `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e`.
+
 The run prints a table of GSM8K accuracy with standard errors. It also prints paired differences between the three models with their paired standard errors. The same numbers are logged to the AIR MLflow run, and the training loss is logged there every step. The run directory contains these files:
 
 - `results.json`: the table and the comparisons.
