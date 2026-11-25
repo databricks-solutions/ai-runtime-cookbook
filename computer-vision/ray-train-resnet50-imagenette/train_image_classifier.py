@@ -120,10 +120,10 @@ def train_loop_per_worker(config: dict) -> None:
     loss_fn = nn.CrossEntropyLoss()
     context = ray.train.get_context()
     world_rank = context.get_world_rank()
-    use_mlflow = world_rank == 0 and bool(os.environ.get("MLFLOW_RUN_ID"))
+    use_mlflow = world_rank == 0
 
     if use_mlflow:
-        mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"])
+        mlflow.start_run(run_id=config["mlflow_run_id"])
         mlflow.log_params(
             {
                 "model": "resnet50",
@@ -183,6 +183,7 @@ def main() -> None:
             "epochs": NUM_EPOCHS,
             "batch_size": PER_WORKER_BATCH_SIZE,
             "learning_rate": LEARNING_RATE,
+            "mlflow_run_id": os.environ["MLFLOW_RUN_ID"],
         },
         scaling_config=ScalingConfig(num_workers=total_gpus, use_gpu=True),
     )
