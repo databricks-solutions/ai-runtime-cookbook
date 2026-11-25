@@ -7,9 +7,14 @@ Full-weight SFT of `Qwen/Qwen3-8B` for invoice/receipt entity extraction — TRL
 ## Before you run
 
 1. A writable Unity Catalog volume for the staged data, checkpoints, and final
-   model (it must already exist). The default is the shared
-   `/Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed`; override
-   `output_root` in `workload.yaml` to use another writable volume.
+   model. It must already exist. The default is the shared
+   `/Volumes/main/default/air_examples/sft-qwen3-8b-invoice-deepspeed`. To use
+   another volume, pass its path to `prep_data.py` in step 2 and run:
+
+   ```bash
+   databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+   ```
+
 2. **Stage the data once:** run `prep_data.py` from any environment with write
    access to that volume (for example a Databricks cluster web terminal), passing
    the same path. The AIR GPU worker has no Spark, so this pre-stages the public
