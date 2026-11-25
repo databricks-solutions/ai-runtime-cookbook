@@ -30,11 +30,8 @@ TABLE_FIELDS = [
 
 def load_params() -> dict:
     """Read the hyperparameters block that `air` materializes from `parameters:`."""
-    path = os.environ.get("HYPERPARAMETERS_PATH")
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    return {}
+    with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+        return yaml.safe_load(f)
 
 
 def parse_lens(value) -> list[int]:
@@ -45,8 +42,6 @@ def run_point(sp_size, seq_len, p, world, data_path, out_dir, port):
     tag = f"sp{sp_size}_seq{seq_len}"
     result_json = os.path.join(out_dir, f"{tag}.json")
     log_path = os.path.join(out_dir, f"{tag}.log")
-    if os.path.exists(result_json):
-        os.remove(result_json)
     cmd = [
         sys.executable, "-u", "-m", "accelerate.commands.launch",
         "--config_file", LAUNCH_CONFIG,
@@ -73,6 +68,7 @@ def run_point(sp_size, seq_len, p, world, data_path, out_dir, port):
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait()
             returncode = None
+    mlflow.log_artifact(log_path, artifact_path="sweep/logs")
 
     record = {"tag": tag, "sp_size": sp_size, "dp_size": world // sp_size, "seq_len": seq_len,
               "returncode": returncode}

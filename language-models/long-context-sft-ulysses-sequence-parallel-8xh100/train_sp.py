@@ -2,9 +2,9 @@
 """One point of the sequence-parallel sweep: full SFT of Qwen3-8B on long chat data.
 
 Launched by sweep.py with `accelerate launch` on 8 GPUs. With --sp-size 8 the 8 GPUs share
-one sequence (DeepSpeed Ulysses splits it along the sequence dimension). With --sp-size 1
-each GPU trains on its own sequence (data parallel). Both use DeepSpeed ZeRO-3 for model
-states, so the sequence split is the only difference.
+one sequence (DeepSpeed Ulysses splits it along the sequence dimension), so each optimizer
+step sees one sequence. With --sp-size 1 each GPU trains on its own sequence (data
+parallel), so each step sees eight. Both use DeepSpeed ZeRO-3 for model states.
 
 Rank 0 writes one JSON result to --result-json. A CUDA out-of-memory error exits non-zero,
 and sweep.py records that point as "oom".
@@ -12,6 +12,7 @@ and sweep.py records that point as "oom".
 
 import argparse
 import json
+import math
 import time
 
 import torch
@@ -89,14 +90,14 @@ def build_chunks(tokenizer, data_path, seq_len, n_chunks):
     return chunks
 
 
-def sp_loss(outputs, shift_labels, sp_group, sp_world_size):
+def sp_loss(outputs, shift_labels, has_labels, sp_group, sp_world_size):
     """Token-weighted mean loss over the SP group, as in DeepSpeed's ALST tutorial.
 
     A shard with no assistant tokens gives NaN from HF's mean loss, and NaN times a zero
     weight is still NaN. Such a shard contributes a finite zero term instead.
     """
     good = (shift_labels != IGNORE_INDEX).view(-1).sum()
-    if good.item() > 0:
+    if has_labels:
         local_loss = outputs.loss.float()
     else:
         local_loss = outputs.logits.sum(dtype=torch.float32) * 0.0
@@ -148,7 +149,9 @@ def main():
         args.model_name, config=config, dtype=torch.bfloat16, attn_implementation=ATTN_IMPLEMENTATION
     )
     model.config.use_cache = False
-    # Gradient checkpointing only takes effect in training mode, and from_pretrained returns eval mode.
+    # Checkpointing recomputes each layer's activations in the backward pass. That lowers peak memory and adds
+    # compute, so tokens/s is lower than without it. It only takes effect in training mode, and from_pretrained
+    # returns eval mode.
     model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     model.train()
 
@@ -163,11 +166,14 @@ def main():
     sp_world_size = dataloader.sp_world_size if args.sp_size > 1 else 1
 
     is_main = accelerator.is_main_process
-    step_times, step_losses = [], []
+    step_times, all_losses = [], []
     loader_iter = iter(dataloader)
     for step in range(total_iters):
+        cpu_batch = next(loader_iter)
+        # Checked on the CPU shard before the copy to the GPU, so the check does not sync the GPU.
+        has_labels = args.sp_size > 1 and bool((cpu_batch["shift_labels"] != IGNORE_INDEX).any())
         # The Ulysses loader yields its shards on CPU, so move them to the GPU first.
-        batch = {k: v.to(accelerator.device) for k, v in next(loader_iter).items()}
+        batch = {k: v.to(accelerator.device) for k, v in cpu_batch.items()}
         optimizer.zero_grad()
         torch.cuda.synchronize()
         t0 = time.perf_counter()
@@ -175,21 +181,28 @@ def main():
             # transformers computes a loss only when `labels` is set, and then uses `shift_labels`
             # (already shifted by the loader) instead of shifting again.
             outputs = model(**batch, labels=batch["shift_labels"])
-            loss = sp_loss(outputs, batch["shift_labels"], sp_group, sp_world_size)
+            loss = sp_loss(outputs, batch["shift_labels"], has_labels, sp_group, sp_world_size)
         else:
             outputs = model(**batch)
             loss = outputs.loss
-        if not torch.isfinite(loss):
-            raise RuntimeError(f"non-finite loss {loss.item()} at step {step}")
         accelerator.backward(loss)
         optimizer.step()
         torch.cuda.synchronize()
         dt = time.perf_counter() - t0
+        all_losses.append(loss.detach())
         if step >= args.warmup_steps:
             step_times.append(dt)
-            step_losses.append(loss.item())
         if is_main:
-            print(f"step {step} loss {loss.item():.4f} sec {dt:.2f} (warmup={step < args.warmup_steps})", flush=True)
+            print(f"step {step} sec {dt:.2f} (warmup={step < args.warmup_steps})", flush=True)
+    # One read after the timed loop. A non-finite loss fails here, at the first such step.
+    losses = torch.stack(all_losses).float().tolist()
+    bad = [i for i, x in enumerate(losses) if not math.isfinite(x)]
+    if bad:
+        raise RuntimeError(f"non-finite loss at step {bad[0]}: {losses[bad[0]]}")
+    step_losses = losses[args.warmup_steps:]
+    if is_main:
+        for i, x in enumerate(losses):
+            print(f"step {i} loss {x:.4f}", flush=True)
 
     peak_alloc = torch.tensor([torch.cuda.max_memory_allocated() / 2**30], device=accelerator.device)
     peak_resv = torch.tensor([torch.cuda.max_memory_reserved() / 2**30], device=accelerator.device)

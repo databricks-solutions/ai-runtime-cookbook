@@ -18,6 +18,7 @@ code_source:
 
 env_variables:
   HF_HOME: /tmp/hf
+  # Allocator setting. It changes reserved memory, not the peak allocated memory that the sweep reports.
   PYTORCH_ALLOC_CONF: "expandable_segments:True"
 
 command: |
