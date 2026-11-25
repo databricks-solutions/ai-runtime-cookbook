@@ -21,9 +21,4 @@ The recipes share `ray_bootstrap.sh`, which starts a Ray cluster across the work
 
 - To add nodes, override the GPU count: `databricks air run -f workload.yaml --watch --override compute.num_accelerators=<N>`, where `<N>` is the total number of GPUs.
 - To run your own script, copy a recipe directory inside `getting-started/ray/`. In the copy's `workload.yaml`, update three values together: `experiment_name`, the directory in `code_source.include_paths`, and `RAY_ENTRYPOINT` in `command`. If the snapshot doesn't contain the entry point, the bootstrap stops with `RAY_ENTRYPOINT file not found` before Ray starts.
-- To run a script outside this directory, follow the Ray recipes in other domains:
-  1. Put `workload.yaml`, your script, and a copy of `ray_bootstrap.sh` in one directory.
-  2. Set `code_source.root_path` to `.` and remove `include_paths`.
-  3. Set `RAY_ENTRYPOINT` to the script's file name.
-- To run a package, set `RAY_ENTRYPOINT` to a directory that contains `__main__.py`. The bootstrap runs it like `python <dir>`, as a script, so `__main__.py` can't use relative imports.
 - To pass arguments to your script, add them after the bootstrap in `command`, for example `RAY_ENTRYPOINT=my-job/main.py bash ray_bootstrap.sh --epochs 3`. Pass credentials through `secrets` rather than arguments.
