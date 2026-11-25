@@ -47,6 +47,16 @@ def train_func(config: dict):
     """Runs on every Ray Train worker (one per GPU)."""
     rank = ray.train.get_context().get_world_rank()
 
+    # AI Runtime injects MLFLOW_RUN_ID and configures the databricks tracking URI on the node,
+    # so logging works without DATABRICKS_HOST/TOKEN. Rank 0 logs into that run. Opening it here,
+    # before any collective call, fails the job at startup if the variable is missing.
+    if rank == 0:
+        run_id = os.environ.get("MLFLOW_RUN_ID")
+        if not run_id:
+            raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+        mlflow.start_run(run_id=run_id)
+        mlflow.log_params({"model": MODEL_NAME, "lr": config["lr"], "batch_size": config["batch_size"]})
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -62,14 +72,6 @@ def train_func(config: dict):
     loader = prepare_data_loader(loader)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"])
-
-    # AI Runtime injects MLFLOW_RUN_ID and configures the databricks tracking URI on
-    # the node, so logging works without DATABRICKS_HOST/TOKEN. Gate on MLFLOW_RUN_ID
-    # so the script also runs cleanly off-platform (e.g. locally) where it is unset.
-    use_mlflow = rank == 0 and bool(os.environ.get("MLFLOW_RUN_ID"))
-    if use_mlflow:
-        mlflow.start_run(run_id=os.environ.get("MLFLOW_RUN_ID"))
-        mlflow.log_params({"model": MODEL_NAME, "lr": config["lr"], "batch_size": config["batch_size"]})
 
     model.train()
     step = 0
@@ -88,7 +90,7 @@ def train_func(config: dict):
 
         final_loss = out.loss.item()
         ray.train.report({"loss": final_loss, "step": step})
-        if use_mlflow:
+        if rank == 0:
             mlflow.log_metric("train_loss", final_loss, step=step)
         if step >= config["max_steps"]:
             break
@@ -96,7 +98,7 @@ def train_func(config: dict):
     if rank == 0 and final_loss is not None:
         print(f"Training finished. Final loss: {final_loss:.4f}", flush=True)
 
-    if use_mlflow:
+    if rank == 0:
         mlflow.end_run()
 
 
