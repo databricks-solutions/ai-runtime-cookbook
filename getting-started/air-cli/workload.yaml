@@ -11,3 +11,5 @@ code_source:
   root_path: .
 
 command: python "$CODE_SOURCE_PATH/main.py"
+
+max_retries: 0
