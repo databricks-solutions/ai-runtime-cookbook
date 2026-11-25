@@ -134,7 +134,9 @@ def main() -> None:
         tune_config=tune.TuneConfig(
             metric="val_mlogloss",
             mode="min",
-            scheduler=ASHAScheduler(max_t=n_estimators, grace_period=grace_period, reduction_factor=2),
+            scheduler=ASHAScheduler(
+                time_attr="iter", max_t=n_estimators, grace_period=grace_period, reduction_factor=2,
+            ),
             num_samples=num_samples,
         ),
     )
