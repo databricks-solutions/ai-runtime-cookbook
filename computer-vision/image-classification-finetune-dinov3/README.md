@@ -6,7 +6,11 @@ The official splits contain 1,020 training, 1,020 validation, and 6,149 test ima
 
 ## Before you run
 
-Review the weights' [DINOv3 license](https://ai.meta.com/resources/models-and-libraries/dinov3-license) and the dataset's [usage information](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/README.txt). The public `timm` weights and dataset download automatically without a Hugging Face token. Set `parameters.output_root` to another existing writable Unity Catalog volume directory if needed.
+Review the weights' [DINOv3 license](https://ai.meta.com/resources/models-and-libraries/dinov3-license) and the dataset's [usage information](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/README.txt). The public `timm` weights and dataset download automatically without a Hugging Face token. The recipe writes its outputs to `/Volumes/main/default/air_examples/image-classification-finetune-dinov3`, which must exist and be writable. To write to another volume, override `parameters.output_root`:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
