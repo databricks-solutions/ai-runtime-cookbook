@@ -27,11 +27,8 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
 def load_params() -> dict:
     """Read the hyperparameters block that `air` materializes from the YAML `parameters:`."""
-    path = os.environ.get("HYPERPARAMETERS_PATH")
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    return {}
+    with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+        return yaml.safe_load(f)
 
 
 def build_dataset(tokenizer, dataset_name: str, max_seq_len: int):
@@ -77,14 +74,14 @@ def main():
     device = torch.device(f"cuda:{local_rank}")
 
     p = load_params()
-    model_name = p.get("model_name", "meta-llama/Llama-3.1-8B")
-    dataset_name = p.get("dataset_name", "tatsu-lab/alpaca")
-    max_seq_len = int(p.get("max_seq_len", 1024))
-    batch_size = int(p.get("per_device_batch_size", 4))
-    grad_accum = int(p.get("gradient_accumulation_steps", 2))
-    lr = float(p.get("learning_rate", 2e-5))
-    max_steps = int(p.get("max_steps", 100))
-    output_dir = p.get("output_dir", "/tmp/llama-sft")
+    model_name = p["model_name"]
+    dataset_name = p["dataset_name"]
+    max_seq_len = int(p["max_seq_len"])
+    batch_size = int(p["per_device_batch_size"])
+    grad_accum = int(p["gradient_accumulation_steps"])
+    lr = float(p["learning_rate"])
+    max_steps = int(p["max_steps"])
+    output_dir = p["output_dir"]
 
     if rank == 0:
         print(f"World size={world_size} | model={model_name} | dataset={dataset_name}", flush=True)
@@ -93,7 +90,7 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.bfloat16)
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
 
