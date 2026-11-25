@@ -14,7 +14,6 @@ environment:
     - accelerate==1.15.0
     - peft==0.21.2
     # diffusers 0.42 needs huggingface_hub >= 1.32, newer than the environment's release.
-    # fsspec is pinned to the release validated with this huggingface_hub.
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
     - tensorboard==2.21.0
