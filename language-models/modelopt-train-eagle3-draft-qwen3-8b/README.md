@@ -47,7 +47,7 @@ The first-divergence position is the first token (after retokenizing the output 
 
 What the numbers show:
 
-- **Trained draft.** Training raised the accept length from 1.01 (untrained head) to 1.39. With this short training, the trained draft is slower than no draft. The public reference draft has a higher accept length and is faster.
+- **Trained draft.** Training raised the accept length from 1.01 (untrained head) to 1.39. In this run, the trained draft is slower than no draft. The public reference draft has a higher accept length and is faster.
 - **Identical outputs.** Two no-draft passes match on every prompt, so the no-draft engine is deterministic here. Each draft's output differs from the no-draft output on about 82% of prompts. The untrained head is rejected almost every step, and its outputs diverge at the same rate and median position as the trained and reference drafts. So the divergence does not come from accepted draft tokens. It is consistent with numerical differences in the verification forward pass. We did not test that mechanism directly.
 - **RoPE match.** An earlier validation run of this recipe, before the RoPE override, served the trained draft with YaRN scaling and measured accept length 1.39 (± 0.004) and 0.93×. The override makes no measurable difference here.
 
