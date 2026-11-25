@@ -149,6 +149,7 @@ def main():
         raise ValueError("Not enough training users/items for the configured top_k")
     pairs = encode_pairs(positive, user_ids, item_ids).to(device)
     seen = interaction_mask(encode_pairs(train, user_ids, item_ids), len(user_ids), len(item_ids), device)
+    # Fires only if a user has rated every candidate item in training, leaving no negative to sample.
     if seen.all(dim=1).any():
         raise ValueError("Every training user must have an unobserved item for negative sampling")
     validation_data = evaluation_data(validation, train, user_ids, item_ids, p, device)
