@@ -4,6 +4,7 @@ Usage: python batch_inference.py bf16|quantized
 """
 
 import json
+import math
 import os
 import re
 import shutil
@@ -36,13 +37,12 @@ def expose_curand_headers():
 
 
 def number(text):
-    """Final answer after '####', else the last number in the text."""
+    """Final answer after '####', else the last number in the text, as a float (None if absent)."""
     match = re.search(r"####\s*\$?(-?[\d,]*\.?\d+)", text)
     found = match.group(1) if match else (re.findall(r"-?[\d,]*\.?\d+", text) or [None])[-1]
     if found is None:
         return None
-    found = found.replace(",", "").rstrip(".")
-    return found[:-2] if found.endswith(".0") else found
+    return float(found.replace(",", "").rstrip("."))
 
 
 def main(label):
@@ -61,7 +61,8 @@ def main(label):
     elapsed = time.time() - t0
 
     gen_tokens = sum(len(o.outputs[0].token_ids) for o in outs)
-    correct = sum(number(o.outputs[0].text) == g for o, g in zip(outs, gold))
+    preds = [number(o.outputs[0].text) for o in outs]
+    correct = sum(p is not None and math.isclose(p, g, abs_tol=1e-6) for p, g in zip(preds, gold))
     result = {
         "label": label,
         "model_path": model_path,

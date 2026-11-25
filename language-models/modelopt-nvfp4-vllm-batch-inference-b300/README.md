@@ -31,8 +31,6 @@ Validation runs on 8xB300 produced these results:
 | Qwen3-32B bf16 | 65.5 GB | 9,628 | 1.00× | 93.4% |
 | Qwen3-32B NVFP4 | 20.7 GB | 14,190 | 1.47× | 92.6% |
 
-An earlier Qwen3-32B run measured a 1.55× speedup, so expect some run-to-run variation.
-
 Notes on the environment:
 
 - FlashInfer compiles some kernels when vLLM starts, and they need `curand.h`. That header ships only in the NVIDIA pip wheels in this environment. `batch_inference.py` copies the `curand` headers to a directory on `CPATH`.
