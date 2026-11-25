@@ -7,7 +7,6 @@ environment:
   version: "6"
   dependencies:
     - trl==1.18.0
-    # TRL 1.18 supports vLLM below 0.34.
     - vllm==0.33.0
     - torch==2.14.0
     - transformers==5.20.2
@@ -18,7 +17,6 @@ environment:
     - fsspec==2026.9.0
     - mlflow-skinny==3.8.1
     - nvidia-ml-py==13.615.71
-    # OpenCV is not pinned. The preinstalled v6 build is used as-is.
 
 compute:
   num_accelerators: 1

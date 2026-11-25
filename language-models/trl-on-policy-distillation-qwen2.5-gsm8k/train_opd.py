@@ -6,7 +6,6 @@ own text. With beta=1.0 the loss is the reverse KL, KL(student || teacher).
 """
 
 import json
-import os
 import time
 from pathlib import Path
 
