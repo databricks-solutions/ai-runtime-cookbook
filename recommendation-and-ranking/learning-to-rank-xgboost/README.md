@@ -30,10 +30,12 @@ The AIR MLflow run contains:
 
 The model takes the 46 features in LETOR order and returns one score per document. To rank, group documents by query and sort by score, highest first. Scores are not probabilities and can't be compared across queries.
 
-To load the model in a new Python process, pass the model URI that the run prints:
+The last step of the run, `load_check.py`, loads the logged model in a new Python process and scores the first test document. The snippet below makes the same calls. Replace `<MLFLOW_RUN_ID>` with the run's ID, and set `features` to a 2-D array with one row of 46 LETOR features per document, in LETOR order:
 
 ```python
 import mlflow
+import xgboost as xgb
 
-model = mlflow.xgboost.load_model("<model URI printed by the run>")
+model = mlflow.xgboost.load_model("runs:/<MLFLOW_RUN_ID>/model")
+print(model.predict(xgb.DMatrix(features[:1])))
 ```
