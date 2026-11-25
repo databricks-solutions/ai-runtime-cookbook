@@ -2,11 +2,11 @@
 
 This recipe uses NeMo AutoModel to fine-tune `nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16` on the CORD-v2 receipt-image dataset with LoRA. The model is a vision-language mixture of experts. Its vision and audio towers stay frozen, and multi-token prediction (MTP) is disabled.
 
-Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, rank-64 LoRA, and the GMM/DeepEP backend. The local batch size is 1 per GPU, for a global batch of 8 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. The recipe logs training metrics only. Measuring CORD-v2 field-extraction quality requires a separate evaluation.
+Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, rank-64 LoRA, and the GMM/DeepEP backend. The local batch size is 1 per GPU, for a global batch of 8 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. The recipe logs no field-extraction quality metrics. Measuring them requires a separate evaluation.
 
 Environment configurations: NVIDIA's stock `nemo-automodel:26.08.00` image does not yet support Super VL. To add it, the recipe builds a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) from the bundled `Dockerfile`, which layers Super VL support on top of that image.
 
-Workload execution takes about 12 minutes. For the first run, the one-time image build and upload may take additional time.
+The workload takes about 10 minutes in the container. For the first run, the one-time image build and upload may take additional time.
 
 ## Before you run
 
