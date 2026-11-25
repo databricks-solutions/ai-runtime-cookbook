@@ -4,6 +4,8 @@ This recipe pretrains a mixture-of-experts (MoE) language model from scratch on 
 
 Experts are split across the 8 GPUs with expert parallelism (EP=8, 16 experts per GPU per layer), and tokens move between GPUs with all-to-all communication. The rest of the model is sharded with FSDP. The run trains for 100 steps (64K tokens per step) and takes about 3 minutes.
 
+The config uses PyTorch FlexAttention, because torchtitan's default `varlen` backend needs FlashAttention 3, which the environment doesn't include.
+
 ## Before you run
 
 The default `OUTPUT_ROOT` in `workload.yaml` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/torchtitan-moe-expert-parallel-8xh100`. The volume must already exist and be writable. To use another volume, run:
@@ -31,8 +33,3 @@ A validation run on 8xH100 produced these results:
 | Loss, step 1 → step 100 | 12.38 → 6.74 |
 | Throughput (step 100) | 16,953 tokens/s per GPU, 142 TFLOP/s per GPU |
 | GPU memory | 21.2 GiB per GPU |
-
-Notes:
-
-- The workload command clones torchtitan tag `v0.4.0` only to run its tokenizer download script, which isn't in the pip wheel. The training code comes from the pinned `torchtitan` wheel.
-- The config uses PyTorch FlexAttention because torchtitan's default `varlen` backend needs FlashAttention 3, which the environment doesn't include.
