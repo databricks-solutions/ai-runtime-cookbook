@@ -42,14 +42,15 @@ def train_loop_per_worker(config):
     metrics = None
     for epoch in range(config["epochs"]):
         model.train()
+        # The sum stays on the GPU so the loop syncs once per epoch, not once per batch.
         epoch_loss = 0.0
         for inputs, labels in loader:
             optimizer.zero_grad()
             loss = loss_fn(model(inputs), labels)
             loss.backward()
             optimizer.step()
-            epoch_loss += loss.item()
-        metrics = {"epoch": epoch + 1, "loss": epoch_loss / len(loader)}
+            epoch_loss += loss.detach()
+        metrics = {"epoch": epoch + 1, "loss": float(epoch_loss) / len(loader)}
         ray.train.report(metrics)
     return metrics
 
