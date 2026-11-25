@@ -131,6 +131,7 @@ def main():
     parsed = raw.map(to_example, remove_columns=raw.column_names)
 
     before = len(parsed)
+    # Drops rows whose answer fails matches_schema (missing, not JSON, or off-schema).
     parsed = parsed.filter(lambda row: row["_valid"]).remove_columns(["_valid"])
     print(f"Kept {len(parsed)}/{before} rows (dropped rows whose answer is not schema-valid JSON).")
 
