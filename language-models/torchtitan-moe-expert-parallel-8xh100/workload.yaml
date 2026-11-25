@@ -6,7 +6,6 @@ experiment_name: air-torchtitan-qwen3-moe-ep
 environment:
   version: "5"
   dependencies:
-    # torchtitan 0.4.0 is aligned with PyTorch 2.15.
     - torch==2.15.0
     - torchtitan==0.4.0
     # torchtitan needs datasets < 4.8. These versions work together with it.
