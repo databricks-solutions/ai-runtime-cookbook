@@ -35,3 +35,25 @@ The AIR MLflow run contains loss and accuracy curves, test accuracy, and macro F
 - `class_labels.json`: topic ID to arXiv category
 - `metrics.json`: final metrics
 - `test_predictions.csv`: paper IDs and predicted topics
+
+To reuse the model, `load_check.py` builds `GraphSAGE` from `train.py` with the saved dimensions, loads the weights with `weights_only=True`, and predicts one test paper's topic. Predictions need the graph as well as the features, so the script builds an adjacency matrix with `mean_adjacency`. The snippet runs the same steps. Here `p` is the workload's parameters as a dictionary, with `output_root` and `dataset_url` set:
+
+```python
+import json
+from pathlib import Path
+
+import torch
+
+from train import GraphSAGE, load_data, mean_adjacency
+
+output_dir = Path(p["output_root"]) / "<MLFLOW_RUN_ID>"
+config = json.loads((output_dir / "model_config.json").read_text())
+model = GraphSAGE(**config)
+model.load_state_dict(torch.load(output_dir / "best_model.pt", map_location="cpu", weights_only=True))
+model.eval()
+
+features, _, edges, splits, class_labels, paper_ids = load_data(p)
+adjacency = mean_adjacency(edges, len(features), device="cpu")
+with torch.no_grad():
+    logits = model(features, adjacency)
+```
