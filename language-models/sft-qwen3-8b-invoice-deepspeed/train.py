@@ -114,7 +114,7 @@ def main():
     # (same correctness, slightly slower).
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         attn_implementation="sdpa",
         use_cache=False,
     )
