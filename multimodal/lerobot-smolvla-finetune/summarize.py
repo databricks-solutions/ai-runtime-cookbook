@@ -35,3 +35,7 @@ if model_dirs:
     print(f"Copied {model_dirs[-1]} to {out / 'pretrained_model'}")
 with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
     mlflow.log_metrics(summary)
+    for step, loss in points:
+        mlflow.log_metric("train_loss", loss, step=step)
+    mlflow.log_artifact(sys.argv[1])
+    mlflow.log_artifact(str(out / "summary.json"))
