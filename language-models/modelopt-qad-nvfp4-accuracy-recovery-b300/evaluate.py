@@ -5,14 +5,32 @@ summarize.py can compare the labels question by question.
 """
 
 import json
+import os
+import shutil
 import sys
 import time
+from pathlib import Path
 
+import nvidia
 from common import P, load_gsm8k_test, gold_number, model_path, paths, parse_number, SYSTEM
 from vllm import LLM, SamplingParams
 
 
+def expose_curand_headers():
+    """Put curand.h on CPATH for vLLM's FlashInfer JIT.
+
+    FlashInfer JIT-compiles some kernels at vLLM startup. In this environment curand.h ships only
+    inside the nvidia-* pip wheels, so copy just those headers to one include directory.
+    """
+    include = Path("/tmp/curand-include")
+    include.mkdir(parents=True, exist_ok=True)
+    for header in Path(nvidia.__path__[0]).rglob("curand*.h"):
+        shutil.copy(header, include)
+    os.environ["CPATH"] = f"{include}:{os.environ.get('CPATH', '')}"
+
+
 def main(label):
+    expose_curand_headers()
     ds = load_gsm8k_test(P["eval_limit"])
     messages = [[{"role": "system", "content": SYSTEM}, {"role": "user", "content": q}]
                 for q in ds["question"]]
