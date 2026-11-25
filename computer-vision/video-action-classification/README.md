@@ -8,7 +8,11 @@ Related clips stay together: the recipe assigns whole video groups to training, 
 
 ## Before you run
 
-Check `parameters.output_root` in [workload.yaml](workload.yaml). You need write access to the existing Unity Catalog volume; change the path if you cannot use the shared default.
+The recipe writes its outputs to `/Volumes/main/default/air_examples/video-action-classification`. You need write access to that existing Unity Catalog volume. To write to another volume, override `parameters.output_root`:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 The video archive and ResNet-18 weights download automatically without a Hugging Face token. See the [subset dataset card](https://huggingface.co/datasets/sayakpaul/ucf101-subset) and [UCF101 dataset page](https://www.crcv.ucf.edu/research/data-sets/ucf101/) for data provenance and usage terms.
 
