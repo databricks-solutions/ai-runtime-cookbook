@@ -14,7 +14,11 @@ The validation loss is stochastic, so it changes from epoch to epoch. The epoch 
 
 ## Before you run
 
-The workload downloads the upstream code, Python packages, model weights, and dataset when it starts, so it needs outbound access to GitHub, PyPI, Hugging Face, and Kaggle. The weights are Apache 2.0 and download without a Hugging Face token. The dataset downloads without a Kaggle account, but Kaggle lists its license as unknown, so review the terms on the dataset page before you use it. To write the checkpoints elsewhere, set `env_variables.OUTPUT_ROOT` to an existing Unity Catalog volume you can write to.
+The workload downloads the upstream code, Python packages, model weights, and dataset when it starts, so it needs outbound access to GitHub, PyPI, Hugging Face, and Kaggle. The weights are Apache 2.0 and download without a Hugging Face token. The dataset downloads without a Kaggle account, but Kaggle lists its license as unknown, so review the terms on the dataset page before you use it. The default `env_variables.OUTPUT_ROOT` is a Unity Catalog volume. The volume must exist and be writable. To write the checkpoints to another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override env_variables.OUTPUT_ROOT=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
