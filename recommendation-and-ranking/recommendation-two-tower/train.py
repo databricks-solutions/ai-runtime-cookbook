@@ -204,7 +204,6 @@ def main():
         }
         model = model.cpu().eval()
         with torch.no_grad():
-            # ZIP creation seeks within the file; UC volumes require sequential writes.
             with io.BytesIO() as buffer:
                 np.savez_compressed(buffer,
                                     user_embeddings=model.user_tower(torch.arange(len(user_ids))).numpy(),
