@@ -22,4 +22,4 @@ databricks air run -f workload.yaml --watch
 
 Rank 0 logs the training loss to the run's MLflow experiment every 100 steps, and the time per step and final loss when training ends. The same numbers appear in the workload logs (`databricks air logs`). In our validation run, training took 8.06 seconds per step and ended with a loss of 0.735.
 
-By default, the recipe doesn't save checkpoints or a trained model. To save resumable checkpoints, set `checkpoint_every_steps` in `workload.yaml`. Each checkpoint holds the model and optimizer state, about 160 GB, under `<output_root>/<MLFLOW_RUN_ID>/step-<N>`. Every checkpoint is kept, so delete the ones you don't need. With checkpoints every 200 steps, the run takes about 4 minutes longer. To continue from a checkpoint, set `resume_from` to its directory.
+By default, the recipe doesn't save checkpoints. To save resumable checkpoints and resume from one, set `checkpoint_every_steps` and `resume_from` in `workload.yaml`.
