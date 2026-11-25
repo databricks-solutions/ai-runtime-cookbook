@@ -98,9 +98,8 @@ def main():
     trainer.remove_callback(MLflowCallback)
     held_out = trainer.evaluate()
     metrics["eval_preference_accuracy"] = held_out["eval_rewards/accuracies"]
-    metrics["eval_reward_margin"] = held_out["eval_rewards/margins"]
     print(f"[eval] held-out preference accuracy {metrics['eval_preference_accuracy']:.3f} "
-          f"on {len(eval_pairs)} pairs, mean margin {metrics['eval_reward_margin']:.3f}")
+          f"on {len(eval_pairs)} pairs")
 
     # Win rate on prompts that were not used for training or the preference eval.
     start = P["eval_pairs"]

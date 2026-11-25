@@ -5,7 +5,7 @@ This recipe preference-tunes `Qwen/Qwen2.5-0.5B-Instruct` with DPO (Direct Prefe
 The recipe evaluates the tuned model in two ways, both on UltraFeedback test data it didn't train on:
 
 - **Preference accuracy:** on 500 test pairs, how often the tuned model ranks the chosen answer above the rejected one, relative to the base model. A random guess would score 50%.
-- **Reward-model win rate:** on 300 more test prompts, the base model and the DPO model each answer greedily. The `Skywork/Skywork-Reward-V2-Qwen3-0.6B` reward model scores both answers, and the win rate is how often the DPO answer scores higher.
+- **Reward-model win rate:** on 300 more test prompts, the base model and the DPO model each answer greedily. The `Skywork/Skywork-Reward-V2-Qwen3-0.6B` reward model scores both answers, and the win rate counts how often the DPO answer scores higher, with a tie counting as half a win.
 
 The run takes about 33 minutes in the container, plus provisioning and queueing.
 
@@ -37,4 +37,4 @@ Three validation runs on an A10 produced these results. Each cell gives the rang
 | Mean answer length, base → DPO | 1,247 → 1,406 to 1,410 characters |
 | Training time (4,000 pairs) | 18 minutes |
 
-The standard errors are about 2.1 points for the preference accuracy and 2.8 points for the win rate. The spread across runs is smaller than that. DPO answers were about 13% longer, and reward models often favor longer answers. Read `generations.jsonl` to judge the answers yourself.
+The standard errors are about 2.1 points for the preference accuracy and 2.8 points for the win rate. The spread across runs is smaller than that. DPO answers were about 13% longer. Read `generations.jsonl` to judge the answers yourself.
