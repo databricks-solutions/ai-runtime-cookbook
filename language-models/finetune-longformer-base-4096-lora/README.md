@@ -10,8 +10,12 @@ the adapter + tokenizer are saved to a Unity Catalog volume.
 ## Before you run
 
 The adapter is written to the shared `/Volumes/main/default/air_examples/` volume,
-which must already exist and be writable. Point `output_root` in the `parameters:`
-block of `workload.yaml` at another writable volume if you cannot use that default.
+which must already exist and be writable. To write elsewhere, pass another existing
+writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
