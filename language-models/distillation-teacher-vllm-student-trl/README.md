@@ -4,6 +4,14 @@ This recipe distills math reasoning from `Qwen/Qwen2.5-7B-Instruct` (the teacher
 
 The teacher samples up to 4 solutions for each of 4,000 GSM8K training questions using vLLM batch inference. The recipe keeps the first solution with a correct final answer. The student then runs 2 epochs of supervised fine-tuning on those solutions with TRL, with loss on the solution tokens only. The recipe measures the student's greedy accuracy on all 1,319 GSM8K test questions before and after. The run takes about 10 minutes in the container, plus provisioning and queueing.
 
+## Before you run
+
+The run writes `summary.json` to `output_root` in `workload.yaml`. That Unity Catalog volume must already exist and be writable. To write elsewhere, pass another existing writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
