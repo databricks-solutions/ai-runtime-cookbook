@@ -22,9 +22,9 @@ From this recipe directory:
 databricks air run -f workload.yaml --watch
 ```
 
-Edit `parameters.queries` in `workload.yaml` to ask your own questions. Use `max_documents` to change the sample size and `top_k` to change the number of matches.
+Edit `parameters.queries` in `workload.yaml` to ask your own questions.
 
-By default, the model reads up to 512 tokens from each document or question. Increase `max_seq_length` for longer text; this uses more GPU memory. The saved files always retain the full document text.
+By default, the model reads up to 512 tokens from each document or question.
 
 ## Results
 
