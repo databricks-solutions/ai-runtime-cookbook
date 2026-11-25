@@ -76,7 +76,8 @@ def main():
             seed=3407,
             output_dir="/tmp/unsloth-outputs",
             save_strategy="no",
-            report_to="none",
+            # Logs the loss curve to the AIR run (MLFLOW_RUN_ID); the run is reopened below for final metrics.
+            report_to="mlflow",
         ),
     )
     t0 = time.time()
