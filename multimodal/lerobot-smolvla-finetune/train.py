@@ -1,11 +1,9 @@
 """Fine-tune SmolVLA with LeRobot's lerobot-train on the workload parameters."""
 
-import glob
 import os
-import shutil
 import subprocess
-import sysconfig
 
+import av
 import yaml
 
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
@@ -19,20 +17,7 @@ RENAME_MAP = ('{"observation.images.top": "observation.images.camera1", '
               '"observation.images.wrist": "observation.images.camera2"}')
 
 
-def swap_openssl():
-    # PyAV's wheel bundles a RHEL build of OpenSSL 1.1.1k, used only by its SRT streaming library,
-    # that aborts with "FATAL FIPS SELFTEST FAILURE" on AI Runtime as soon as `av` is imported.
-    # Swap in the OpenSSL 1.1 libraries from the manylinux2014 OpenCV wheel, which load cleanly.
-    site = sysconfig.get_paths()["purelib"]
-    for lib in ["ssl", "crypto"]:
-        src = glob.glob(f"{site}/opencv_python_headless.libs/lib{lib}-*.so.1.1")[0]
-        shutil.copy(src, glob.glob(f"{site}/av.libs/lib{lib}-*.so.1.1.1k")[0])
-        shutil.copy(src, f"{site}/av.libs/")  # the replacement libssl looks up libcrypto by its own name
-
-
 def main():
-    swap_openssl()
-    import av  # Imported after the swap, because importing it first aborts on AI Runtime.
     print("PyAV", av.__version__)
 
     subprocess.run([

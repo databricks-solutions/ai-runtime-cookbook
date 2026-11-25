@@ -23,7 +23,3 @@ databricks air run -f workload.yaml --watch
 The run prints the training-loss curve. It writes `summary.json` and the fine-tuned policy (`pretrained_model/`) to `<output_root>/<MLflow run ID>/`, and logs the loss summary to MLflow.
 
 In a validation run on an H100, training loss fell from 0.358 at step 50 to 0.082 at step 2,000. The recipe doesn't evaluate the policy on a robot or in simulation.
-
-Notes:
-
-- PyAV's wheel bundles a RHEL build of OpenSSL that aborts with "FATAL FIPS SELFTEST FAILURE" on AI Runtime when `av` is imported. `train.sh` replaces it with the OpenSSL 1.1 libraries from the manylinux2014 OpenCV wheel. Only PyAV's SRT streaming library uses those libraries.
