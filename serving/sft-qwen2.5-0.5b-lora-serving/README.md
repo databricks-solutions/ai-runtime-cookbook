@@ -19,6 +19,12 @@ The Volume and source MLflow run ID form the handoff between stages, so registra
 - Confirm that you can create Model Serving endpoints and use `GPU_MEDIUM` workloads.
 - The Alpaca dataset is licensed CC BY-NC 4.0. Use data with suitable rights for your application.
 
+To write the training outputs to another volume, run stage 1 with the override:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 Installing the local deployment dependencies requires Python 3.10 or later with the `venv` module. On Debian or Ubuntu, first run `sudo apt install python3-venv`. Then deploy the registration job and install the dependencies into a virtual environment once:
 
 ```bash
