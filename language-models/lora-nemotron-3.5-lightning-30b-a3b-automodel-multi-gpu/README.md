@@ -52,3 +52,24 @@ databricks air run -f workload.yaml --watch
 ## Results
 
 AutoModel logs training loss, learning rate, gradient norm, and throughput every five steps to the AIR MLflow run, and validation loss at the final step. The final adapter and tokenizer files are uploaded to `final_adapter` in the run and copied to `ADAPTER_OUTPUT_ROOT/<MLFLOW_RUN_ID>/final_adapter` on the configured Unity Catalog volume; checkpoints stay on the node's local disk.
+
+## Using the adapter
+
+After training, the workload loads the adapter from `ADAPTER_OUTPUT_ROOT` in a separate process and runs one prediction (`load_adapter.py`). To load it yourself, use the same steps:
+
+```python
+import torch
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+base_id = "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16"
+adapter_path = "/Volumes/main/default/air_examples/lora-nemotron-3.5-lightning-30b-a3b-automodel-multi-gpu/<MLFLOW_RUN_ID>/final_adapter"
+base = AutoModelForCausalLM.from_pretrained(base_id, dtype=torch.bfloat16, device_map="auto")
+model = PeftModel.from_pretrained(base, adapter_path)
+tokenizer = AutoTokenizer.from_pretrained(base_id)
+model.eval()
+
+inputs = tokenizer("A man is sitting on a roof. He", return_tensors="pt").to(model.device)
+with torch.no_grad():
+    logits = model(**inputs).logits
+```

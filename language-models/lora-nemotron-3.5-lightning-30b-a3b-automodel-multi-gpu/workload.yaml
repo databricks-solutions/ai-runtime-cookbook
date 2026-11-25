@@ -19,6 +19,7 @@ code_source:
   root_path: .
   include_paths:
     - train.py
+    - load_adapter.py
     - nemotron_hellaswag.yaml
 
 env_variables:
@@ -39,3 +40,4 @@ command: |
   set -eo pipefail
   cd "$CODE_SOURCE_PATH"
   python train.py
+  python load_adapter.py
