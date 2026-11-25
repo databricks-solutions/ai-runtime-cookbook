@@ -47,8 +47,13 @@ MAX_LENGTH = 1024
 # Set this in workload.yaml; lower it for larger checkpoints that run out of memory.
 TOKENS_PER_BATCH = int(os.environ.get("TOKENS_PER_BATCH", "65536"))
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
+# Bootstrap replicates and seed for the ROC AUC standard errors.
+BOOTSTRAP_RESAMPLES = 1000
+BOOTSTRAP_SEED = 0
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
-OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/ray-data-protein-embeddings-esm2-bionemo")
+OUTPUT_PATH = os.environ.get(
+    "OUTPUT_PATH", "/Volumes/main/default/air_examples/ray-data-protein-embeddings-esm2-bionemo"
+)
 
 
 def load_sequences():
@@ -127,20 +132,63 @@ def composition(sequence):
     return counts / max(len(sequence), 1)
 
 
-def fit_probe(x_train, y_train, x_test, y_test):
-    """Fit a logistic-regression probe and score it on the held-out split."""
+def fit_probe(x_train, y_train, x_test):
+    """Fit a logistic-regression probe and return its membrane-bound probability for each test protein."""
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import accuracy_score, roc_auc_score
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
 
     probe = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))
     probe.fit(x_train, y_train)
-    prob = probe.predict_proba(x_test)[:, 1]
-    return {
-        "accuracy": round(float(accuracy_score(y_test, prob > 0.5)), 4),
-        "roc_auc": round(float(roc_auc_score(y_test, prob)), 4),
+    return probe.predict_proba(x_test)[:, 1]
+
+
+def bootstrap_auc_errors(y_true, prob_a, prob_b):
+    """Bootstrap standard errors of each probe's ROC AUC and of their difference, resampling proteins."""
+    from sklearn.metrics import roc_auc_score
+
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    draws = []
+    while len(draws) < BOOTSTRAP_RESAMPLES:
+        idx = rng.integers(len(y_true), size=len(y_true))
+        if y_true[idx].min() == y_true[idx].max():
+            continue
+        auc_a = roc_auc_score(y_true[idx], prob_a[idx])
+        auc_b = roc_auc_score(y_true[idx], prob_b[idx])
+        draws.append((auc_a, auc_b, auc_a - auc_b))
+    return np.array(draws).std(axis=0, ddof=1)
+
+
+def probe_summaries(y_true, prob_esm, prob_aac):
+    """Accuracy and ROC AUC of both probes, the ESM-2 minus composition difference, and their standard errors.
+
+    Accuracy uses the binomial standard error, and the difference uses the paired standard error over the
+    same test proteins. ROC AUC uses a bootstrap over proteins.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    n = len(y_true)
+    correct_esm = ((prob_esm > 0.5) == y_true).astype(float)
+    correct_aac = ((prob_aac > 0.5) == y_true).astype(float)
+    acc_esm, acc_aac = correct_esm.mean(), correct_aac.mean()
+    auc_esm, auc_aac = roc_auc_score(y_true, prob_esm), roc_auc_score(y_true, prob_aac)
+    auc_se_esm, auc_se_aac, auc_se_diff = bootstrap_auc_errors(y_true, prob_esm, prob_aac)
+
+    def probe(accuracy, auc, auc_se):
+        return {
+            "accuracy": round(float(accuracy), 4),
+            "accuracy_se": round(float(np.sqrt(accuracy * (1 - accuracy) / n)), 4),
+            "roc_auc": round(float(auc), 4),
+            "roc_auc_se": round(float(auc_se), 4),
+        }
+
+    difference = {
+        "accuracy": round(float(acc_esm - acc_aac), 4),
+        "accuracy_se": round(float((correct_esm - correct_aac).std(ddof=1) / np.sqrt(n)), 4),
+        "roc_auc": round(float(auc_esm - auc_aac), 4),
+        "roc_auc_se": round(float(auc_se_diff), 4),
     }
+    return probe(acc_esm, auc_esm, auc_se_esm), probe(acc_aac, auc_aac, auc_se_aac), difference
 
 
 def check_output_volume(path):
@@ -216,8 +264,11 @@ def main():
     y = result["membrane"].to_numpy()
     x_esm = np.stack(result["embedding"].to_numpy())
     x_aac = np.stack([composition(s) for s in result["sequence"]])
-    esm_probe = fit_probe(x_esm[~is_test], y[~is_test], x_esm[is_test], y[is_test])
-    aac_probe = fit_probe(x_aac[~is_test], y[~is_test], x_aac[is_test], y[is_test])
+    esm_probe, aac_probe, probe_difference = probe_summaries(
+        y[is_test],
+        fit_probe(x_esm[~is_test], y[~is_test], x_esm[is_test]),
+        fit_probe(x_aac[~is_test], y[~is_test], x_aac[is_test]),
+    )
 
     # Wall time includes model load; per-GPU throughput counts only time spent embedding.
     gpu_seconds = float(result["embed_seconds"].sum())
@@ -230,11 +281,14 @@ def main():
         "embedding_dim": int(x_esm.shape[1]),
         "membrane_probe_esm2": esm_probe,
         "membrane_probe_aa_composition": aac_probe,
+        "membrane_probe_esm2_minus_aa_composition": probe_difference,
     }
     print("METRICS " + json.dumps(metrics), flush=True)
-    probe_table = pd.DataFrame(
-        [{"features": "esm2_embedding", **esm_probe}, {"features": "aa_composition", **aac_probe}]
-    )
+    probe_table = pd.DataFrame([
+        {"features": "esm2_embedding", **esm_probe},
+        {"features": "aa_composition", **aac_probe},
+        {"features": "esm2_minus_aa_composition", **probe_difference},
+    ])
     log_to_mlflow(
         run_id,
         params={"model": MODEL_SOURCE, "dataset": DATASET_REPO, "num_gpus": total_gpus, "output_path": run_output_path},

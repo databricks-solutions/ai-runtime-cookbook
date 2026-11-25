@@ -22,4 +22,4 @@ databricks air run -f workload.yaml --watch
 
 Each run writes one Parquet row per protein to `OUTPUT_PATH/<MLflow run ID>`, with the accession, split, labels, sequence, and a 1,280-dimension mean-pooled embedding. The workload's MLflow run records throughput, the accuracy and ROC AUC of both probes, and a `membrane_probe.json` table comparing them.
 
-On the full dataset, the ESM-2 probe reaches about 0.88 accuracy and 0.925 ROC AUC, against 0.77 and 0.76 for the amino-acid-composition baseline (measured with model revision `118f470` and dataset revision `51a44a7`).
+`membrane_probe.json` reports the accuracy and ROC AUC of the ESM-2 probe and the amino-acid-composition baseline, each with a standard error. Accuracy uses the binomial standard error over the test proteins. ROC AUC uses a bootstrap over proteins with 1,000 resamples. The ESM-2 minus baseline difference has its own standard error: a paired one for accuracy, because both probes score the same proteins, and a bootstrap one for ROC AUC.
