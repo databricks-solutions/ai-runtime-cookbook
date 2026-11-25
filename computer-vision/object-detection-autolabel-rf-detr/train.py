@@ -19,7 +19,7 @@ from faster_coco_eval.core.faster_eval_api import COCOeval
 from huggingface_hub import snapshot_download
 from PIL import Image
 from rfdetr import RFDETR, RFDETRNano
-from torchvision.ops import batched_nms
+from torchvision.ops import batched_nms, box_iou
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
 HF_SPLITS = ("train", "validation", "test")
@@ -87,11 +87,10 @@ def run_labeler(records, image_dir, p, detector, processor, device):
         batch = records[start : start + batch_size]
         images = [Image.open(image_dir / record["file_name"]).convert("RGB") for record in batch]
         inputs = processor(text=[class_names] * len(images), images=images, return_tensors="pt").to(device)
-        with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+        # Float32, no autocast. Under bf16 the box head returns bf16 boxes, and bf16 has steps of 8 px
+        # between 1024 and 2048 px.
+        with torch.inference_mode():
             outputs = detector(**inputs)
-        # Decode and scale boxes in float32 to avoid bf16 pixel-coordinate rounding.
-        outputs.logits = outputs.logits.float()
-        outputs.pred_boxes = outputs.pred_boxes.float()
         target_sizes = torch.tensor([[image.height, image.width] for image in images], device=device)
         results = processor.post_process_grounded_object_detection(
             outputs=outputs,
@@ -128,16 +127,6 @@ def xyxy_to_xywh(box):
     return [x0, y0, x1 - x0, y1 - y0]
 
 
-def box_iou_xywh(first, second):
-    x0 = max(first[0], second[0])
-    y0 = max(first[1], second[1])
-    x1 = min(first[0] + first[2], second[0] + second[2])
-    y1 = min(first[1] + first[3], second[1] + second[3])
-    intersection = max(0.0, x1 - x0) * max(0.0, y1 - y0)
-    union = first[2] * first[3] + second[2] * second[3] - intersection
-    return intersection / union if union > 0 else 0.0
-
-
 def detection_f1(records, raw, threshold, nms_iou):
     """Micro-averaged F1 with class-aware, one-to-one matching at IoU 0.5."""
     true_positives, prediction_count, ground_truth_count = 0, 0, 0
@@ -145,12 +134,16 @@ def detection_f1(records, raw, threshold, nms_iou):
         boxes, scores, labels = select_detections(raw[record["file_name"]], threshold, nms_iou)
         prediction_count += len(scores)
         ground_truth_count += len(record["boxes"])
+        gt_xyxy = torch.tensor(
+            [[x, y, x + w, y + h] for x, y, w, h in record["boxes"]], dtype=torch.float32
+        ).reshape(-1, 4)
+        ious = box_iou(torch.from_numpy(boxes).reshape(-1, 4), gt_xyxy).numpy()
         matched = set()
-        for box, label in zip(boxes, labels):
+        for row, label in enumerate(labels):
             # NMS returns detections in descending confidence order.
             candidates = (
-                (box_iou_xywh(xyxy_to_xywh(box), gt_box), index)
-                for index, (gt_box, category) in enumerate(zip(record["boxes"], record["categories"]))
+                (ious[row, index], index)
+                for index, category in enumerate(record["categories"])
                 if index not in matched and category == int(label) + 1
             )
             iou, index = max(candidates, default=(0.0, None))
@@ -163,20 +156,19 @@ def detection_f1(records, raw, threshold, nms_iou):
     return {"precision": precision, "recall": recall, "f1": f1}
 
 
+def coco_results(image_id, boxes, scores, labels):
+    """COCO result dicts for one image. Boxes arrive as xyxy pixels and leave as COCO xywh."""
+    return [
+        {"image_id": image_id, "category_id": int(label) + 1, "bbox": xyxy_to_xywh(box), "score": float(score)}
+        for box, score, label in zip(boxes, scores, labels)
+    ]
+
+
 def labeler_predictions(records, raw, threshold, nms_iou):
     """Convert the detector's output to COCO result dicts. Image ids follow the order of `records`."""
     predictions = []
     for image_id, record in enumerate(records, start=1):
-        boxes, scores, labels = select_detections(raw[record["file_name"]], threshold, nms_iou)
-        for box, score, label in zip(boxes, scores, labels):
-            predictions.append(
-                {
-                    "image_id": image_id,
-                    "category_id": int(label) + 1,
-                    "bbox": xyxy_to_xywh(box),
-                    "score": float(score),
-                }
-            )
+        predictions.extend(coco_results(image_id, *select_detections(raw[record["file_name"]], threshold, nms_iou)))
     return predictions
 
 
@@ -186,22 +178,12 @@ def rfdetr_predictions(model, records, image_dir, threshold=0.01):
         image = Image.open(image_dir / record["file_name"]).convert("RGB")
         detections = model.predict(image, threshold=threshold)
         image.close()
-        for box, score, class_id in zip(detections.xyxy, detections.confidence, detections.class_id):
-            predictions.append(
-                {
-                    "image_id": image_id,
-                    "category_id": int(class_id) + 1,
-                    "bbox": xyxy_to_xywh(box),
-                    "score": float(score),
-                }
-            )
+        predictions.extend(coco_results(image_id, detections.xyxy, detections.confidence, detections.class_id))
     return predictions
 
 
 def coco_map(ground_truth_path, predictions, image_ids):
     """COCO box mAP@[.50:.95] and mAP@.50 using faster-coco-eval, the backend RF-DETR uses for its own metrics."""
-    if not predictions:
-        return {"map50_95": 0.0, "map50": 0.0}
     ground_truth = COCO(str(ground_truth_path))
     evaluator = COCOeval(ground_truth, iouType="bbox")
     evaluator.cocoDt = ground_truth.loadRes(predictions)

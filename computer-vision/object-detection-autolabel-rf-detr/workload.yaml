@@ -3,14 +3,11 @@ experiment_name: air-object-detection-autolabel-rf-detr
 environment:
   version: "5"
   dependencies:
-    # RF-DETR 1.12.1 requires transformers 5.1 or newer. transformers 5.20.2 also loads the OWLv2 detector.
     - rfdetr[train]==1.12.1
     - transformers==5.20.2
     - huggingface_hub==2.4.0
-    # RF-DETR's own COCO evaluator backend. Used directly here so the labeler and RF-DETR share one mAP implementation.
     - faster-coco-eval==1.7.2
-    # rfdetr[train] installs roboflow, which requires opencv-python-headless. 4.12.0.88 is the newest release whose
-    # only Linux x86_64 wheel is manylinux2014; the manylinux_2_28 wheels abort with "FATAL FIPS SELFTEST FAILURE" on AI Runtime.
+    # Newer opencv-python-headless wheels abort with "FATAL FIPS SELFTEST FAILURE" on AI Runtime.
     - opencv-python-headless==4.12.0.88
 
 compute:
@@ -21,6 +18,7 @@ code_source:
   root_path: .
 
 command: |
+  set -eo pipefail
   # AIR may inherit this obsolete setting. huggingface_hub 1.0 and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/train.py"
