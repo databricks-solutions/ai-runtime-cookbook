@@ -93,9 +93,6 @@ def main():
         return
 
     print(f"Building Transformer Engine {TE_VERSION} for CUDA archs {archs}...", flush=True)
-    # Build tools for the binding. The environment already has a recent setuptools.
-    pip("install", "cmake==4.4.3", "ninja==1.13.0", "pybind11==3.1.0")
-
     # The CUDA math-library headers (cusparse.h, nvtx3, ...) are not under /usr/local/cuda/include in
     # this environment; they ship inside the nvidia-* pip wheels that PyTorch depends on.
     nv_includes = sorted({d for p in nvidia.__path__ for d in glob.glob(f"{p}/*/include")})

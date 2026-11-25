@@ -9,6 +9,9 @@ environment:
   version: databricks_ai_v6
   dependencies:
     # The environment's transformers needs huggingface_hub < 2. These versions work with it.
+    - cmake==4.4.3
+    - ninja==1.13.0
+    - pybind11==3.1.0
     - datasets==4.8.5
     - huggingface_hub==1.33.0
     - fsspec==2026.2.0
