@@ -33,6 +33,7 @@ command: |
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/train.py"
   python "$CODE_SOURCE_PATH/generate.py"
+  python "$CODE_SOURCE_PATH/load_lora.py"
 
 max_retries: 0
 timeout_minutes: 90

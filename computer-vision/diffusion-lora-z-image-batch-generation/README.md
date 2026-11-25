@@ -28,6 +28,38 @@ The run writes these files to `<output_root>/<MLflow run ID>/`:
 
 The AIR MLflow run records the training loss at each step and uploads the TensorBoard logs as the `tensorboard` artifact.
 
+After generation, `load_lora.py` loads the LoRA in a new process and generates one image with it. To load the LoRA yourself, use the same code:
+
+```python
+"""Load the saved LoRA in a fresh process and generate one image with it."""
+
+import os
+from pathlib import Path
+
+import torch
+import yaml
+from diffusers import ZImagePipeline
+
+with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+    P = yaml.safe_load(f)
+
+lora_path = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"] / "pytorch_lora_weights.safetensors"
+pipe = ZImagePipeline.from_pretrained(P["model_name"], torch_dtype=torch.bfloat16).to("cuda")
+pipe.load_lora_weights(str(lora_path))
+
+prompt = P["prompts"][0].format(subject=P["subject"])
+image = pipe(
+    prompt=prompt,
+    height=P["resolution"],
+    width=P["resolution"],
+    num_inference_steps=P["num_inference_steps"],
+    guidance_scale=P["generation_guidance_scale"],
+    generator=torch.Generator("cuda").manual_seed(0),
+).images[0]
+image.save("/tmp/lora_check.png")
+print(f"Generated one image with the LoRA from {lora_path}: {prompt!r}")
+```
+
 In a validation run on an H100, training took 4 minutes 40 seconds (1.07 steps/s). Generation took about 44 seconds per 8 images (30 steps at 768×768). With the LoRA, "sks dog" prompts show the dog from the training photos. Without it, the base model draws a generic dog.
 
 Edit `prompts` in `workload.yaml` to try other scenes. To train on your own subject, replace the dataset download in `train.py` with a directory of 3–10 images, and change `subject`.
