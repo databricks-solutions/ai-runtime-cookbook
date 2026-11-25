@@ -137,6 +137,11 @@ def train_fn(config, train_data=None, eval_data=None):
 
 
 def main():
+    # AI Runtime injects MLFLOW_RUN_ID. Check it before the sweep, so a missing run fails early.
+    run_id = os.environ.get("MLFLOW_RUN_ID")
+    if not run_id:
+        raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+
     ray.init(address="auto")
 
     num_nodes = int(os.environ.get("NUM_NODES", 1))
@@ -188,26 +193,22 @@ def main():
     print(f"\nBest config:    {best.config}", flush=True)
     print(f"Best eval_loss: {best.metrics['eval_loss']:.4f}", flush=True)
 
-    # AI Runtime injects MLFLOW_RUN_ID and configures the databricks tracking URI on the
-    # node, so logging needs no credentials here. Gating on the variable keeps the script
-    # runnable off-platform, where it is unset.
-    if os.environ.get("MLFLOW_RUN_ID"):
-        with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
-            mlflow.log_params(
-                {
-                    "model": MODEL_NAME,
-                    "dataset": DATASET_NAME,
-                    "num_samples": NUM_SAMPLES,
-                    "scheduler": "ASHA",
-                    "asha_max_t": MAX_ITERATIONS,
-                    "asha_grace_period": GRACE_PERIOD,
-                    **{f"best_{k}": v for k, v in best.config.items()},
-                }
-            )
-            mlflow.log_metric("best_eval_loss", best.metrics["eval_loss"])
-            for i, result in enumerate(results):
-                if result.metrics and "eval_loss" in result.metrics:
-                    mlflow.log_metric("trial_eval_loss", result.metrics["eval_loss"], step=i)
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_params(
+            {
+                "model": MODEL_NAME,
+                "dataset": DATASET_NAME,
+                "num_samples": NUM_SAMPLES,
+                "scheduler": "ASHA",
+                "asha_max_t": MAX_ITERATIONS,
+                "asha_grace_period": GRACE_PERIOD,
+                **{f"best_{k}": v for k, v in best.config.items()},
+            }
+        )
+        mlflow.log_metric("best_eval_loss", best.metrics["eval_loss"])
+        for i, result in enumerate(results):
+            if result.metrics and "eval_loss" in result.metrics:
+                mlflow.log_metric("trial_eval_loss", result.metrics["eval_loss"], step=i)
 
     ray.shutdown()
 
