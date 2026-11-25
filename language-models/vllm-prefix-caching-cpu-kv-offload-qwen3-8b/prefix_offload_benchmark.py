@@ -32,6 +32,20 @@ import yaml
 PORT = 8100
 BASE_URL = f"http://127.0.0.1:{PORT}"
 CONFIG_NAMES = ["prefix_off", "prefix_gpu", "prefix_cpu_offload", "prefix_off_repeat"]
+# The summary fields the README reports. Other fields stay in results.json and results.csv.
+REPORTED_KEYS = [
+    "output_tokens_per_s",
+    "wall_s",
+    "ttft_mean_ms",
+    "ttft_mean_ms_se",
+    "ttft_median_ms",
+    "ttft_median_ms_se",
+    "e2e_median_ms",
+    "gpu_prefix_hit_rate",
+    "external_prefix_hit_rate",
+    "gpu_kv_cache_tokens",
+    "gpu_kv_fraction_of_prefixes",
+]
 BOOTSTRAP_REPS = 200
 VOCAB_LO, VOCAB_HI = 1000, 150000
 GIB = 2**30
@@ -423,12 +437,11 @@ def log_to_mlflow(run_id, c, cpu_gib, mem, summaries, match):
     }
     metrics = {"host_usable_ram_gib": mem["usable_gib"], "cpu_offload_gib": cpu_gib}
     for name, s in summaries.items():
-        for key, value in s.items():
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                metrics[f"{name}/{key}"] = float(value)
+        for key in REPORTED_KEYS:
+            if s.get(key) is not None:
+                metrics[f"{name}/{key}"] = float(s[key])
     for name, frac in match.items():
         metrics[f"{name}/output_match_vs_prefix_off"] = frac
-    metrics = {k: v for k, v in metrics.items() if v is not None}
     with mlflow.start_run(run_id=run_id):
         mlflow.log_params(params)
         mlflow.log_metrics(metrics)

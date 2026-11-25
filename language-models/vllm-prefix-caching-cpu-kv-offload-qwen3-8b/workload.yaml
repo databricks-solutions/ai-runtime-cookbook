@@ -35,8 +35,7 @@ command: |
 
 max_retries: 0
 # Four fresh vLLM servers (three configurations plus the prefix_off repeat control), each with a model load and CUDA
-# graph capture, plus one 800-request stream per server. The standard-v6 runs took about 12 minutes in the container.
-# The timer includes queue time, so 120 minutes leaves room.
+# graph capture, plus one 800-request stream per server. The timeout includes queue time.
 timeout_minutes: 120
 
 parameters:
