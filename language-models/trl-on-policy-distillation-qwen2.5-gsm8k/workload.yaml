@@ -6,24 +6,19 @@ experiment_name: air-trl-opd-qwen25-15b-to-05b-gsm8k
 environment:
   version: "6"
   dependencies:
-    # DistillationTrainer and DistillationConfig. 1.18.0 is the newest TRL on the internal package proxy.
-    # vLLM 0.33 is the newest that TRL 1.18 supports (vllm<0.34).
     - trl==1.18.0
+    # TRL 1.18 supports vLLM below 0.34.
     - vllm==0.33.0
-    # vllm resolves this torch version. Pinned here because the scripts import torch directly.
     - torch==2.14.0
-    # vLLM 0.33 needs transformers < 5.21.
     - transformers==5.20.2
     - accelerate==1.15.0
-    # The environment's huggingface_hub breaks load_dataset with newer fsspec releases
-    # ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
-    # These versions work together.
+    # Newer fsspec breaks load_dataset with this huggingface_hub: HfFileSystem.find() gets maxdepth twice.
     - datasets==5.2.0
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
     - mlflow-skinny==3.8.1
-    # OpenCV is not pinned: v6 preinstalls opencv-python-headless 5.0.0.93, which satisfies vllm's >=4.13 and
-    # avoids the manylinux_2_28 FIPS abort that a pip-resolved 5.0.0.93 hit on v5.
+    - nvidia-ml-py==13.615.71
+    # OpenCV is not pinned. The preinstalled v6 build is used as-is.
 
 compute:
   num_accelerators: 1
@@ -41,8 +36,6 @@ command: |
   set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # The environment preinstalls an older nvidia-ml-py; pin the known-good release for vLLM's pynvml usage.
-  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   cd "$CODE_SOURCE_PATH"
 
   # Each stage is its own process, which releases GPU memory between vLLM and training.

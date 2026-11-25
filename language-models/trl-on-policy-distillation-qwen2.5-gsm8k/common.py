@@ -33,16 +33,11 @@ def messages(question):
 
 def final_number(text):
     """The number after '####', else the last number in the text. None if there is none."""
-    if text is None:
-        return None
     match = re.search(r"####\s*\$?(-?[\d,]*\.?\d+)", text)
     found = match.group(1) if match else (re.findall(r"-?[\d,]*\.?\d+", text) or [None])[-1]
     if found is None:
         return None
-    try:
-        return float(found.replace(",", "").rstrip("."))
-    except ValueError:
-        return None
+    return float(found.replace(",", ""))
 
 
 def is_correct(prediction_text, gold_answer_text):

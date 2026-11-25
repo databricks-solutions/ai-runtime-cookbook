@@ -1,11 +1,14 @@
 """Offline arm, step 2: SFT on the teacher's fixed solutions for the same number of steps as the on-policy run."""
 
 import json
+import os
 import time
 from pathlib import Path
 
+import mlflow
 import torch
 from datasets import load_dataset
+from transformers import TrainerCallback
 from trl import SFTConfig, SFTTrainer
 
 from common import (
@@ -16,6 +19,15 @@ from common import (
     WORK,
     StopOnNonFiniteGradients,
 )
+
+
+class MLflowLossCallback(TrainerCallback):
+    """Logs the SFT loss to the AIR run under offline/, so it does not overwrite the on-policy curve keys."""
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        for key in ("loss", "grad_norm", "learning_rate"):
+            if logs and key in logs:
+                mlflow.log_metric(f"offline/{key}", float(logs[key]), step=state.global_step)
 
 
 def main():
@@ -35,16 +47,18 @@ def main():
         logging_steps=10,
         logging_nan_inf_filter=False,
         save_strategy="no",
-        # report_to="none": the on-policy run owns the MLflow curve keys, and this run's loss would overwrite them.
+        # report_to="none" keeps the trainer's own MLflow run out. MLflowLossCallback logs under offline/ instead.
         report_to="none",
         seed=0,
     )
+    # The run stays open from before training until the final stats are written.
+    mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"])
     t0 = time.time()
     trainer = SFTTrainer(
         model=STUDENT_MODEL,
         args=args,
         train_dataset=data,
-        callbacks=[StopOnNonFiniteGradients()],
+        callbacks=[StopOnNonFiniteGradients(), MLflowLossCallback()],
     )
     # Control for the save path: the untrained student saved and reloaded through the same call as the trained one.
     trainer.save_model(f"{WORK}/control-offline")
@@ -65,6 +79,7 @@ def main():
     }
     print(json.dumps(stats), flush=True)
     Path(f"{WORK}/offline_train_stats.json").write_text(json.dumps(stats))
+    mlflow.end_run()
 
 
 if __name__ == "__main__":

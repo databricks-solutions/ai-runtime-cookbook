@@ -61,7 +61,6 @@ def main():
         report_to="mlflow",
         seed=0,
     )
-    t0 = time.time()
     trainer = DistillationTrainer(
         model=STUDENT_MODEL,
         teacher_model=TEACHER_MODEL,
@@ -72,13 +71,15 @@ def main():
     # Control for the save path: the untrained student saved and reloaded through the same call as the trained one.
     trainer.save_model(f"{WORK}/control-opd")
     trainer.processing_class.save_pretrained(f"{WORK}/control-opd")
+    t0 = time.time()
     result = trainer.train()
+    train_seconds = time.time() - t0
     trainer.save_model(f"{WORK}/opd-student")
     trainer.processing_class.save_pretrained(f"{WORK}/opd-student")
     stats = {
         "opd_train_steps": int(result.global_step),
         "opd_expected_steps": TRAIN_STEPS,
-        "opd_train_seconds": time.time() - t0,
+        "opd_train_seconds": train_seconds,
         "opd_training_loss": float(result.training_loss),
     }
     if stats["opd_train_steps"] != TRAIN_STEPS:
