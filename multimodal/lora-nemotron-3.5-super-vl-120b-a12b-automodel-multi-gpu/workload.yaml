@@ -22,7 +22,7 @@ compute:
 code_source:
   root_path: .
   include_paths:
-    - train.sh
+    - train.py
     - nemotron_cord_v2.yaml
 
 env_variables:
@@ -44,4 +44,8 @@ timeout_minutes: 240
 max_retries: 0
 
 command: |
-  bash "$CODE_SOURCE_PATH/train.sh"
+  # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  set -euo pipefail
+  cd "$CODE_SOURCE_PATH"
+  python train.py

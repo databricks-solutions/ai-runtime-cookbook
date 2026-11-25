@@ -1,7 +1,7 @@
 # LoRA finetuning for Nemotron 3.5 Super VL (vision-language MoE); the vision and
 # audio towers stay frozen and multi-token prediction is disabled.
 #
-# This file is the source of truth for the training configuration; train.sh only
+# This file is the source of truth for the training configuration; train.py only
 # injects the AIR experiment name and the local-disk checkpoint path at runtime.
 #
 # To run this recipe:
