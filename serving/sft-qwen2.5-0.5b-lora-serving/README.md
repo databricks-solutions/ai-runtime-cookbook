@@ -14,6 +14,8 @@ The Volume and source MLflow run ID form the handoff between stages, so registra
 
 ## Before you run
 
+Select a workspace profile as described in the [top-level README](../../README.md#select-a-workspace-profile) before you run the commands below.
+
 - Set `parameters.output_root` in `workload.yaml` to an existing writable Unity Catalog Volume directory.
 - Set the catalog, schema, and model defaults in `databricks.yml`. The bundle passes these values to `register_job.py`; its widget defaults apply only to interactive runs. You need `USE CATALOG`, `USE SCHEMA`, and `CREATE MODEL` on the target.
 - Confirm that you can create Model Serving endpoints and use `GPU_MEDIUM` workloads.
@@ -28,7 +30,7 @@ databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<
 Installing the local deployment dependencies requires Python 3.10 or later with the `venv` module. On Debian or Ubuntu, first run `sudo apt install python3-venv`. Then deploy the registration job and install the dependencies into a virtual environment once:
 
 ```bash
-databricks bundle deploy -t dev --profile <PROFILE>
+databricks bundle deploy -t dev
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-deploy.txt
 ```
@@ -44,7 +46,7 @@ Redeploy the bundle after changing its job configuration or registration code.
 From this directory, run:
 
 ```bash
-databricks air run -f workload.yaml --watch --profile <PROFILE>
+databricks air run -f workload.yaml --watch
 ```
 
 The final `TRAINING_RESULT` line contains `mlflow_run_id`, which the next stage needs, and the merged-model path. The weights are saved at `<output_root>/<MLFLOW_RUN_ID>/merged`.
@@ -52,7 +54,7 @@ The final `TRAINING_RESULT` line contains `mlflow_run_id`, which the next stage 
 The MLflow run ID is a 32-character hexadecimal string. It is not the numeric job run ID that `air run` prints. If you submitted without `--watch`, print the line from the job run's logs:
 
 ```bash
-databricks air logs <JOB_RUN_ID> --profile <PROFILE> | grep TRAINING_RESULT
+databricks air logs <JOB_RUN_ID> | grep TRAINING_RESULT
 ```
 
 ### 2. Register the model
@@ -60,7 +62,7 @@ databricks air logs <JOB_RUN_ID> --profile <PROFILE> | grep TRAINING_RESULT
 Pass the MLflow run ID of a successful training run to the registration job:
 
 ```bash
-databricks bundle run register_qwen_sft -t dev --profile <PROFILE> \
+databricks bundle run register_qwen_sft -t dev \
   --params source_training_run_id=<MLFLOW_RUN_ID>
 ```
 
@@ -71,13 +73,13 @@ The job returns the exact registered model version. Each registration run create
 The job creates the registered model before the smoke test, so a failed run can leave an empty registered model in Unity Catalog. Your rerun reuses it, but only a model's owner can add versions to it, so each user needs their own `model_name` in `databricks.yml`. Deleting a registered model also deletes all of its versions, so list them first:
 
 ```bash
-databricks model-versions list <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
+databricks model-versions list <CATALOG>.<SCHEMA>.<MODEL>
 ```
 
 If the list is empty, delete the model:
 
 ```bash
-databricks registered-models delete <CATALOG>.<SCHEMA>.<MODEL> --profile <PROFILE>
+databricks registered-models delete <CATALOG>.<SCHEMA>.<MODEL>
 ```
 
 ### 3. Deploy and query the endpoint
@@ -89,17 +91,15 @@ Create or update the endpoint with the exact registered version. Choose an endpo
   --model-name <CATALOG>.<SCHEMA>.<MODEL> \
   --model-version <VERSION> \
   --endpoint-name <ENDPOINT_NAME> \
-  --profile <PROFILE> \
   --wait
 ```
 
-With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. It waits up to 45 minutes; if it stops while the update is still in progress, rerun the same command to resume waiting. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME> --profile <PROFILE>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
+With `--wait`, the script returns after the endpoint is ready and serves the requested version, which usually takes several minutes for a new endpoint. It waits up to 45 minutes; if it stops while the update is still in progress, rerun the same command to resume waiting. Without `--wait`, the script exits after submitting the change. In that case, run `databricks serving-endpoints get <ENDPOINT_NAME>` until `state.ready` is `READY` and `state.config_update` is `NOT_UPDATING`, then confirm that `config.served_entities` contains the requested model version. An endpoint can remain ready on its previous version while an update is still in progress.
 
 Send a sample request. It uses the registration smoke-test prompt, whose answer appears as `local_vllm_response` in the result that the registration job printed. Sampling is not fixed, so the wording can differ, but the answer should be about Low-Rank Adaptation and comparable to that one:
 
 ```bash
 databricks serving-endpoints query <ENDPOINT_NAME> \
-  --profile <PROFILE> \
   --json '{"messages":[{"role":"user","content":"In machine learning, explain Low-Rank Adaptation in one sentence."}],"max_tokens":64}'
 ```
 
