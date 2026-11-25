@@ -1,0 +1,83 @@
+# Agentic tool-use reinforcement learning (multi-turn GRPO) with TRL's AsyncGRPOTrainer on 2 of 8 H100s.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-trl-async-grpo-tool-use-qwen3-1_7b
+
+environment:
+  version: "5"
+  dependencies:
+    - trl==1.18.0
+    - vllm==0.33.0
+    - transformers==5.20.2
+    - peft==0.21.2
+    - accelerate==1.15.0
+    - kernels==0.17.2
+    - aiohttp==3.14.4
+    # Newer fsspec releases break load_dataset with this huggingface_hub ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  # AsyncGRPOTrainer always generates on a separate vLLM server and has no colocate mode, so
+  # the server and the trainer need different GPUs. No single-GPU shape can hold both.
+  # GPU 0 runs vLLM, GPU 1 runs the trainer. GPUs 2-7 stay idle.
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting. huggingface_hub 1.0 and later use Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+
+  # Start the rollout server on GPU 0. serve.py reads the model name from the parameters.
+  CUDA_VISIBLE_DEVICES=0 VLLM_SERVER_DEV_MODE=1 VLLM_ALLOW_RUNTIME_LORA_UPDATING=1 \
+    python "$CODE_SOURCE_PATH/serve.py" > /tmp/vllm-server.log 2>&1 &
+  VLLM_PID=$!
+  trap 'kill "$VLLM_PID" 2>/dev/null; wait "$VLLM_PID" 2>/dev/null' EXIT
+
+  # Wait up to 15 minutes for the server to load the model. Fail fast if it exits.
+  for _ in $(seq 1 90); do
+    if curl -sf http://localhost:8000/health > /dev/null; then
+      echo "vLLM server is ready"
+      break
+    fi
+    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
+      echo "vLLM server exited early; last log lines:"
+      tail -n 100 /tmp/vllm-server.log
+      exit 1
+    fi
+    sleep 10
+  done
+  curl -sf http://localhost:8000/health > /dev/null || { echo "vLLM server not ready"; tail -n 100 /tmp/vllm-server.log; exit 1; }
+
+  # The trainer runs on GPU 1 and reaches the server at localhost:8000.
+  CUDA_VISIBLE_DEVICES=1 python "$CODE_SOURCE_PATH/train.py"
+
+  # Load the saved adapter in a fresh process, the way a reader would.
+  CUDA_VISIBLE_DEVICES=1 python "$CODE_SOURCE_PATH/check_adapter.py"
+
+max_retries: 0
+# Training takes about 45 minutes; the two evaluations over every usable test row add more, and queue time counts.
+timeout_minutes: 150
+
+parameters:
+  model_name: Qwen/Qwen3-1.7B   # public; no Hugging Face token needed. Chat template supports tool calls.
+  lora_r: 16
+  # Training prompts: schemas and questions from gretelai/synthetic_text_to_sql train split (Apache-2.0).
+  train_samples: 2000
+  # Held-out evaluation: every usable test row, before and after training. The same rows are used for both.
+  max_steps: 80
+  learning_rate: 0.00005
+  num_generations: 8
+  max_completion_length: 512          # per model turn
+  max_tool_calling_iterations: 6
+  gradient_accumulation_steps: 4      # micro-batches (token-budget rows) per optimizer step
+  max_concurrent_rollouts: 256
+  save_steps: 40
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/trl-async-grpo-tool-use
