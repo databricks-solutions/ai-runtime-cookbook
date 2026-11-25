@@ -73,7 +73,7 @@ def main():
     train_rows = train_data.num_rows()
 
     model = DDP(nn.Sequential(nn.Linear(len(FEATURES), 64), nn.ReLU(), nn.Linear(64, 1)).to(device), device_ids=[device.index])
-    optimizer = torch.optim.Adam(model.parameters(), lr=p["learning_rate"])
+    optimizer = torch.optim.Adam(model.parameters(), lr=float(p["learning_rate"]))
     criterion = nn.BCEWithLogitsLoss()
 
     if rank == 0:
