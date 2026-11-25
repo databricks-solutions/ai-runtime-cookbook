@@ -10,7 +10,7 @@ The recipe reports the upstream training and validation losses. The model is tra
 
 A low loss does not mean good anomaly detection. The two are different. To measure detection quality, you score labeled data that has both normal and anomalous rows, then compare the scores to the labels. A common metric is average precision. The recipe runs this step on the held-out test set and reports the result. See [Evaluate on the held-out test set](#evaluate-on-the-held-out-test-set) below.
 
-The validation loss is stochastic, so it changes from epoch to epoch. The epoch with the lowest validation loss becomes the best checkpoint. The workload takes about 10 minutes to run. Fine-tuning takes a few minutes, and scoring the held-out test set takes a few more.
+The validation loss is stochastic, so it changes from epoch to epoch. The epoch with the lowest validation loss becomes the best checkpoint. The workload takes about 10 minutes to run.
 
 ## Before you run
 
@@ -46,10 +46,10 @@ After training, the recipe scores the held-out rows with the base checkpoint and
 
 Anomalies are rare, so scoring is the slowest part of the recipe. `EVAL_ROWS` sets how many held-out rows to score. The default of 2500 keeps the run short. Set it to 0 to score the whole test set for a less noisy metric, and raise `timeout_minutes` to match.
 
-To run the evaluation on its own, use `evaluate_holdout.py` from the upstream `Kumo-Anomaly` directory and its `uv` environment. It scores the held-out rows with the given checkpoints and writes the metrics to the output file:
+To run the evaluation on its own, change to the upstream `Kumo-Anomaly` directory, then run this recipe's `evaluate_holdout.py` with that directory's `uv` environment. It scores the held-out rows with the given checkpoints and writes the metrics to the output file:
 
 ```bash
-uv run --frozen --no-dev python evaluate_holdout.py \
+uv run --frozen --no-dev python /path/to/finetune-kumo-anomaly-single-gpu/evaluate_holdout.py \
     --source <dir with TimeSeries.csv and labelsTimeSeries.csv> \
     --manifest <work_dir>/data/manifest.json \
     --finetuned-model <work_dir>/checkpoints/best_finetuned_model.pth \
