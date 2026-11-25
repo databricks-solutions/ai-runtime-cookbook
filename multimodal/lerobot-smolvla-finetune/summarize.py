@@ -13,11 +13,13 @@ import yaml
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
-log, run_dir, log_freq = Path(sys.argv[1]).read_text(), Path(sys.argv[2]), int(sys.argv[3])
-# LeRobot logs every log_freq steps and abbreviates the step count (step:1K), so number the
-# points from the logging interval instead of parsing the abbreviated value.
+RUN_DIR = Path("/tmp/lerobot/smolvla")
+# Same logging interval as train.py. LeRobot abbreviates the step count (step:1K), so number the
+# points from the interval instead of parsing the abbreviated value.
+LOG_FREQ = max(P["steps"] // 40, 1)
+log = Path(sys.argv[1]).read_text()
 losses = [float(l) for l in re.findall(r"step:\S+ .*?loss:([\d.]+)", log)]
-points = [((i + 1) * log_freq, loss) for i, loss in enumerate(losses)]
+points = [((i + 1) * LOG_FREQ, loss) for i, loss in enumerate(losses)]
 if not points:
     sys.exit("no loss lines found in the training log")
 first, last = points[0][1], points[-1][1]
@@ -29,7 +31,7 @@ print(json.dumps(summary, indent=2))
 out = Path(P["output_root"]) / os.environ["MLFLOW_RUN_ID"]
 out.mkdir(parents=True, exist_ok=True)
 (out / "summary.json").write_text(json.dumps({"summary": summary, "loss": points}, indent=2))
-model_dirs = sorted(run_dir.glob("checkpoints/*/pretrained_model"))
+model_dirs = sorted(RUN_DIR.glob("checkpoints/*/pretrained_model"))
 if model_dirs:
     shutil.copytree(model_dirs[-1], out / "pretrained_model", dirs_exist_ok=True)
     print(f"Copied {model_dirs[-1]} to {out / 'pretrained_model'}")

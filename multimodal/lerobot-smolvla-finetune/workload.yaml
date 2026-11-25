@@ -28,7 +28,10 @@ code_source:
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  bash "$CODE_SOURCE_PATH/train.sh"
+  set -eo pipefail
+  cd "$CODE_SOURCE_PATH"
+  python train.py 2>&1 | tee /tmp/train.log
+  python summarize.py /tmp/train.log
 
 max_retries: 0
 timeout_minutes: 90
