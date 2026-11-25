@@ -8,7 +8,13 @@ The sample demonstrates the API and a chronological backtest; it is not a claim 
 
 ## Before you run
 
-Set `parameters.output_root` to an existing writable Unity Catalog volume directory if you cannot use the shared default. The model (Apache 2.0) and sample data download automatically without a Hugging Face token.
+The model (Apache 2.0) and sample data download automatically without a Hugging Face token.
+
+The default `parameters.output_root` is a Unity Catalog volume. The volume must exist and be writable. To write outputs to another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
