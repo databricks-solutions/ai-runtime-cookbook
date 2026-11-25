@@ -4,7 +4,11 @@ This recipe uses Ray Data and vLLM to caption and classify the 3,669 photos in t
 
 ## Before you run
 
-`OUTPUT_PATH` in `workload.yaml` must be on an existing Unity Catalog volume that you can write to.
+`OUTPUT_PATH` in `workload.yaml` must be on an existing Unity Catalog volume that you can write to. To write to another volume, override `env_variables.OUTPUT_PATH` when you submit the run:
+
+```bash
+databricks air run -f workload.yaml --override env_variables.OUTPUT_PATH=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
