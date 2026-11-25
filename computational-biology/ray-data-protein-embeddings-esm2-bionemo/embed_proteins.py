@@ -49,8 +49,6 @@ TOKENS_PER_BATCH = int(os.environ.get("TOKENS_PER_BATCH", "65536"))
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
 OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo")
-# AI Runtime creates an MLflow run per attempt, so each attempt gets its own output directory.
-RUN_OUTPUT_PATH = os.path.join(OUTPUT_PATH, os.environ.get("MLFLOW_RUN_ID") or "local")
 
 
 def load_sequences():
@@ -156,11 +154,8 @@ def check_output_volume(path):
         )
 
 
-def log_to_mlflow(params, metrics, tables):
+def log_to_mlflow(run_id, params, metrics, tables):
     """Attach params, metrics, and result tables to the MLflow run AI Runtime creates for the workload."""
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    if not run_id:
-        return
     from mlflow.tracking import MlflowClient
 
     client = MlflowClient()
@@ -177,9 +172,12 @@ def log_to_mlflow(params, metrics, tables):
 
 
 def main():
+    run_id = os.environ["MLFLOW_RUN_ID"]
+    # AI Runtime creates an MLflow run per attempt, so each attempt gets its own output directory.
+    run_output_path = os.path.join(OUTPUT_PATH, run_id)
     check_output_volume(OUTPUT_PATH)
     # Creating the run directory now also fails fast if the volume isn't writable.
-    os.makedirs(RUN_OUTPUT_PATH, exist_ok=True)
+    os.makedirs(run_output_path, exist_ok=True)
     ray.init(address="auto")
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
     if total_gpus < 1:
@@ -208,8 +206,8 @@ def main():
     ).materialize()
     elapsed = time.time() - start
     # Overwrite so a re-run into the same directory replaces it instead of appending to it.
-    out.drop_columns(["embed_seconds"]).write_parquet(RUN_OUTPUT_PATH, mode="overwrite")
-    print(f"Wrote {out.count()} embeddings to {RUN_OUTPUT_PATH}", flush=True)
+    out.drop_columns(["embed_seconds"]).write_parquet(run_output_path, mode="overwrite")
+    print(f"Wrote {out.count()} embeddings to {run_output_path}", flush=True)
 
     # Linear probe: membrane-bound vs. soluble, trained on train + validation, scored on test
     # (a random split, not a homology partition, so scores are optimistic).
@@ -238,7 +236,8 @@ def main():
         [{"features": "esm2_embedding", **esm_probe}, {"features": "aa_composition", **aac_probe}]
     )
     log_to_mlflow(
-        params={"model": MODEL_SOURCE, "dataset": DATASET_REPO, "num_gpus": total_gpus, "output_path": RUN_OUTPUT_PATH},
+        run_id,
+        params={"model": MODEL_SOURCE, "dataset": DATASET_REPO, "num_gpus": total_gpus, "output_path": run_output_path},
         metrics=metrics,
         tables={"membrane_probe.json": probe_table},
     )
