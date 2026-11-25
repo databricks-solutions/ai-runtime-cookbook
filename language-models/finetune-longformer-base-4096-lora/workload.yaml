@@ -19,8 +19,10 @@ code_source:
   root_path: .
 
 command: |
+  set -eo pipefail
   cd $CODE_SOURCE_PATH
   python train.py
+  python load_adapter.py
 
 max_retries: 1
 timeout_minutes: 120

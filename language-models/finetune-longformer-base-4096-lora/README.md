@@ -30,3 +30,25 @@ The LoRA adapter (with the classification head) and tokenizer are written to
 `<output_root>/<MLFLOW_RUN_ID>` — by default under
 `/Volumes/main/default/air_examples/finetune-longformer-base-4096-lora/`. The
 run id is shown on the AIR attempt's MLflow page.
+
+## Using the adapter
+
+After training, the workload loads the saved adapter in a separate process and runs one prediction (`load_adapter.py`). To load it yourself, use the same steps:
+
+```python
+import torch
+from peft import PeftModel
+from transformers import AutoTokenizer, LongformerForSequenceClassification
+
+# num_labels must match what you trained with (2 for the default IMDB run).
+adapter_path = "/Volumes/main/default/air_examples/finetune-longformer-base-4096-lora/<MLFLOW_RUN_ID>"
+base = LongformerForSequenceClassification.from_pretrained("allenai/longformer-base-4096", num_labels=2)
+model = PeftModel.from_pretrained(base, adapter_path)
+tokenizer = AutoTokenizer.from_pretrained(adapter_path)
+model.eval()
+
+review = "A slow start, but the final act is excellent. Worth the time."
+inputs = tokenizer(review, return_tensors="pt", truncation=True, max_length=4096)
+with torch.no_grad():
+    logits = model(**inputs).logits
+```
