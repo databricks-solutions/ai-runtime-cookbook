@@ -1,0 +1,59 @@
+# LoRA fine-tuning of Qwen3-VL-2B-Instruct for receipt field extraction on one A10.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: air-qwen3-vl-2b-lora-receipts-a10
+
+environment:
+  # v5 has no preinstalled PyTorch or torchvision. torchvision is needed because the Qwen-VL image
+  # processor imports it unconditionally.
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    - torchvision==0.29.2
+    - transformers==5.22.2
+    - peft==0.21.2
+    - accelerate==1.15.0
+    - pillow==11.3.0
+    # Keep these three together: newer fsspec breaks load_dataset with this huggingface_hub.
+    - datasets==5.2.0
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
+  # A new process loads the saved adapter and answers one test receipt with it.
+  python "$CODE_SOURCE_PATH/load_adapter.py"
+
+max_retries: 0
+# The timeout clock starts at submission and includes queue time.
+timeout_minutes: 90
+
+parameters:
+  model_name: Qwen/Qwen3-VL-2B-Instruct   # public; no Hugging Face token needed
+  dataset_name: naver-clova-ix/cord-v2    # CC-BY-4.0; 800 train, 100 validation, 100 test receipts
+  # Visual token budget per receipt: each token covers 28x28 pixels, so 768 tokens is about 602k pixels.
+  min_pixels: 65536
+  max_pixels: 602112
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  epochs: 2
+  per_device_batch_size: 2
+  grad_accum: 4                 # effective batch 8
+  learning_rate: 0.0002
+  max_new_tokens: 512           # generation cap per receipt
+  eval_batch_size: 16
+  seed: 42
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/finetune-qwen3-vl-2b-lora-receipts-a10
