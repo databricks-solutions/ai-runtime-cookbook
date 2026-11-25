@@ -61,8 +61,6 @@ def wer_standard_errors(baseline_errors, finetuned_errors, words, n_resamples=10
     for _ in range(n_resamples):
         index = [rng.randrange(n) for _ in range(n)]
         total_words = sum(words[i] for i in index)
-        if not total_words:
-            continue
         baseline_wer = sum(baseline_errors[i] for i in index) / total_words
         finetuned_wer = sum(finetuned_errors[i] for i in index) / total_words
         baselines.append(baseline_wer)
@@ -224,8 +222,6 @@ def train(p, model, train_manifest, val_manifest, validation_records, exp_dir):
                 "shuffle": True,
                 "num_workers": p["num_workers"],
                 "pin_memory": True,
-                "min_duration": p["min_duration"],
-                "max_duration": p["max_duration"],
             }
         )
     )
