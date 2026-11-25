@@ -51,12 +51,17 @@ os.environ.setdefault("HF_HOME", str(SCRATCH / "hf_home"))
 def download() -> None:
     from huggingface_hub import HfApi, snapshot_download
 
-    entries = [e for e in HfApi().list_repo_tree(MODEL_NAME, recursive=True) if getattr(e, "size", None)]
+    api = HfApi()
+    # Resolve the main branch once, so the listing, the download and the log all name the same commit.
+    info = api.model_info(MODEL_NAME)
+    entries = [
+        e for e in api.list_repo_tree(MODEL_NAME, recursive=True, revision=info.sha) if getattr(e, "size", None)
+    ]
     total = sum(e.size for e in entries)
     free = shutil.disk_usage(SCRATCH).free
-    need = int(total * P["disk_headroom"])
+    need = int(total * float(P["disk_headroom"]))
     print(
-        f"Scratch disk {SCRATCH}: {free / GIB:,.0f} GiB free. {MODEL_NAME} main branch: "
+        f"Scratch disk {SCRATCH}: {free / GIB:,.0f} GiB free. {MODEL_NAME} main branch at commit {info.sha}: "
         f"{total / GIB:,.1f} GiB in {len(entries)} files. Need {need / GIB:,.0f} GiB with headroom.",
         flush=True,
     )
@@ -68,13 +73,20 @@ def download() -> None:
 
     start = time.time()
     # snapshot_download checks each downloaded file against its Hub size.
-    snapshot_download(MODEL_NAME, local_dir=str(MODEL_DIR), max_workers=P["download_workers"])
+    snapshot_download(MODEL_NAME, revision=info.sha, local_dir=str(MODEL_DIR), max_workers=P["download_workers"])
     elapsed = time.time() - start
     print(
         f"Downloaded {total / GIB:,.1f} GiB in {elapsed / 60:.1f} min "
         f"({total / elapsed / 1e6:,.0f} MB/s) to {MODEL_DIR}",
         flush=True,
     )
+
+
+def print_nvidia_dir() -> None:
+    """Print the NVIDIA wheels' directory, which holds the CUDA headers and libnvrtc that FlashInfer's JIT needs."""
+    import nvidia
+
+    print(nvidia.__path__[0])
 
 
 def load_prompts(tokenizer):
@@ -101,7 +113,7 @@ def engine_kwargs(num_engines: int) -> dict:
     return dict(
         model=str(MODEL_DIR),
         max_model_len=P["max_model_len"],
-        gpu_memory_utilization=P["gpu_memory_utilization"],
+        gpu_memory_utilization=float(P["gpu_memory_utilization"]),
         # Text-only batch job: skip the vision encoder's profiling and memory.
         language_model_only=True,
         max_num_seqs=P["concurrent_seqs_total"] // num_engines,
@@ -326,11 +338,14 @@ if __name__ == "__main__":
     gen = sub.add_parser("generate")
     gen.add_argument("--layout", choices=["tp8", "dp8_ep"], required=True)
     sub.add_parser("summary")
+    sub.add_parser("nvidia-dir")
     args = parser.parse_args()
 
     if args.stage == "download":
         download()
     elif args.stage == "generate":
         generate(args.layout)
+    elif args.stage == "nvidia-dir":
+        print_nvidia_dir()
     else:
         summary()
