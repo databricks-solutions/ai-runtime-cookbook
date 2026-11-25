@@ -7,15 +7,10 @@ environment:
   version: "6"
   dependencies:
     - vllm==0.34.0
-    # vLLM 0.34.0 requires this PyTorch version.
     - torch==2.14.0
     - nvidia-ml-py==13.615.71
-    # vLLM 0.34.0 pins nixl==1.5.2 for the NixlConnector. The package installs both the CUDA 12 and CUDA 13
-    # backends (each bundles UCX), and the CUDA 13 one is selected at runtime.
     - nixl==1.5.2
-    # vLLM 0.34 requires huggingface_hub >= 2.0.0. This Hub 2.x pin is the one other cookbook recipes use with vLLM 0.34.
     - huggingface_hub==2.4.0
-    # Logs the summary to the AI Runtime MLflow run. Pin used by other cookbook recipes.
     - mlflow-skinny==3.8.1
 
 compute:
@@ -40,15 +35,12 @@ command: |
   python "$CODE_SOURCE_PATH/disagg_benchmark.py"
 
 max_retries: 0
-# Each layout starts 8 instances, runs 150 seconds of load, and tears down. A default run took about 11 minutes
-# in the container. The timer includes queue time, so the 90-minute limit leaves headroom for queueing.
+# Each layout starts 8 instances, runs 150 seconds of load, and tears down. The timeout includes queue time.
 timeout_minutes: 90
 
 parameters:
   # Public and ungated (Apache-2.0). Each instance is one H100 with TP=1.
   model_name: Qwen/Qwen3-8B
-  # Comma-separated. Use "disagg" alone (or "colocated" alone) to debug one layout with --override.
-  layouts: "colocated,disagg"
   # Colocated: one full instance per GPU, behind a round-robin router.
   colocated_instances: 8
   # Disaggregated: prefill instances on GPUs 0..P-1, decode instances on the rest. P + D must equal 8.

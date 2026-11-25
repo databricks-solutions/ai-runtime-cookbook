@@ -26,6 +26,7 @@ import yaml
 NUM_GPUS = 8
 ROUTER_PORT = 8000
 COMPLETIONS_PATH = "/v1/completions"
+LAYOUTS = ("colocated", "disagg")
 BOOTSTRAP_REPS = 200
 HERE = Path(__file__).resolve().parent
 ROUTER_SCRIPT = HERE / "disagg_router.py"
@@ -38,7 +39,6 @@ with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
 def load_config():
     c = {
         "model": str(RAW["model_name"]),
-        "layouts": [s.strip() for s in str(RAW["layouts"]).split(",") if s.strip()],
         "colocated_instances": int(RAW["colocated_instances"]),
         "prefill_instances": int(RAW["prefill_instances"]),
         "decode_instances": int(RAW["decode_instances"]),
@@ -58,8 +58,6 @@ def load_config():
         "seed": int(RAW["seed"]),
         "output_root": str(RAW["output_root"]),
     }
-    if not c["layouts"] or any(x not in ("colocated", "disagg") for x in c["layouts"]):
-        raise ValueError(f"layouts must be a subset of colocated,disagg: {c['layouts']}")
     if c["colocated_instances"] != NUM_GPUS:
         raise ValueError("colocated_instances must equal the 8 GPUs on the node (one TP=1 instance per GPU)")
     if c["prefill_instances"] < 1 or c["decode_instances"] < 1:
@@ -288,7 +286,6 @@ async def send_one(session, item, c, t0):
         "start_s": t_send - t0,
         "end_s": token_times[-1] - t0,
         "ttft_ms": (token_times[0] - t_send) * 1e3,
-        "e2e_ms": (token_times[-1] - t_send) * 1e3,
         "n_tokens": n_tokens,
         "itl_ms": itl_ms.tolist(),
         "error": None,
@@ -321,15 +318,12 @@ async def drive(schedule, warm, c):
     for item, task in zip(schedule, tasks):
         if task.done() and not task.cancelled() and task.exception() is None:
             results.append(task.result())
+            continue
+        if task.done() and not task.cancelled():
+            error = repr(task.exception())
         else:
-            results.append(
-                {
-                    "index": item["index"],
-                    "class": item["class"],
-                    "arrival_s": item["arrival_s"],
-                    "error": "not finished within drain_timeout_s",
-                }
-            )
+            error = "not finished within drain_timeout_s"
+        results.append({"index": item["index"], "class": item["class"], "arrival_s": item["arrival_s"], "error": error})
     return results
 
 
@@ -358,11 +352,10 @@ def bootstrap_se(ttft_ms, itl_arrays, seed):
 def summarize(records, c, router_stats):
     measured = [r for r in records if r["arrival_s"] >= c["warmup_s"]]
     ok = [r for r in measured if r["error"] is None]
-    failed = [r["error"] for r in measured if r["error"] is not None]
     if not ok:
-        raise RuntimeError(f"no measured request succeeded; first error: {failed[:1]}")
-    # Output throughput runs from the first measured arrival to the last completion. The request rate uses the
-    # arrival window, so a slow tail does not make a layout look overloaded.
+        raise RuntimeError("no measured request succeeded")
+    # Output throughput runs from the end of warm-up to the last completion. The request rate uses the arrival
+    # window, so a slow tail does not make a layout look overloaded.
     window_s = max(r["end_s"] for r in ok) - c["warmup_s"]
     arrival_window_s = c["duration_s"] - c["warmup_s"]
     ttft = [r["ttft_ms"] for r in ok]
@@ -371,8 +364,6 @@ def summarize(records, c, router_stats):
     summary = {
         "requests_measured": len(measured),
         "requests_ok": len(ok),
-        "requests_failed": len(failed),
-        "first_error": failed[0] if failed else None,
         "offered_rate_rps": c["arrival_rate"],
         "achieved_rate_rps": achieved_rate,
         "measured_window_s": window_s,
@@ -387,9 +378,9 @@ def summarize(records, c, router_stats):
         idx = [i for i, r in enumerate(ok) if r["class"] == cls]
         if idx:
             summary[f"{cls}_ttft_ms_p99"] = float(np.percentile([ttft[i] for i in idx], 99))
-            summary[f"{cls}_itl_ms_p99"] = float(np.percentile(np.concatenate([itl[i] for i in idx]), 99))
-    summary["e2e_ms_p50"] = float(np.percentile([r["e2e_ms"] for r in ok], 50))
-    summary["e2e_ms_p99"] = float(np.percentile([r["e2e_ms"] for r in ok], 99))
+    long_idx = [i for i, r in enumerate(ok) if r["class"] == "long"]
+    if long_idx:
+        summary["long_itl_ms_p99"] = float(np.percentile(np.concatenate([itl[i] for i in long_idx]), 99))
     return summary
 
 
@@ -443,8 +434,6 @@ async def run_layout(layout, c, run_dir, schedule, warm):
 
 
 def build_comparison(summaries):
-    if "colocated" not in summaries or "disagg" not in summaries:
-        return {}
     a, b = summaries["colocated"], summaries["disagg"]
     out = {}
     for key in ("ttft_ms_p99", "itl_ms_p99", "ttft_ms_p50", "itl_ms_p50", "output_tokens_per_s"):
@@ -457,7 +446,6 @@ def build_comparison(summaries):
 def log_to_mlflow(run_id, c, summaries, comparison):
     params = {
         "model": c["model"],
-        "layouts": ",".join(c["layouts"]),
         "colocated_instances": c["colocated_instances"],
         "prefill_instances": c["prefill_instances"],
         "decode_instances": c["decode_instances"],
@@ -501,7 +489,7 @@ async def main():
 
     warm = warmup_items(c)
     summaries = {}
-    for layout in c["layouts"]:
+    for layout in LAYOUTS:
         print(f"=== layout: {layout}", flush=True)
         summaries[layout] = await run_layout(layout, c, run_dir, schedule, warm)
 
