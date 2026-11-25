@@ -4,6 +4,14 @@ This recipe converts PDFs to Markdown with `allenai/olmOCR-2-7B-1025-FP8`, a doc
 
 The input is 300 one-page PDFs (tables, multi-column papers and old scans) from the public `allenai/olmOCR-bench` dataset. The run takes 6 to 8 minutes in the container, plus provisioning and queueing.
 
+## Before you run
+
+The recipe writes its outputs to `/Volumes/main/default/air_examples/document-ocr-olmocr2-vllm`. The volume must exist and be writable. To write to another volume, override `parameters.output_root`:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
