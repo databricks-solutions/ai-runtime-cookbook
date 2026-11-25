@@ -139,10 +139,7 @@ def train(precision):
         "gpu": torch.cuda.get_device_name(0),
         "params_billion": n_params / 1e9,
         "tokens_per_second": tokens / elapsed,
-        # 6 * params * tokens is the standard dense-transformer training FLOP estimate.
-        "model_tflops_per_second": 6 * n_params * tokens / elapsed / 1e12,
         "seconds_per_step": elapsed / P["steps"],
-        "loss_first": losses[0],
         "loss_last_20_mean": float(np.mean(losses[-20:])),
         "peak_mem_gb": torch.cuda.max_memory_allocated() / 1e9,
     }
