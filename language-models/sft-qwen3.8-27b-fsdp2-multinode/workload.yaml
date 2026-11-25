@@ -40,7 +40,7 @@ timeout_minutes: 240
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  set -eux
+  set -eo pipefail
   cd "$CODE_SOURCE_PATH"
 
   export HF_HOME=/tmp/.hf
