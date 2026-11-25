@@ -1,0 +1,73 @@
+# Disaggregated prefill/decode vs. colocated vLLM on one 8x H100 node, same GPUs and same request stream.
+# Run from this directory: databricks air run -f workload.yaml --watch
+
+experiment_name: vllm-disaggregated-prefill-decode-8xh100
+
+environment:
+  version: "6"
+  dependencies:
+    - vllm==0.34.0
+    - torch==2.14.0
+    - nvidia-ml-py==13.615.71
+    - nixl==1.5.2
+    - huggingface_hub==2.4.0
+    - mlflow-skinny==3.8.1
+
+compute:
+  num_accelerators: 8
+  accelerator_type: GPU_8xH100
+
+code_source:
+  root_path: .
+
+env_variables:
+  # Chunked Hub downloads of the model weights.
+  HF_XET_HIGH_PERFORMANCE: "1"
+  # FlashInfer sampler JIT needs CUDA headers outside the default include path, so use vLLM's PyTorch sampler.
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  # Eight instances compile and capture CUDA graphs in parallel on one node.
+  VLLM_ENGINE_READY_TIMEOUT_S: "1200"
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 2.x uses Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/disagg_benchmark.py"
+
+max_retries: 0
+# Each layout starts 8 instances, runs 150 seconds of load, and tears down. The timeout includes queue time.
+timeout_minutes: 90
+
+parameters:
+  # Public and ungated (Apache-2.0). Each instance is one H100 with TP=1.
+  model_name: Qwen/Qwen3-8B
+  # Colocated: one full instance per GPU, behind a round-robin router.
+  colocated_instances: 8
+  # Disaggregated: prefill instances on GPUs 0..P-1, decode instances on the rest. P + D must equal 8.
+  # Prefill is roughly one third of GPU time for this mix (an estimate), so 3 + 5 is the split used. Only this
+  # split has been run.
+  prefill_instances: 3
+  decode_instances: 5
+  # Open-loop Poisson arrivals, requests per second, for all instances combined.
+  arrival_rate: 24.0
+  # Length of the arrival stream, in seconds.
+  duration_s: 150.0
+  # Arrivals in the first warmup_s seconds are sent but excluded from the metrics.
+  warmup_s: 20.0
+  # Seconds to wait for in-flight requests after the last arrival.
+  drain_timeout_s: 120.0
+  # Fraction of requests with a long prompt. The rest have a short prompt.
+  long_fraction: 0.2
+  short_prompt_tokens: 256
+  long_prompt_tokens: 4096
+  # Fixed output length. ignore_eos keeps it identical across layouts.
+  max_output_tokens: 256
+  max_model_len: 8192
+  gpu_memory_utilization: 0.85
+  max_num_batched_tokens: 8192
+  max_num_seqs: 256
+  # Startup budget per layout, for all instances to answer /health.
+  startup_timeout_s: 900
+  seed: 0
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/vllm-disaggregated-prefill-decode-8xh100
