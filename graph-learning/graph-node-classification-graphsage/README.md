@@ -12,7 +12,13 @@ This is supervised classification. The model learns from papers with known topic
 
 ## Before you run
 
-The dataset downloads automatically and is licensed under ODC-BY. Review its usage terms on the linked page. To write outputs elsewhere, set `parameters.output_root` to an existing Unity Catalog volume you can write to.
+The dataset downloads automatically and is licensed under ODC-BY. Review its usage terms on the linked page.
+
+The default `parameters.output_root` is a Unity Catalog volume. The volume must exist and be writable. To write outputs to another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
