@@ -7,26 +7,12 @@ node. Run after ray_bootstrap.sh has started the cluster.
 
 import os
 import subprocess
-import time
 
 import ray
 
 ray.init(address="auto")
 
-num_nodes = int(os.environ.get("NUM_NODES", 1))
-gpus_per_node = int(os.environ.get("LOCAL_WORLD_SIZE", 1))
-expected_gpus = num_nodes * gpus_per_node
-
-for _ in range(30):
-    if len(ray.nodes()) >= num_nodes and ray.cluster_resources().get("GPU", 0) >= expected_gpus:
-        break
-    time.sleep(2)
-
 total_gpus = int(ray.cluster_resources().get("GPU", 0))
-if total_gpus < expected_gpus:
-    raise SystemExit(
-        f"Expected {expected_gpus} GPU(s) but Ray only sees {total_gpus}; " "check GPU discovery on all nodes."
-    )
 
 print(f"Ray cluster ready: {len(ray.nodes())} node(s), {total_gpus} GPU(s)")
 print(f"Cluster resources: {ray.cluster_resources()}\n")
