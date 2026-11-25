@@ -11,7 +11,7 @@ How the data is used:
 How the model is evaluated:
 
 - Validation Recall@20 picks the best epoch.
-- Test Recall@20 and NDCG@20 rank all training movies for each user, skipping movies the user rated before the test period. Each user counts equally.
+- Test Recall@20 and NDCG@20 rank movies with a training rating of at least 4 for each user, skipping movies the user rated before the test period. Each user counts equally.
 - Users and movies not seen in training are left out. You can check the logged coverage and evaluated user counts.
 - A popularity baseline uses the same candidates for comparison.
 
