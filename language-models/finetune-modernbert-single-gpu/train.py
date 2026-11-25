@@ -48,25 +48,6 @@ def load_params() -> dict:
         return yaml.safe_load(f)
 
 
-def ensure_uc_schema(catalog: str, schema: str) -> None:
-    """Create the target UC schema if missing, so a fresh catalog works with no manual setup."""
-    from databricks.sdk import WorkspaceClient
-
-    try:
-        WorkspaceClient().schemas.create(name=schema, catalog_name=catalog)
-        print(f"Created schema {catalog}.{schema}")
-    except Exception as e:  # noqa: BLE001
-        msg = str(e).lower()
-        if "already exists" in msg:
-            return
-        if any(t in msg for t in ("permission", "denied", "does not have", "unauthorized")):
-            raise RuntimeError(
-                f"Cannot create {catalog}.{schema}: grant CREATE on catalog '{catalog}', or set "
-                f"uc_catalog/uc_schema to an existing schema you can write to."
-            ) from e
-        raise
-
-
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     preds = np.argmax(logits, axis=-1)
@@ -131,7 +112,6 @@ def main() -> None:
     )
 
     mlflow.set_registry_uri("databricks-uc")
-    ensure_uc_schema(uc_catalog, uc_schema)
 
     # Own the MLflow run ourselves. AIR sets MLFLOW_RUN_ID (the run the CLI shows); we POP it and
     # resume that run explicitly BEFORE training. With the env var gone and a run already active,
