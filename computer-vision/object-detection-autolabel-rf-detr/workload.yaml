@@ -1,0 +1,54 @@
+experiment_name: air-object-detection-autolabel-rf-detr
+
+environment:
+  version: "5"
+  dependencies:
+    - rfdetr[train]==1.12.1
+    - transformers==5.20.2
+    - huggingface_hub==2.4.0
+    - faster-coco-eval==1.7.2
+    # Newer opencv-python-headless wheels abort with "FATAL FIPS SELFTEST FAILURE" on AI Runtime.
+    - opencv-python-headless==4.12.0.88
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting. huggingface_hub 1.0 and later use Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/train.py"
+  # Loads the saved checkpoint in a fresh process and predicts on one test image.
+  python "$CODE_SOURCE_PATH/check_artifacts.py"
+
+max_retries: 0
+timeout_minutes: 60
+
+parameters:
+  # Open-vocabulary auto-labeler. Apache-2.0 and ungated.
+  detector_model: google/owlv2-base-patch16-ensemble
+  detector_revision: cfd3195ba4ea9592eec887ded089f4c08eff231d
+  detector_batch_size: 8
+  # Class names are text prompts for the detector. Order must match the dataset's category indices (0 luggage, 1 person).
+  class_names: [luggage, person]
+  # Candidate confidence thresholds. The one with the best validation F1 at IoU 0.5 is used; the test split is never used for selection.
+  threshold_grid: [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
+  nms_iou: 0.5
+
+  # Public, ungated, CC BY 4.0 dataset with human boxes and train/validation/test splits.
+  dataset_repo: abhinand4as/people-luggage-detection
+  dataset_revision: 6d9506f2e49b64a00e13225139e9aa4eed49f106
+
+  epochs: 15
+  batch_size: 16
+  learning_rate: 0.0001
+  seed: 42
+
+  # Scratch space for downloads and staged datasets. Not persisted across stop/start.
+  data_root: /tmp/object-detection-autolabel-rf-detr
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/object-detection-autolabel-rf-detr
