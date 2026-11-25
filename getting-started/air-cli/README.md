@@ -11,14 +11,3 @@ This is the runnable example corresponding to the [AI Runtime CLI quickstart](ht
 ```bash
 databricks air run --file workload.yaml --watch
 ```
-
-To bring your own stack, replace the `environment` block with Standard environment version 6 and explicit dependencies:
-
-```yaml
-environment:
-  version: 6
-  dependencies:
-    - torch==2.11.0
-```
-
-CLI runs install these dependencies on every run, so this option adds PyTorch and CUDA wheel download time.
