@@ -15,15 +15,13 @@ ray.init(address="auto")
 
 num_nodes = int(os.environ.get("NUM_NODES", 1))
 total_gpus = int(ray.cluster_resources().get("GPU", 0))
-if total_gpus < 1:
-    raise SystemExit("No GPUs registered with Ray; check GPU discovery on the cluster.")
 print(f"Cluster ready: {num_nodes} node(s), {total_gpus} GPU(s) available")
 print(f"Running 8 trials with up to {total_gpus} in parallel\n")
 
 
 def train_fn(config):
     """Single trial: trains a small MLP on synthetic data for one GPU."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda")
 
     model = nn.Sequential(
         nn.Linear(128, config["hidden_size"]),
