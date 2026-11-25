@@ -2,9 +2,8 @@
 
 Builds a Ray Dataset and runs a distributed map / map_batches / filter
 pipeline across CPU actors spread over the cluster. On AI Runtime, Ray Data
-runs on CPU actors (heterogeneous CPU/GPU clusters are not supported yet), so
-this example deliberately keeps the transforms on CPU. The common shape is Ray
-Data preprocessing feeding into a Ray Train run.
+runs on CPU actors, so this example deliberately keeps the transforms on CPU.
+The common shape is Ray Data preprocessing feeding into a Ray Train run.
 """
 
 import os
