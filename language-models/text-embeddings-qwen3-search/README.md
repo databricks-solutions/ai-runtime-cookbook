@@ -6,7 +6,11 @@ The documents come from the LangChain collection in [FreshStack](https://hugging
 
 ## Before you run
 
-Check `parameters.output_root` in [workload.yaml](workload.yaml). You need write access to the existing Unity Catalog volume; change the path if you cannot use the shared default.
+The default `parameters.output_root` in [workload.yaml](workload.yaml) is the shared Unity Catalog volume `/Volumes/main/default/air_examples/text-embeddings-qwen3-search`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 The model and data download automatically without a Hugging Face token. The model uses Apache 2.0; FreshStack uses CC BY-SA 4.0 and includes documents subject to their [source repositories' licenses](https://huggingface.co/datasets/freshstack/corpus-oct-2024#license).
 
