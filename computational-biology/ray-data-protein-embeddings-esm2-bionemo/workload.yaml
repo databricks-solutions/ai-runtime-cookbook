@@ -33,4 +33,4 @@ env_variables:
   TOKENS_PER_BATCH: "65536"
   # Requires access to this existing volume; replace it with another writable volume if needed.
   # Each run writes to a subdirectory named after its MLflow run ID.
-  OUTPUT_PATH: /Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo
+  OUTPUT_PATH: /Volumes/main/default/air_examples/ray-data-protein-embeddings-esm2-bionemo

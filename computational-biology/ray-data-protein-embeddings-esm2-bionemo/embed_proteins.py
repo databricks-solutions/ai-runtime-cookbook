@@ -48,7 +48,7 @@ MAX_LENGTH = 1024
 TOKENS_PER_BATCH = int(os.environ.get("TOKENS_PER_BATCH", "65536"))
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
-OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo")
+OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/ray-data-protein-embeddings-esm2-bionemo")
 
 
 def load_sequences():
