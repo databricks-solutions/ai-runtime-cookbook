@@ -15,7 +15,13 @@ How the model is evaluated:
 
 ## Before you run
 
-Review the CC-BY-NC-SA-4.0 license on the dataset page. Files download automatically without a token. To write outputs elsewhere, set `parameters.output_root` to an existing Unity Catalog volume you can write to.
+Review the CC-BY-NC-SA-4.0 license on the dataset page. Files download automatically without a token.
+
+The default `parameters.output_root` is a Unity Catalog volume. The volume must exist and be writable. To write outputs to another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 The default tables (`hash_size: 1000000`, 64 dimensions) total about 7 GB, so sharding here spreads the work rather than being required. At 4M or more rows per table they no longer fit on one A10. To run on one 8xH100 node instead, set `compute.accelerator_type` to `GPU_8xH100` and `compute.num_accelerators` to `8`. This shape is not validated.
 
