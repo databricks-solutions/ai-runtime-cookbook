@@ -1,8 +1,8 @@
 # Mixture-of-experts pretraining with expert parallelism using torchtitan
 
-This recipe pretrains a mixture-of-experts (MoE) language model from scratch on C4 with [torchtitan](https://github.com/pytorch/torchtitan) on one 8xH100 node. The model uses the Qwen3-30B-A3B layer design: 128 experts per layer, 8 active per token. It keeps 12 of the 48 layers, for 8.1B total and 1.0B active parameters.
+This recipe pretrains a mixture-of-experts (MoE) language model from scratch on C4 with [torchtitan](https://github.com/pytorch/torchtitan) on one 8xH100 node. The model uses the Qwen3-30B-A3B layer design: 128 experts per layer, 8 active per token.
 
-Experts are split across the 8 GPUs with expert parallelism (EP=8, 16 experts per GPU per layer), and tokens move between GPUs with all-to-all communication. The rest of the model is sharded with FSDP. The run trains for 100 steps (64K tokens per step) and takes about 3 minutes.
+Experts are split across the 8 GPUs with expert parallelism (EP=8), and tokens move between GPUs with all-to-all communication. The rest of the model is sharded with FSDP. The run trains for 100 steps (64K tokens per step) and takes about 3 minutes.
 
 The config uses PyTorch FlexAttention, because torchtitan's default `varlen` backend needs FlashAttention 3, which the environment doesn't include.
 

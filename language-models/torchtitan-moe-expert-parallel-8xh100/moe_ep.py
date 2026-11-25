@@ -54,7 +54,8 @@ def qwen3_moe_ep() -> Trainer.Config:
             num_tokens_per_microbatch_per_dp_rank=tokens_per_microbatch,
             max_context_length=seq_len,
             steps=int(os.environ["STEPS"]),
-            # The default all-to-all expert dispatcher syncs with the CPU.
+            # The default all-to-all expert dispatcher syncs with the CPU. Disabling CUDA graphs
+            # means the reported tokens/s were measured without them.
             disable_cuda_graphs=True,
         ),
         parallelism=parallelism,
