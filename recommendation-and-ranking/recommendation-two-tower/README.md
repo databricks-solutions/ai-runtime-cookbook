@@ -17,7 +17,13 @@ How the model is evaluated:
 
 ## Before you run
 
-Review the MovieLens license on the dataset page. It restricts redistribution and commercial use. The archive downloads automatically without a token. To write outputs elsewhere, set `parameters.output_root` to an existing Unity Catalog volume you can write to.
+Review the MovieLens license on the dataset page. It restricts redistribution and commercial use. The archive downloads automatically without a token.
+
+The default `parameters.output_root` is a Unity Catalog volume. The volume must exist and be writable. To write outputs to another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
