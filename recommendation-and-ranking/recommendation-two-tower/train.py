@@ -121,12 +121,7 @@ def evaluate(model, data, p, popularity=None):
 
 def sample_negatives(users, seen):
     """Sample uniformly from items not rated by each user in training."""
-    negatives = torch.randint(seen.shape[1], users.shape, device=users.device)
-    rejected = seen[users, negatives]
-    while rejected.any():
-        negatives[rejected] = torch.randint(seen.shape[1], (int(rejected.sum()),), device=users.device)
-        rejected = seen[users, negatives]
-    return negatives
+    return torch.multinomial((~seen[users]).float(), 1).squeeze(1)
 
 
 def main():
@@ -166,7 +161,7 @@ def main():
         started = time.perf_counter()
         for epoch in range(1, p["epochs"] + 1):
             model.train()
-            total_loss = 0.0
+            total_loss = torch.zeros((), device=device)
             order = torch.randperm(len(pairs), device=device)
             for indices in order.split(p["batch_size"]):
                 batch = pairs[indices]
@@ -175,22 +170,24 @@ def main():
                 user_vectors = model.user_tower(users)
                 margin = (user_vectors * (model.item_tower(items) - model.item_tower(negatives))).sum(dim=1)
                 loss = F.softplus(-margin).mean()
-                if not torch.isfinite(loss):
-                    raise ValueError("Non-finite training loss")
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 optimizer.step()
-                total_loss += loss.item() * len(batch)
+                total_loss += loss.detach() * len(batch)
+            # A NaN or inf batch loss makes the epoch sum non-finite, so one check per epoch catches it.
+            if not torch.isfinite(total_loss):
+                raise ValueError("Non-finite training loss")
             validation_metrics = evaluate(model, validation_data, p)
-            metrics = {"train_bpr_loss": total_loss / len(pairs),
+            metrics = {"train_bpr_loss": total_loss.item() / len(pairs),
                        **{f"validation_{key}": value for key, value in validation_metrics.items()}}
             mlflow.log_metrics(metrics, step=epoch)
             recall = validation_metrics[f"recall_at_{p['top_k']}"]
             if recall > best_recall:
                 best_recall, best_epoch = recall, epoch
-                torch.save(model.state_dict(), checkpoint)
+                best_state = {key: value.detach().clone() for key, value in model.state_dict().items()}
             print(f"Epoch {epoch}/{p['epochs']}: {metrics}", flush=True)
 
+        torch.save(best_state, checkpoint)
         model.load_state_dict(torch.load(checkpoint, map_location=device, weights_only=True))
         test_data = evaluation_data(test, pd.concat([train, validation]), user_ids, item_ids, p, device)
         test_metrics = evaluate(model, test_data, p)
