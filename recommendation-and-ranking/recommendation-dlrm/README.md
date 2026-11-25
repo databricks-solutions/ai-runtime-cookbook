@@ -4,8 +4,8 @@ Train a [DLRM](https://arxiv.org/abs/1906.00091) click-through-rate model with T
 
 How the data is used:
 
-- Training uses the first `train_files` Parquet files (0.8M to 1.5M rows each) from `train_day`. Each GPU reads its own files, and all GPUs stop at the step count of the GPU with the fewest rows.
-- Validation and test use separate files from `eval_day`, the following day, so evaluation is on later traffic than training.
+- Training uses the first `train_files` Parquet files from `train_day`. Each GPU reads its own files, and all GPUs stop at the step count of the GPU with the fewest rows.
+- Validation and test use separate files from `eval_day`, so evaluation is on later traffic than training.
 - Integer features become `log(1 + x)`, with missing and negative values set to 0. Categorical features are hashed into `hash_size` rows per table, and missing values get their own row.
 
 How the model is evaluated:
