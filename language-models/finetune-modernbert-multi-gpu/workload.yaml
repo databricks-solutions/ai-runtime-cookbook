@@ -19,7 +19,7 @@ code_source:
   root_path: .
 
 # Launch under torchrun so each GPU gets a rank; AIR provides NUM_NODES / NODE_RANK / MASTER_ADDR /
-# MASTER_PORT / LOCAL_WORLD_SIZE (so the same command also scales to multiple nodes).
+# MASTER_PORT / LOCAL_WORLD_SIZE.
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
@@ -50,7 +50,7 @@ parameters:
   max_length: 256
   max_train_samples: -1      # -1 = full split; multi-GPU exists to train at scale
   max_eval_samples: -1
-  attn_implementation: sdpa  # or "flash_attention_2" with a matching flash-attn build
+  attn_implementation: sdpa
   # Training hyperparameters (per-device batch sizes; decimal LR so YAML parses it as a float).
   epochs: 2
   train_batch_size: 64

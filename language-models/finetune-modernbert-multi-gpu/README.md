@@ -1,6 +1,6 @@
 # ModernBERT fine-tuning on AG News (multi-GPU DDP)
 
-This recipe fine-tunes `answerdotai/ModernBERT-base` into a 4-way AG News topic classifier with PyTorch DDP, launched via `torchrun` across a `GPU_8xH100` node (the same command also scales to multiple nodes). Rank 0 owns the AIR MLflow run — it streams the loss/eval curves, logs the final metrics, and registers the model as a `text-classification` pipeline to Unity Catalog; the other ranks skip MLflow.
+This recipe fine-tunes `answerdotai/ModernBERT-base` into a 4-way AG News topic classifier with PyTorch DDP, launched via `torchrun` across a `GPU_8xH100` node. Rank 0 owns the AIR MLflow run — it streams the loss/eval curves, logs the final metrics, and registers the model as a `text-classification` pipeline to Unity Catalog; the other ranks skip MLflow.
 
 ## Before you run
 
