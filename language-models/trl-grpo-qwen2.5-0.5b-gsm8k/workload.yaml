@@ -21,7 +21,7 @@ environment:
 
 compute:
   num_accelerators: 1
-  accelerator_type: GPU_1xA10   # any single GPU works; use GPU_1xH100 for larger models
+  accelerator_type: GPU_1xA10
 
 code_source:
   root_path: .
@@ -41,7 +41,7 @@ parameters:
   batch_size: 16               # completions per step; must be divisible by num_generations
   num_generations: 8           # completions sampled per prompt (the "group" in GRPO)
   learning_rate: 0.00002
-  loss_type: dapo              # TRL also supports grpo, dr_grpo and bnpo
+  loss_type: dapo
   max_completion_length: 320
   # GSM8K test questions for the before/after accuracy check. 0 uses all 1,319.
   eval_samples: 0
