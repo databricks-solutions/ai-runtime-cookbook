@@ -23,6 +23,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 MODEL_NAME = "Qwen/Qwen2.5-3B"
 DATASET_NAME = "tatsu-lab/alpaca"
 MAX_SEQ_LEN = 1024
+# Reading the loss syncs the GPU, so workers read it and report it every LOG_EVERY steps.
+LOG_EVERY = 10
 
 
 def build_dataset(tokenizer):
@@ -88,10 +90,11 @@ def train_func(config: dict):
         optimizer.zero_grad()
         step += 1
 
-        final_loss = out.loss.item()
-        ray.train.report({"loss": final_loss, "step": step})
-        if rank == 0:
-            mlflow.log_metric("train_loss", final_loss, step=step)
+        if step % LOG_EVERY == 0 or step >= config["max_steps"]:
+            final_loss = out.loss.item()
+            ray.train.report({"loss": final_loss, "step": step})
+            if rank == 0:
+                mlflow.log_metric("train_loss", final_loss, step=step)
         if step >= config["max_steps"]:
             break
 
