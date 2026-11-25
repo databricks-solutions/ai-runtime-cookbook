@@ -58,7 +58,7 @@ def run_epoch(model, loader, device, loss_fn, optimizer=None, scheduler=None):
         if training:
             optimizer.zero_grad(set_to_none=True)
         with torch.set_grad_enabled(training):
-            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
                 logits = model(images)
                 loss = loss_fn(logits, labels)
             if training:
