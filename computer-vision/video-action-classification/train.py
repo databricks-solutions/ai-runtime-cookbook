@@ -130,6 +130,22 @@ def predict(model, loader, device):
     return torch.cat(outputs).numpy()
 
 
+def cluster_bootstrap_se(hits, groups, draws=1000, seed=0):
+    """Standard error of accuracy, bootstrapping whole video groups.
+
+    Clips from one group share a source video, so resampling clips alone understates the error.
+    """
+    rng = np.random.default_rng(seed)
+    names, inverse = np.unique(groups, return_inverse=True)
+    group_hits = np.bincount(inverse, weights=np.asarray(hits, dtype=float), minlength=len(names))
+    group_sizes = np.bincount(inverse, minlength=len(names))
+    estimates = []
+    for _ in range(draws):
+        picked = rng.integers(0, len(names), len(names))
+        estimates.append(group_hits[picked].sum() / group_sizes[picked].sum())
+    return float(np.std(estimates, ddof=1))
+
+
 def main():
     with open(os.environ["HYPERPARAMETERS_PATH"]) as handle:
         p = yaml.safe_load(handle)
@@ -210,6 +226,8 @@ def main():
         test_labels = test["label"].map(label_to_id).to_numpy()
         metrics = {
             "test_accuracy": float(accuracy_score(test_labels, predictions)),
+            "test_accuracy_standard_error": cluster_bootstrap_se(
+                predictions == test_labels, test["group"].to_numpy()),
             "test_f1_macro": float(f1_score(test_labels, predictions, labels=range(len(class_names)),
                                            average="macro", zero_division=0)),
             "best_validation_accuracy": best_accuracy, "best_epoch": best_epoch,

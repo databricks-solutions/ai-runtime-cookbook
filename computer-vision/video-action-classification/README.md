@@ -36,6 +36,6 @@ Each run writes its files to `<output_root>/<MLFLOW_RUN_ID>/` and logs them to t
 | `test_predictions.csv` | Each test video's action, predicted action, and confidence score. |
 | `confusion_matrix.csv` | Counts of predictions, with actual actions as rows and predicted actions as columns. |
 | `split_manifest.csv` | Every video's class, original group, and assigned split. |
-| `metrics.json` | Test accuracy, macro F1, best validation epoch, and processing times. |
+| `metrics.json` | Test accuracy with its standard error from a bootstrap over video groups, macro F1, best validation epoch, and processing times. |
 
 MLflow also tracks training loss and validation accuracy for each epoch.
