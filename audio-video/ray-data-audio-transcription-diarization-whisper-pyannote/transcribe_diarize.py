@@ -34,8 +34,12 @@ DIARIZATION_MODEL = "pyannote/speaker-diarization-3.1"
 SEGMENTATION_MODEL = "pyannote/segmentation-3.0"
 NUM_CLIPS = int(os.environ.get("NUM_CLIPS", "24"))
 # Shared UC volume paths. Set these in workload.yaml; the volumes must exist.
-INPUT_DIR = os.environ.get("INPUT_DIR", "/Volumes/main/default/air_examples/voxconverse_wavs")
-OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/audio_diarization_results")
+INPUT_DIR = os.environ.get(
+    "INPUT_DIR", "/Volumes/main/default/air_examples/ray-data-audio-transcription-diarization-whisper-pyannote/voxconverse_wavs"
+)
+OUTPUT_PATH = os.environ.get(
+    "OUTPUT_PATH", "/Volumes/main/default/air_examples/ray-data-audio-transcription-diarization-whisper-pyannote"
+)
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 

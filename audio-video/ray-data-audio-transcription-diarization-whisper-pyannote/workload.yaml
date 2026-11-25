@@ -47,5 +47,5 @@ env_variables:
   NUM_CLIPS: '24'
   # Shared UC volume paths. Replace with writable volumes that already exist;
   # INPUT_DIR holds the staged WAVs; results go to <OUTPUT_PATH>/<MLFLOW_RUN_ID>.
-  INPUT_DIR: /Volumes/main/default/air_examples/voxconverse_wavs
-  OUTPUT_PATH: /Volumes/main/default/air_examples/audio_diarization_results
+  INPUT_DIR: /Volumes/main/default/air_examples/ray-data-audio-transcription-diarization-whisper-pyannote/voxconverse_wavs
+  OUTPUT_PATH: /Volumes/main/default/air_examples/ray-data-audio-transcription-diarization-whisper-pyannote
