@@ -213,9 +213,11 @@ def run_training_loop(model: torch.nn.Module, data) -> None:
     for step, (batch, ran_out) in enumerate(data):
         exhausted = bool(ran_out)  # this rank's own flag; its final all-masked block has a NaN loss
         # Ranks get different numbers of batches, so they must stop on the same step: a rank that
-        # stopped early would hang the others in the next collective.
-        ran_out = ran_out.cuda(non_blocking=True)
-        dist.all_reduce(ran_out, op=dist.ReduceOp.MAX)
+        # stopped early would hang the others in the next collective. The flag is reduced on CPU
+        # (gloo), so the check never waits on the GPU stream.
+        stop = ran_out.clone()
+        dist.all_reduce(stop, op=dist.ReduceOp.MAX)
+        done = bool(stop)
 
         ids, labels, position_ids, cu_seqlens, seq_idx, max_len = batch
         # The loader builds batches on CPU (a worker can't return CUDA tensors); move to GPU here.
@@ -243,8 +245,6 @@ def run_training_loop(model: torch.nn.Module, data) -> None:
             log.info(f"[train] step {step + 1}, loss={loss.item():.3f}")
             mlflow.log_metric("train_loss", loss.item(), step=step + 1)
 
-        # .item() is a sync point, so check it at the end rather than before the step.
-        done = bool(ran_out.item())
         if done:
             break
     torch.cuda.synchronize()  # let all queued GPU work finish before we stop the clock
