@@ -39,22 +39,14 @@ def build_backtest(series_list, ids, horizon, context_length, seasonal_period, n
     span = num_windows * horizon
     kept = []
     for index, values in enumerate(series_list):
-        if not np.isfinite(values).all():
-            raise ValueError(f"Series {ids[index]} has missing values")
         test_start = len(values) - span
         val_start = test_start - span
         if val_start < seasonal_period + horizon:
             raise ValueError(f"Series {ids[index]} is too short for {num_windows} validation and test windows")
-        # MASE needs a non-zero seasonal-naive scale at every origin. Exclusion uses only the inputs
-        # (history up to each origin), never the targets, and it applies to every method alike.
-        scales = [
-            np.abs(context[seasonal_period:] - context[:-seasonal_period]).mean()
-            for context in (
-                values[max(0, test_start + w * horizon - context_length) : test_start + w * horizon]
-                for w in range(num_windows)
-            )
-        ]
-        if min(scales) == 0:
+        # MASE divides by the seasonal-naive scale, so drop a series whose scale is zero before the test period.
+        # Only pre-test data is read, so no test target decides which series are kept.
+        pre_test = values[max(0, test_start - context_length) : test_start]
+        if np.abs(pre_test[seasonal_period:] - pre_test[:-seasonal_period]).mean() == 0:
             continue
         kept.append(index)
 
@@ -109,8 +101,6 @@ def forecast_quantiles(pipeline, contexts, horizon, context_length, batch_size):
 def per_task_scores(actual, forecast, scale):
     """Scores for (tasks, horizon, levels) quantile forecasts. The median is the 0.5 level."""
     levels = np.asarray(QUANTILE_LEVELS, dtype=np.float32)
-    if forecast.shape != (*actual.shape, len(QUANTILE_LEVELS)):
-        raise ValueError(f"Forecast shape {forecast.shape} does not match actuals {actual.shape}")
     error = actual[:, :, None] - forecast
     pinball = np.maximum(levels * error, (levels - 1) * error).sum(axis=(1, 2))
     mase = np.abs(actual - forecast[:, :, 1]).mean(axis=1) / scale
@@ -176,7 +166,6 @@ def main():
     context_length = int(p["context_length"])
     seasonal_period = int(p["seasonal_period"])
     num_windows = int(p["num_windows"])
-    max_series = int(p["max_series"])
     predict_batch_size = int(p["predict_batch_size"])
     seed = int(p["seed"])
     np.random.seed(seed)
@@ -186,15 +175,13 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     frame = pd.read_parquet(p["data_url"])
-    if 0 < max_series < len(frame):
-        frame = frame.iloc[np.linspace(0, len(frame) - 1, max_series).astype(int)]
     ids = frame["id"].tolist()
     series_list = [np.asarray(values, dtype=np.float32) for values in frame["target"]]
     splits = build_backtest(series_list, ids, horizon, context_length, seasonal_period, num_windows)
     num_series = len(splits["kept"])
     print(
         f"Series: {len(series_list)} loaded, {num_series} kept, {len(series_list) - num_series} dropped "
-        f"(constant at the seasonal lag). Test tasks: {len(splits['test_contexts'])}",
+        f"(zero seasonal-naive scale before the test period). Test tasks: {len(splits['test_contexts'])}",
         flush=True,
     )
 

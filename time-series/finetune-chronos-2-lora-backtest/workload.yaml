@@ -17,6 +17,8 @@ code_source:
 command: |
   set -eo pipefail
   python "$CODE_SOURCE_PATH/finetune_backtest.py"
+  # A new process loads each saved checkpoint and forecasts with it.
+  python "$CODE_SOURCE_PATH/load_checkpoints.py"
 
 max_retries: 0
 timeout_minutes: 90
@@ -30,8 +32,6 @@ parameters:
   context_length: 2048
   # Daily origins: the last num_windows days are the test set, the num_windows days before them are validation.
   num_windows: 14
-  # 0 uses every series. A positive value keeps evenly spaced series (smoke runs only).
-  max_series: 0
   # Library-recommended LoRA learning rate, and the library default for full fine-tuning. Fixed before any run.
   lora_learning_rate: 1.0e-5
   full_learning_rate: 1.0e-6
