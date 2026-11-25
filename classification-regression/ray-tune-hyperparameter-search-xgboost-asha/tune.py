@@ -155,11 +155,10 @@ def main() -> None:
     x_fit = np.concatenate([x_train, x_val])
     y_fit = np.concatenate([y_train, y_val])
     dtrain = xgb.QuantileDMatrix(x_fit, label=y_fit)
-    dtest = xgb.QuantileDMatrix(x_test, label=y_test, ref=dtrain)
     booster = xgb.train(
         {"objective": "multi:softprob", "num_class": num_class, "eval_metric": "mlogloss",
          "tree_method": "hist", "device": "cuda", **best.config},
-        dtrain, num_boost_round=n_estimators, evals=[(dtest, "test")], verbose_eval=False,
+        dtrain, num_boost_round=n_estimators, verbose_eval=False,
     )
     proba = booster.predict(xgb.DMatrix(x_test))
     test_accuracy = float(accuracy_score(y_test, np.argmax(proba, axis=1)))
