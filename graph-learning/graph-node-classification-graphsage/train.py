@@ -113,24 +113,27 @@ def main():
             optimizer.zero_grad(set_to_none=True)
             logits = model(features, adjacency)
             loss = F.cross_entropy(logits[splits["train"]], labels[splits["train"]])
-            if not torch.isfinite(loss):
-                raise ValueError("Non-finite training loss")
             loss.backward()
             optimizer.step()
             model.eval()
             with torch.no_grad():
                 predictions = model(features, adjacency).argmax(dim=1)
-                metrics = {
-                    "train_loss": loss.item(),
-                    **{f"{split}_accuracy": (predictions[splits[split]] == labels[splits[split]]).float().mean().item()
-                       for split in ("train", "validation")},
-                }
+                train_accuracy = (predictions[splits["train"]] == labels[splits["train"]]).float().mean()
+                validation_accuracy = (predictions[splits["validation"]] == labels[splits["validation"]]).float().mean()
+            # One device-to-host copy per epoch. The finiteness check reads the copied loss.
+            train_loss, train_accuracy, validation_accuracy = torch.stack(
+                (loss.detach(), train_accuracy, validation_accuracy)).tolist()
+            if not np.isfinite(train_loss):
+                raise ValueError("Non-finite training loss")
+            metrics = {"train_loss": train_loss, "train_accuracy": train_accuracy,
+                       "validation_accuracy": validation_accuracy}
             mlflow.log_metrics(metrics, step=epoch)
-            if metrics["validation_accuracy"] > best_accuracy:
-                best_accuracy, best_epoch = metrics["validation_accuracy"], epoch
-                torch.save(model.state_dict(), checkpoint)
+            if validation_accuracy > best_accuracy:
+                best_accuracy, best_epoch = validation_accuracy, epoch
+                best_state = {key: value.detach().clone() for key, value in model.state_dict().items()}
             print(f"Epoch {epoch}/{p['epochs']}: {metrics}", flush=True)
 
+        torch.save(best_state, checkpoint)
         model.load_state_dict(torch.load(checkpoint, map_location=device, weights_only=True))
         model.eval()
         with torch.no_grad():
