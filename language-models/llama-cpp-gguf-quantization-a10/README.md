@@ -25,7 +25,7 @@ Time in the container at default parameters: about 64 minutes, including the lla
 ## What the run does
 
 1. Builds `llama-server` and `llama-quantize`.
-2. Downloads `Qwen/Qwen3-8B` (bf16), and the official `Qwen/Qwen3-8B-GGUF` Q8_0 and Q4_K_M files.
+2. Downloads `Qwen/Qwen3-8B` (bf16), and the official `Qwen/Qwen3-8B-GGUF` Q8_0 and Q4_K_M files. The revisions are `b968826d9c46dd6066d109eabc6255188de91218` (Qwen3-8B) and `7c41481f57cb95916b40956ab2f0b139b296d974` (Qwen3-8B-GGUF).
 3. Creates Q2_K by requantizing the Q8_0 file with `llama-quantize --allow-requantize`. The official repository has no 2-bit file. Q8_0 is close to lossless, so the result is close to quantizing from bf16 but not identical. No importance matrix is used, so this is a plain Q2_K. This recipe does not measure a calibrated 2-bit quant.
 4. For each configuration, starts a server, sends the same 500 GSM8K test questions with 16 requests in flight, and shuts the server down before the next one starts:
    - bf16 on `vllm serve` (`--max-model-len 2048`, `--gpu-memory-utilization 0.90`, `--max-num-seqs 16`).

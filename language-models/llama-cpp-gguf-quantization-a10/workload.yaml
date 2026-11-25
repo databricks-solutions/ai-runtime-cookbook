@@ -10,7 +10,6 @@ environment:
   dependencies:
     - cmake==4.4.5
     - ninja==1.13.2
-    # Hub 1.x stack, matching the transformers 5.8 that v6 preinstalls (hub must be < 2).
     - datasets==4.8.5
     - huggingface_hub==1.33.0
     - fsspec==2026.2.0
