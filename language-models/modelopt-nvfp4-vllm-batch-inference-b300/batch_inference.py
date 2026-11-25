@@ -6,10 +6,12 @@ Usage: python batch_inference.py bf16|quantized
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
 
+import nvidia
 import yaml
 from datasets import load_dataset
 from vllm import LLM, SamplingParams
@@ -18,6 +20,19 @@ with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
 SYSTEM = "Solve the math problem step by step. End with the final answer as: #### <number>"
+
+
+def expose_curand_headers():
+    """Put curand.h on CPATH for vLLM's FlashInfer JIT.
+
+    FlashInfer JIT-compiles some kernels at vLLM startup. In this environment curand.h ships only
+    inside the nvidia-* pip wheels, so copy just those headers to one include directory.
+    """
+    include = Path("/tmp/curand-include")
+    include.mkdir(parents=True, exist_ok=True)
+    for header in Path(nvidia.__path__[0]).rglob("curand*.h"):
+        shutil.copy(header, include)
+    os.environ["CPATH"] = f"{include}:{os.environ.get('CPATH', '')}"
 
 
 def number(text):
@@ -31,6 +46,7 @@ def number(text):
 
 
 def main(label):
+    expose_curand_headers()
     # bf16 runs the original checkpoint; quantized runs the export from quantize.py.
     model_path = P["model_name"] if label == "bf16" else P["quantized_dir"]
     ds = load_dataset("openai/gsm8k", "main", split="test").select(range(P["num_prompts"]))

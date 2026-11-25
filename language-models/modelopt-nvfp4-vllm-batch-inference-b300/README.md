@@ -34,4 +34,4 @@ An earlier Qwen3-32B run measured a 1.55× speedup, so expect some run-to-run va
 Notes on the environment:
 
 - The command removes `databricks_ai_v6`'s preinstalled `flash-attn`, which is compiled for the original PyTorch that vLLM replaces.
-- FlashInfer compiles some kernels when vLLM starts, and they need `curand.h`. That header ships only in the NVIDIA pip wheels in this environment. `run.sh` copies the `curand` headers to a directory on `CPATH`.
+- FlashInfer compiles some kernels when vLLM starts, and they need `curand.h`. That header ships only in the NVIDIA pip wheels in this environment. `batch_inference.py` copies the `curand` headers to a directory on `CPATH`.
