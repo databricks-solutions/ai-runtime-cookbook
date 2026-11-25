@@ -35,7 +35,7 @@ MODEL_SOURCE = "Qwen/Qwen3-VL-8B-Instruct"
 DATASET_REPO = "timm/oxford-iiit-pet"
 DATASET_FILE = "data/test-00000-of-00001.parquet"
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
-OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/batch-inference-qwen3-vl-8b-vllm")
+OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/ray-data-batch-inference-qwen3-vl-8b-vllm")
 # AI Runtime creates an MLflow run per attempt, so each attempt gets its own output directory.
 # Read without a default so importing this module never fails; main() requires it.
 MLFLOW_RUN_ID = os.environ.get("MLFLOW_RUN_ID")

@@ -36,4 +36,4 @@ env_variables:
   VLLM_USE_FLASHINFER_SAMPLER: "0"
   # Requires access to this existing volume; replace it with another writable volume if needed.
   # Each run writes to a subdirectory named after its MLflow run ID.
-  OUTPUT_PATH: /Volumes/main/default/air_examples/batch-inference-qwen3-vl-8b-vllm
+  OUTPUT_PATH: /Volumes/main/default/air_examples/ray-data-batch-inference-qwen3-vl-8b-vllm
