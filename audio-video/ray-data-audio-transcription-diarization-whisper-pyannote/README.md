@@ -11,8 +11,12 @@ no separate prep step is needed.
 
 ## Before you run
 
-1. Writable Unity Catalog volumes for `INPUT_DIR` (staged WAVs) and `OUTPUT_PATH`
-   (result Parquet); they must already exist and may be the same volume.
+1. Writable Unity Catalog volumes for `INPUT_DIR` (staged WAVs) and `OUTPUT_PATH` (result Parquet). They must already exist and may be the same volume. To use other paths, override both when you submit the run:
+
+   ```bash
+   databricks air run -f workload.yaml --override env_variables.INPUT_DIR=/Volumes/<catalog>/<schema>/<volume>/<input-dir> --override env_variables.OUTPUT_PATH=/Volumes/<catalog>/<schema>/<volume>/<output-dir> --watch
+   ```
+
 2. **Hugging Face token for pyannote.** Accept the terms for both gated models:
    - https://huggingface.co/pyannote/speaker-diarization-3.1
    - https://huggingface.co/pyannote/segmentation-3.0
