@@ -29,4 +29,4 @@ A validation run on an H100 produced these results:
 | Baseline | 1,136 | 1.00 |
 | EAGLE-3 (3 steps, top-1, 4 draft tokens) | 2,007 | 2.24 |
 
-EAGLE-3 was 1.77× faster. 48% of greedy outputs were identical to the baseline. Speculative decoding doesn't change the target model's output distribution.
+EAGLE-3 was 1.77× faster in a single validation run; no run-to-run spread was measured. 48% of greedy outputs were identical to the baseline. Speculative decoding doesn't change the target model's output distribution.
