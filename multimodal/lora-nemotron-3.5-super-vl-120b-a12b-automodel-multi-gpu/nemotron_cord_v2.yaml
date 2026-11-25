@@ -6,7 +6,6 @@
 #
 # To run this recipe:
 # automodel nemotron_cord_v2.yaml --nproc-per-node 8
-# Adjust --nproc-per-node to the number of GPUs available on your machine.
 
 recipe: FinetuneRecipeForVLM
 
