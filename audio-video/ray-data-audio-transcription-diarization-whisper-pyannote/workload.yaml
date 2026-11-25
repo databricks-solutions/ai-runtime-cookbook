@@ -4,14 +4,11 @@ environment:
   version: "5"
   dependencies:
     - ray[data]==2.56.1
-    # pyannote.audio 3.3.2 uses torchaudio.AudioMetaData, removed in newer
-    # torchaudio; pin the torch/torchaudio pair (and hub) to a validated set.
+    # pyannote.audio 3.3.2 needs torchaudio.AudioMetaData, which newer torchaudio removed.
     - torch==2.7.1
     - torchaudio==2.7.1
     - faster-whisper==1.1.1
-    # faster-whisper 1.1.1 calls av.open(..., metadata_errors=...); newer PyAV
-    # (the AIR default resolves to av 19) removed that argument. Pin PyAV to a
-    # version that still accepts it.
+    # faster-whisper 1.1.1 passes metadata_errors to av.open, which PyAV 19 removed.
     - av==13.1.0
     - pyannote.audio==3.3.2
     - huggingface_hub==0.29.3
