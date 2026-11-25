@@ -89,6 +89,7 @@ def build_split(split, num_shards, num_utterances, min_duration, max_duration, d
     ]
     texts = [table.column("text").to_pylist() for table in tables]
     audio = [table.column("audio").to_pylist() for table in tables]
+    # Drops utterances with no text left after normalization.
     pool = [
         (s, r)
         for s, column in enumerate(texts)
@@ -105,6 +106,7 @@ def build_split(split, num_shards, num_utterances, min_duration, max_duration, d
             break
         samples, rate = sf.read(io.BytesIO(audio[s][r]["bytes"]), dtype="float32")
         duration = len(samples) / rate
+        # Drops utterances outside the configured length range.
         if not min_duration <= duration <= max_duration:
             continue
         path = split_dir / f"{len(records):05d}.wav"
@@ -314,8 +316,8 @@ def main():
         flush=True,
     )
 
-    # One model object serves baseline scoring, fine-tuning and final scoring, so the .nemo
-    # archive is never reloaded (see BestValidationWeights).
+    # One model object serves baseline scoring and fine-tuning. After training, the script writes
+    # the .nemo archive and scores the in-memory best weights.
     print("Scoring the pretrained model", flush=True)
     model = load_model(p["model_name"])
     baseline_validation_wer, baseline_validation_hyps = score(model, validation, p["eval_batch_size"])
