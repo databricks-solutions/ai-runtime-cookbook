@@ -20,9 +20,9 @@ Full-weight SFT of `Qwen/Qwen3-8B` for invoice/receipt entity extraction — TRL
    the same path. The AIR GPU worker has no Spark, so this pre-stages the public
    `Winuim/invoice-sft-dataset-v2` dataset as Hugging Face datasets under
    `<output_root>/data`, which `train.py` reads. Only answers that match the JSON
-   schema in the prompt are kept (about 4.9k of 7k rows; the rest carry raw OCR
-   amounts, non-ISO dates, or other item layouts), and each example is stored as a
-   `prompt` / `completion` pair so the loss covers only the assistant's JSON.
+   schema in the prompt are kept. About 4.9k of 7k rows pass. The rest carry raw
+   OCR amounts, non-ISO dates, or other item layouts. Each example is stored as a
+   `prompt` / `completion` pair. The loss covers only the assistant's JSON.
 
    ```bash
    pip install datasets==5.1.0 huggingface_hub==1.33.0 fsspec==2024.9.0
@@ -35,7 +35,6 @@ Full-weight SFT of `Qwen/Qwen3-8B` for invoice/receipt entity extraction — TRL
 databricks air run -f workload.yaml --watch
 ```
 
-Set `max_steps` to a small positive value for a quick end-to-end smoke test. Sweep by
-editing `learning_rate` / `num_epochs` and running once per combination; each run writes
-to its own `<output_root>/<MLFLOW_RUN_ID>` directory. The final model lands at
+Sweep by editing `learning_rate` / `num_epochs` and running once per combination. Each
+run writes to its own `<output_root>/<MLFLOW_RUN_ID>` directory. The final model lands at
 `<output_root>/<MLFLOW_RUN_ID>/final` (the run id is shown on the AIR attempt's MLflow page).
