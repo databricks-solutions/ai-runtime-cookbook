@@ -6,22 +6,18 @@ experiment_name: air-parakeet-tdt-ami-finetune
 environment:
   version: databricks_ai_v6
   dependencies:
-    # NeMo Speech 3.0.0 (the repo was renamed from NeMo at this release). The asr extra does not
-    # pull opencv or PyAV, the two packages whose wheels abort on AI Runtime with a FIPS self-test.
+    # The asr extra avoids opencv and PyAV, whose wheels abort on AI Runtime with a FIPS self-test.
     - nemo-toolkit[asr]==3.0.0
-    # Versions below match the uv.lock of NeMo Speech v3.0.0, the validated stack for this release.
     - lightning==2.4.0
     - numba==0.65.0
     - lhotse==1.33.0
     - librosa==0.11.0
     - soundfile==0.13.1
-    # Hub 1.x. lightning 2.4.0 requires fsspec<2026, so use the fsspec version from NeMo's v3.0.0 lock.
-    # huggingface_hub is downgraded to NeMo's locked version: the environment's preinstalled hub
-    # is not validated against the pinned fsspec (their HfFileSystem versions must agree).
+    # The preinstalled hub is not validated with the pinned fsspec.
     - huggingface_hub==1.33.0
-    # datasets is downgraded to the release from the same NeMo lock, paired with hub 1.33.0;
-    # the environment's preinstalled datasets is not validated against that hub version.
+    # The preinstalled datasets is not validated with this hub version.
     - datasets==4.8.5
+    # lightning 2.4.0 requires fsspec<2026.
     - fsspec==2025.12.0
     - mlflow-skinny==3.8.1
 
