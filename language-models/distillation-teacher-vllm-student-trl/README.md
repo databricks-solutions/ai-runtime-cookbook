@@ -27,7 +27,7 @@ A validation run on an H100 produced these results:
 | Stage | Result |
 |---|---|
 | Teacher batch generation | 3,882 of 4,000 questions solved correctly, in 176 s |
-| Student fine-tuning | 3,882 examples × 2 epochs, in 105 s |
+| Student fine-tuning | 3,882 examples × 2 epochs, in 105 s including model load and checkpoint save |
 | Student GSM8K accuracy (1,319 questions) | 47.1% → 51.2% |
 
 With 1,319 questions, each accuracy has a standard error of about 1.4 points, and their difference about 1.9 points if the two evaluations are treated as independent. The 4.1-point gain is about twice that. The test set is only used for this report. No checkpoint is selected on it.
