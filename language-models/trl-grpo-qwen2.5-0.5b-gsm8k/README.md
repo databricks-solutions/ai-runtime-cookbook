@@ -4,6 +4,14 @@ This recipe trains `Qwen/Qwen2.5-0.5B-Instruct` with GRPO (Group Relative Policy
 
 The run trains for 100 steps and measures greedy accuracy on all 1,319 GSM8K test questions before and after training. It takes about 38 minutes in the container, plus provisioning and queueing.
 
+## Before you run
+
+The default `output_root` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/trl-grpo-qwen2.5-0.5b-gsm8k`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
