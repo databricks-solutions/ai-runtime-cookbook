@@ -10,6 +10,9 @@ environment:
     - accelerate==1.15.0
     - datasets==5.1.0
     - deepspeed==0.19.7
+    # Newer fsspec breaks load_dataset with HfFileSystem.find() "got multiple values for keyword argument 'maxdepth'".
+    - huggingface_hub==1.33.0
+    - fsspec==2024.9.0
 
 # Full-weight SFT of an 8B model with DeepSpeed ZeRO-3 fits on one 8xH100 node.
 compute:
