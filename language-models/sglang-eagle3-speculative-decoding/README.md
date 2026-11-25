@@ -30,8 +30,3 @@ A validation run on an H100 produced these results:
 | EAGLE-3 (3 steps, top-1, 4 draft tokens) | 2,007 | 2.24 |
 
 EAGLE-3 was 1.77× faster. 48% of greedy outputs were identical to the baseline. Speculative decoding doesn't change the target model's output distribution.
-
-Notes on the environment:
-
-- The command removes `databricks_ai_v6`'s preinstalled `flash-attn` (compiled for the original PyTorch) and legacy `pynvml` (which shadows `nvidia-ml-py`).
-- SGLang's `tokenizers` pin requires `huggingface_hub` < 2.
