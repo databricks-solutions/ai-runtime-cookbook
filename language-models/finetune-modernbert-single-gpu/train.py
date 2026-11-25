@@ -44,11 +44,8 @@ LABEL2ID = {label: i for i, label in enumerate(LABELS)}
 
 def load_params() -> dict:
     """Read the ``parameters:`` block that ``air`` materializes from the workload YAML."""
-    path = os.environ.get("HYPERPARAMETERS_PATH")
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    return {}
+    with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+        return yaml.safe_load(f)
 
 
 def ensure_uc_schema(catalog: str, schema: str) -> None:
@@ -81,15 +78,15 @@ def compute_metrics(eval_pred):
 
 def main() -> None:
     p = load_params()
-    model_name = p.get("model_name", "answerdotai/ModernBERT-base")
-    dataset_name = p.get("dataset_name", "fancyzhx/ag_news")
-    max_length = int(p.get("max_length", 256))
-    max_train_samples = int(p.get("max_train_samples", 20000))
-    max_eval_samples = int(p.get("max_eval_samples", 2000))
-    seed = int(p.get("seed", 42))
-    uc_catalog = p.get("uc_catalog", "main")
-    uc_schema = p.get("uc_schema", "default")
-    model_fqn = f"{uc_catalog}.{uc_schema}.{p.get('registered_model_name', 'modernbert_agnews')}"
+    model_name = p["model_name"]
+    dataset_name = p["dataset_name"]
+    max_length = int(p["max_length"])
+    max_train_samples = int(p["max_train_samples"])
+    max_eval_samples = int(p["max_eval_samples"])
+    seed = int(p["seed"])
+    uc_catalog = p["uc_catalog"]
+    uc_schema = p["uc_schema"]
+    model_fqn = f"{uc_catalog}.{uc_schema}.{p['registered_model_name']}"
 
     set_seed(seed)
     print(f"CUDA available: {torch.cuda.is_available()}"
@@ -108,17 +105,17 @@ def main() -> None:
 
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name, num_labels=len(LABELS), id2label=ID2LABEL, label2id=LABEL2ID,
-        attn_implementation=p.get("attn_implementation", "sdpa"),
+        attn_implementation=p["attn_implementation"],
     )
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
     args = TrainingArguments(
         output_dir="/tmp/modernbert-agnews",
-        num_train_epochs=float(p.get("epochs", 1)),
-        per_device_train_batch_size=int(p.get("train_batch_size", 32)),
-        per_device_eval_batch_size=int(p.get("eval_batch_size", 64)),
-        learning_rate=float(p.get("learning_rate", 5e-5)),
-        weight_decay=float(p.get("weight_decay", 0.01)),
-        warmup_steps=float(p.get("warmup_steps", 0.1)),  # float in [0,1) = ratio of total steps
+        num_train_epochs=float(p["epochs"]),
+        per_device_train_batch_size=int(p["train_batch_size"]),
+        per_device_eval_batch_size=int(p["eval_batch_size"]),
+        learning_rate=float(p["learning_rate"]),
+        weight_decay=float(p["weight_decay"]),
+        warmup_steps=float(p["warmup_steps"]),  # float in [0,1) = ratio of total steps
         bf16=use_bf16,
         eval_strategy="epoch",
         save_strategy="no",
