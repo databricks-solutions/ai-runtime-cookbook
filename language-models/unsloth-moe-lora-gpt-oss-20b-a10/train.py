@@ -109,6 +109,9 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2))
     (OUT / "sample.txt").write_text(sample)
+    if P["save_adapter"]:
+        model.save_pretrained(str(OUT / "lora_adapter"))
+        tokenizer.save_pretrained(str(OUT / "lora_adapter"))
     with mlflow.start_run(run_id=RUN_ID):
         mlflow.log_metrics(metrics)
     print(f"Wrote outputs to {OUT}")
