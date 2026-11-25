@@ -6,13 +6,8 @@ experiment_name: air-nemotron-super-vl-cord-lora
 mlflow_run_name: fifty-step-vl-lora-demo
 
 environment:
-  # Custom NeMo AutoModel container with native Super VL support, referenced by its
-  # Unity Catalog coordinates (<catalog>.<schema>.<image>:<tag>). Stock
-  # nemo-automodel:26.08.00 lacks Super VL, so build and push this image once
-  # before the first run (see README "Before you run"):
-  #   docker build --platform linux/amd64 -t nemo-automodel-vl:26.08.00 .
-  #   databricks air images push -s nemo-automodel-vl:26.08.00 \
-  #     --catalog main --schema default --artifact nemo-automodel-vl:26.08.00
+  # Custom AutoModel image with native Super VL support. Build and push it once before
+  # the first run, as described in README "Before you run".
   unity_catalog_image: main.default.nemo-automodel-vl:26.08.00
 
 compute:
@@ -37,7 +32,6 @@ env_variables:
   TORCHINDUCTOR_COMPILE_THREADS: "1"
   TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"
   PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
-  OPENSSL_FORCE_FIPS_MODE: "0"
 
 timeout_minutes: 240
 
