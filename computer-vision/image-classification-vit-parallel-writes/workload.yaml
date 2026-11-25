@@ -18,7 +18,8 @@ code_source:
 command: python "$CODE_SOURCE_PATH/classify_images.py"
 
 max_retries: 0
-timeout_minutes: 45
+# The default run writes all 3,669 images to the volume; the earlier 45-minute limit timed out with 2,263 written.
+timeout_minutes: 90
 
 parameters:
   model_name: google/vit-base-patch16-224
