@@ -31,4 +31,4 @@ A validation run on an A10 produced these results:
 | Mean reward, first → last logging interval | 0.27 → 0.64 |
 | Training time (100 steps) | 26 minutes |
 
-With 1,319 questions, each accuracy has a standard error of about 1.3 points, and their difference about 1.9 points if the two evaluations are treated as independent. The 2.9-point gain is about 1.5 times that, so treat it as a likely but not certain improvement. The rising reward shows GRPO is learning. The test set is only used for this report. No checkpoint is selected on it.
+With 1,319 questions, each accuracy has a standard error of about 1.3 points, and their difference about 1.9 points if the two evaluations are treated as independent. The 2.9-point gain is about 1.5 times that. Treat it as a likely but not certain improvement. The rising reward shows GRPO is learning. The test set is only used for this report. No checkpoint is selected on it.
