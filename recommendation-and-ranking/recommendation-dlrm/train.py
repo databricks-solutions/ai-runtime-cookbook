@@ -87,6 +87,29 @@ def prefixed(prefix, metrics):
     return {f"{prefix}_{key}": value for key, value in metrics.items()}
 
 
+def build_model(p, device, world):
+    """The sharded DLRM that training saves. The load check calls this too, so both build the same structure."""
+    tables = [EmbeddingBagConfig(name=f"t_{name}", embedding_dim=p["embedding_dim"],
+                                 num_embeddings=p["hash_size"], feature_names=[name])
+              for name in data.SPARSE_COLUMNS]
+    # Tables start on the meta device; the sharding plan materializes each shard on its GPU.
+    model = DLRMTrain(DLRM(
+        embedding_bag_collection=EmbeddingBagCollection(tables=tables, device=torch.device("meta")),
+        dense_in_features=len(data.DENSE_COLUMNS),
+        dense_arch_layer_sizes=p["dense_arch_layer_sizes"],
+        over_arch_layer_sizes=p["over_arch_layer_sizes"],
+        dense_device=device,
+    ))
+    apply_optimizer_in_backward(RowWiseAdagrad, model.model.sparse_arch.parameters(),
+                                {"lr": p["learning_rate"], "eps": p["eps"]})
+    topology = Topology(world_size=world, local_world_size=int(os.environ["LOCAL_WORLD_SIZE"]),
+                        compute_device="cuda", hbm_cap=torch.cuda.get_device_properties(device).total_memory)
+    plan = EmbeddingShardingPlanner(topology=topology, batch_size=p["batch_size"]).collective_plan(
+        model, get_default_sharders(), dist.GroupMember.WORLD)
+    model = DistributedModelParallel(module=model, device=device, plan=plan)
+    return model
+
+
 def main():
     with open(os.environ["HYPERPARAMETERS_PATH"]) as handle:
         p = yaml.safe_load(handle)
@@ -121,24 +144,7 @@ def main():
     dist.all_reduce(label_totals)
     ctr = (label_totals[0] / label_totals[1]).item()
 
-    tables = [EmbeddingBagConfig(name=f"t_{name}", embedding_dim=p["embedding_dim"],
-                                 num_embeddings=p["hash_size"], feature_names=[name])
-              for name in data.SPARSE_COLUMNS]
-    # Tables start on the meta device; the sharding plan materializes each shard on its GPU.
-    model = DLRMTrain(DLRM(
-        embedding_bag_collection=EmbeddingBagCollection(tables=tables, device=torch.device("meta")),
-        dense_in_features=len(data.DENSE_COLUMNS),
-        dense_arch_layer_sizes=p["dense_arch_layer_sizes"],
-        over_arch_layer_sizes=p["over_arch_layer_sizes"],
-        dense_device=device,
-    ))
-    apply_optimizer_in_backward(RowWiseAdagrad, model.model.sparse_arch.parameters(),
-                                {"lr": p["learning_rate"], "eps": p["eps"]})
-    topology = Topology(world_size=world, local_world_size=int(os.environ["LOCAL_WORLD_SIZE"]),
-                        compute_device="cuda", hbm_cap=torch.cuda.get_device_properties(device).total_memory)
-    plan = EmbeddingShardingPlanner(topology=topology, batch_size=p["batch_size"]).collective_plan(
-        model, get_default_sharders(), dist.GroupMember.WORLD)
-    model = DistributedModelParallel(module=model, device=device, plan=plan)
+    model = build_model(p, device, world)
     dense_optimizer = KeyedOptimizerWrapper(
         dict(in_backward_optimizer_filter(model.named_parameters())),
         lambda params: torch.optim.Adagrad(params, lr=p["learning_rate"], eps=p["eps"]),

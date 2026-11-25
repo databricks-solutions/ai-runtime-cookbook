@@ -18,14 +18,11 @@ code_source:
   root_path: .
 
 command: |
+  set -eo pipefail
   cd "$CODE_SOURCE_PATH"
-  torchrun \
-    --nnodes="$NUM_NODES" \
-    --node_rank="$NODE_RANK" \
-    --nproc_per_node="${LOCAL_WORLD_SIZE:-1}" \
-    --master_addr="$MASTER_ADDR" \
-    --master_port="$MASTER_PORT" \
-    train.py
+  launch="torchrun --nnodes=$NUM_NODES --node_rank=$NODE_RANK --nproc_per_node=${LOCAL_WORLD_SIZE:-1} --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT"
+  $launch train.py
+  $launch load_check.py
 
 env_variables:
   NCCL_SOCKET_IFNAME: eth0

@@ -36,3 +36,18 @@ The AIR MLflow run contains training log loss, throughput, validation and test m
 - `checkpoint/`: sharded model weights saved with `torch.distributed.checkpoint`, about 7 GB
 - `model_config.json`: table sizes, layer sizes, feature columns, and world size
 - `metrics.json`: final metrics
+
+To reload the weights, build the same sharded model that `train.py` builds, then load the checkpoint into its state dict. `load_check.py` does this in a new process under `torchrun`, with the training rank count, and then scores one validation row. The snippet runs the same calls. Here `p` is the workload's parameters as a dictionary, `device` is this rank's CUDA device, and `world` is the rank count:
+
+```python
+from pathlib import Path
+
+import torch.distributed.checkpoint as dcp
+
+from train import build_model
+
+model = build_model(p, device, world)
+state_dict = model.state_dict()
+dcp.load(state_dict, checkpoint_id=str(Path(p["output_root"]) / "<MLFLOW_RUN_ID>" / "checkpoint"))
+model.load_state_dict(state_dict)
+```
