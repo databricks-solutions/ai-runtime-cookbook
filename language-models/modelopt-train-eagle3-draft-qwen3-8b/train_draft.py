@@ -109,8 +109,10 @@ def main():
     train = [e for e in (encode_example(tok, u, a, MAX_LEN) for u, a in train_pairs) if e]
     eval_pairs = load_split("test_sft", int(P["num_eval_prompts"]), SEED)
     heldout = [e for e in (encode_example(tok, u, a, MAX_LEN) for u, a in eval_pairs[:100]) if e]
+    # Drops the last partial micro-batch when the kept count is not a multiple of MICRO_BS.
     heldout = heldout[: len(heldout) // MICRO_BS * MICRO_BS]
     supervised = sum(sum(m) for _, m in train)
+    # Drops the last partial micro-batch when the kept count is not a multiple of MICRO_BS.
     train = train[: len(train) // MICRO_BS * MICRO_BS]
     print(f"train examples: {len(train)} of {len(train_pairs)} kept; "
           f"supervised tokens: {supervised}; held-out examples: {len(heldout)}", flush=True)

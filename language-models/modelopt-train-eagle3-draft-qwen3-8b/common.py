@@ -4,8 +4,6 @@ Both steps use single-turn conversations from UltraChat, rendered with the targe
 template with thinking disabled. Train and evaluation prompts come from different splits.
 """
 
-import random
-
 from datasets import load_dataset
 from transformers import AutoTokenizer
 
