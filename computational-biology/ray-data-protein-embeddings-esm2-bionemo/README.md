@@ -12,20 +12,10 @@ This recipe uses Ray Data to embed the 28,303 UniProt proteins in [DeepLoc 2.0](
 databricks air run -f workload.yaml --override env_variables.OUTPUT_PATH=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
 ```
 
-To skip the TE build on later runs, set `TE_WHEEL_CACHE` to a volume directory. The first run saves the compiled binding there, in a subdirectory keyed on the Python, PyTorch, and CUDA versions and the GPU architectures in `NVTE_CUDA_ARCHS` (default `90`, H100), so a changed environment builds a fresh wheel.
-
 ## Run
 
 ```bash
 databricks air run -f workload.yaml --watch
-```
-
-For a quick test on one GPU:
-
-```bash
-databricks air run -f workload.yaml --watch \
-  --override compute.accelerator_type=GPU_1xH100 --override compute.num_accelerators=1 \
-  --override env_variables.NUM_SEQUENCES=2000
 ```
 
 ## Results

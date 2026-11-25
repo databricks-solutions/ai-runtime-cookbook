@@ -47,8 +47,6 @@ MAX_LENGTH = 1024
 # Set this in workload.yaml; lower it for larger checkpoints that run out of memory.
 TOKENS_PER_BATCH = int(os.environ.get("TOKENS_PER_BATCH", "65536"))
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
-# 0 embeds every sequence. Set a small value for a quick smoke test.
-NUM_SEQUENCES = int(os.environ.get("NUM_SEQUENCES", "0"))
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
 OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/protein-embeddings-esm2-bionemo")
 # AI Runtime creates an MLflow run per attempt, so each attempt gets its own output directory.
@@ -65,8 +63,6 @@ def load_sequences():
         frames.append(frame)
     df = pd.concat(frames, ignore_index=True)
     df.columns = ["accession", "kingdom", "membrane", "sequence", "split"]
-    if NUM_SEQUENCES > 0:
-        df = df.sample(n=min(NUM_SEQUENCES, len(df)), random_state=0)
     df["membrane"] = df["membrane"].astype(int)
     df["length"] = df["sequence"].str.len()
     return df.reset_index(drop=True)
