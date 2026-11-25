@@ -80,6 +80,9 @@ class GraphSAGE(torch.nn.Module):
 def main():
     with open(os.environ["HYPERPARAMETERS_PATH"]) as handle:
         p = yaml.safe_load(handle)
+    # The CLI can serialize small numbers as 1e-05, which PyYAML reads as a string.
+    for key in ("dropout", "learning_rate", "weight_decay"):
+        p[key] = float(p[key])
     if p["epochs"] < 1 or not 0 <= p["dropout"] < 1:
         raise ValueError("Require epochs >= 1 and 0 <= dropout < 1")
     torch.manual_seed(p["seed"])
