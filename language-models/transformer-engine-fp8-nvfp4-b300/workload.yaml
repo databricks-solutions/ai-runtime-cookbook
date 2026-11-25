@@ -1,5 +1,5 @@
 # Compare bf16, FP8 and NVFP4 (4-bit) training throughput and loss with NVIDIA Transformer
-# Engine on one 8xB300 node. Each precision trains the same 2B-parameter Llama-style model on
+# Engine on one 8xB300 node. Each precision trains the same 2.2B-parameter Llama-style model on
 # its own GPU, in parallel. Run from this directory: databricks air run -f workload.yaml --watch
 
 experiment_name: air-te-fp8-nvfp4-b300

@@ -4,6 +4,8 @@ This recipe trains the same 2.2B-parameter Llama-style model from scratch in fou
 
 The whole run takes about 5 minutes. The first run also compiles TE's PyTorch binding, which takes about 2 minutes. It saves the compiled binding to `TE_WHEEL_CACHE` in the output volume, and later runs install it from there.
 
+The recipe pins Transformer Engine 2.17.1, because newer releases need a newer cuBLASLt than `databricks_ai_v6` provides. MXFP8 and NVFP4 need Blackwell GPUs, and the recipe was validated only on B300.
+
 ## Before you run
 
 The default `output_root` and `TE_WHEEL_CACHE` are Unity Catalog volumes under `/Volumes/main/default/air_examples/transformer-engine-fp8-nvfp4-b300`. The volume must already exist and be writable. To write the outputs to another volume, run:
@@ -30,9 +32,3 @@ A validation run on 8xB300 produced these results (final loss is the mean of the
 | FP8 (current scaling) | 111,831 | 1.34× | 5.840 | 55.8 GB |
 | MXFP8 | 110,802 | 1.33× | 5.826 | 60.2 GB |
 | NVFP4 | 136,477 | 1.64× | 5.851 | 55.8 GB |
-
-Notes:
-
-- The recipe pins TE 2.17.1 because newer TE releases need a newer cuBLASLt than `databricks_ai_v6` provides.
-- TE's cuDNN fused attention fails on B300 with the cuDNN in `databricks_ai_v6`. `NVTE_FUSED_ATTN=0` makes TE use FlashAttention instead. Attention runs in bf16 for every precision.
-- MXFP8 and NVFP4 need Blackwell GPUs. The recipe has only been validated on B300.
