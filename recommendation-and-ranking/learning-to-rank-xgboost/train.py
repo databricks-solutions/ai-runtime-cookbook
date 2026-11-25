@@ -86,7 +86,7 @@ def main():
     params = {
         "objective": "rank:ndcg", "eval_metric": metric,
         "tree_method": "hist", "device": "cuda", "seed": p["seed"],
-        "max_depth": p["max_depth"], "learning_rate": p["learning_rate"],
+        "max_depth": p["max_depth"], "learning_rate": float(p["learning_rate"]),
         "lambdarank_pair_method": "topk", "lambdarank_num_pair_per_sample": p["ndcg_k"],
     }
     with mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"]):
