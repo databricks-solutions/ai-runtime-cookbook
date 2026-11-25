@@ -4,7 +4,11 @@ This recipe uses Ray Data and vLLM to generate responses for 1,000 Alpaca prompt
 
 ## Before you run
 
-Set `OUTPUT_PATH` in `workload.yaml` to an existing writable Unity Catalog volume.
+Set `OUTPUT_PATH` in `workload.yaml` to an existing writable Unity Catalog volume. To write elsewhere, pass another existing writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override env_variables.OUTPUT_PATH=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
