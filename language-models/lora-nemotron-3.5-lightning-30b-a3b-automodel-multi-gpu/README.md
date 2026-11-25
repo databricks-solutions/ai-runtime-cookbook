@@ -37,7 +37,11 @@ Check `env_variables.ADAPTER_OUTPUT_ROOT` in `workload.yaml`. The recipe saves t
 /Volumes/main/default/air_examples/lora-nemotron-3.5-lightning-30b-a3b-automodel-multi-gpu
 ```
 
-The volume must already exist and be writable. To use another location, update `ADAPTER_OUTPUT_ROOT` to a directory in another existing writable volume.
+The volume must already exist and be writable. To write elsewhere, pass another existing writable volume directory:
+
+```bash
+databricks air run -f workload.yaml --override env_variables.ADAPTER_OUTPUT_ROOT=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
 
 ## Run
 
