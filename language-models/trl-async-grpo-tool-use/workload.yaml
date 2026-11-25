@@ -6,17 +6,14 @@ experiment_name: air-trl-async-grpo-tool-use-qwen3-1_7b
 environment:
   version: "5"
   dependencies:
-    # TRL 1.18.0 promoted AsyncGRPOTrainer to stable. Its vLLM range is >=0.23,<0.34.
     - trl==1.18.0
     - vllm==0.33.0
-    # vLLM 0.33.0 requires transformers >=5.16.1,<5.21.0. TRL's async trainer needs >=5.2.0.
     - transformers==5.20.2
     - peft==0.21.2
     - accelerate==1.15.0
-    # transformers 5.20.2 requires kernels>=0.17.2,<0.18. TRL loads flash-attn3 through it.
     - kernels==0.17.2
-    # vLLM requires aiohttp>=3.14.4; TRL's rollout client uses it.
     - aiohttp==3.14.4
+    # Newer fsspec releases break load_dataset with this huggingface_hub ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
     - datasets==5.2.0
     - huggingface_hub==2.4.0
     - fsspec==2026.9.0
@@ -32,31 +29,14 @@ compute:
 code_source:
   root_path: .
 
-env_variables:
-  # Use vLLM's PyTorch sampler. The default FlashInfer sampler JIT-compiles a CUDA
-  # kernel at startup and needs CUDA headers (curand.h) that this environment lacks.
-  VLLM_USE_FLASHINFER_SAMPLER: "0"
-
 command: |
+  set -eo pipefail
   # AIR may inherit this obsolete setting. huggingface_hub 1.0 and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
 
-  # Start the rollout server on GPU 0. The trainer's weight sync and LoRA adapter loading
-  # need the two runtime-update flags, and VLLM_SERVER_DEV_MODE exposes the weight-transfer routes.
-  # Keep the default single API server. vLLM 0.33 rejects VLLM_ALLOW_RUNTIME_LORA_UPDATING with
-  # --api-server-count > 1, and runtime LoRA updates are what make adapter sync work.
-  # --max-loras 8 covers the trainer's max_staleness + 2 adapter slots plus the final evaluation adapter.
-  MODEL_NAME="$(python -c 'import os, yaml; print(yaml.safe_load(open(os.environ["HYPERPARAMETERS_PATH"]))["model_name"])')"
+  # Start the rollout server on GPU 0. serve.py reads the model name from the parameters.
   CUDA_VISIBLE_DEVICES=0 VLLM_SERVER_DEV_MODE=1 VLLM_ALLOW_RUNTIME_LORA_UPDATING=1 \
-    vllm serve "$MODEL_NAME" \
-    --port 8000 \
-    --gpu-memory-utilization 0.9 \
-    --max-model-len 8192 \
-    --weight-transfer-config '{"backend": "nccl"}' \
-    --logprobs-mode processed_logprobs \
-    --enable-lora --max-lora-rank 32 --max-loras 8 \
-    --enable-auto-tool-choice --tool-call-parser hermes \
-    > /tmp/vllm-server.log 2>&1 &
+    python "$CODE_SOURCE_PATH/serve.py" > /tmp/vllm-server.log 2>&1 &
   VLLM_PID=$!
   trap 'kill "$VLLM_PID" 2>/dev/null; wait "$VLLM_PID" 2>/dev/null' EXIT
 
@@ -86,15 +66,14 @@ parameters:
   lora_r: 16
   # Training prompts: schemas and questions from gretelai/synthetic_text_to_sql train split (Apache-2.0).
   train_samples: 2000
-  # Held-out evaluation: the same rows before and after training, from the test split.
-  eval_samples: 300
+  # Held-out evaluation: every usable test row, before and after training. The same rows are used for both.
   max_steps: 80
   learning_rate: 0.00005
   num_generations: 8
   max_completion_length: 512          # per model turn
   max_tool_calling_iterations: 6
   gradient_accumulation_steps: 4      # micro-batches (token-budget rows) per optimizer step
-  max_concurrent_rollouts: 256        # at 64, rollout generation was the bottleneck while vLLM KV cache stayed under 1%
+  max_concurrent_rollouts: 256
   save_steps: 40
   # Requires access to this existing volume; replace it with another writable volume if needed.
   output_root: /Volumes/main/default/air_examples/trl-async-grpo-tool-use

@@ -25,6 +25,8 @@ from datasets import Dataset, load_dataset
 from peft import LoraConfig
 
 from trl import AsyncGRPOConfig, AsyncGRPOTrainer
+from trl.chat_template_utils import parse_response
+from trl.trainer.async_grpo_trainer import AsyncRolloutLoop, Rollout
 
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
@@ -43,7 +45,7 @@ ADAPTER_NAME = "grpo_final"
 QUERY_TIMEOUT_S = 5.0
 MAX_ROWS_SHOWN = 20
 MAX_TOOL_OUTPUT_CHARS = 2000
-MAX_CONTEXT_CHARS = 1500  # keeps prompts short enough for the 8192-token server window
+MAX_CONTEXT_CHARS = 1500  # keeps prompts within the 8192-token server window
 MAX_GOLD_ROWS = 200
 
 PROMPT_TEMPLATE = (
@@ -113,12 +115,18 @@ def normalize_rows(rows):
 
 
 def build_split(split, n_examples, seed):
-    """Keep rows whose database builds, whose gold query runs, and whose gold result is non-empty and small."""
+    """Keep rows whose database builds, whose gold query runs, and whose gold result is non-empty and small.
+
+    `n_examples=None` keeps every usable row.
+    """
     rows = load_dataset(DATASET, split=split).shuffle(seed=seed)
     kept = []
     for row in rows:
-        # LIMIT without a total ORDER BY has no single correct answer, so skip it.
-        if len(row["sql_context"]) > MAX_CONTEXT_CHARS or " LIMIT " in row["sql"].upper():
+        # Drops schemas longer than MAX_CONTEXT_CHARS.
+        if len(row["sql_context"]) > MAX_CONTEXT_CHARS:
+            continue
+        # Drops every gold query with LIMIT, even with ORDER BY. Without a total order, LIMIT can return other rows.
+        if re.search(r"\bLIMIT\b", row["sql"], flags=re.IGNORECASE):
             continue
         conn = None
         try:
@@ -126,10 +134,12 @@ def build_split(split, n_examples, seed):
             conn.executescript(row["sql_context"])
             gold = run_select(conn, row["sql"])
         except sqlite3.Error:
+            # Drops rows whose database or gold query fails to run.
             continue
         finally:
             if conn is not None:
                 conn.close()
+        # Drops gold results with no rows or more than MAX_GOLD_ROWS rows.
         if not gold or len(gold) > MAX_GOLD_ROWS:
             continue
         content = PROMPT_TEMPLATE.format(schema=schema_only(row["sql_context"]), question=row["sql_prompt"])
@@ -140,9 +150,9 @@ def build_split(split, n_examples, seed):
                 "sql": row["sql"],
             }
         )
-        if len(kept) == n_examples:
+        if n_examples is not None and len(kept) == n_examples:
             break
-    if len(kept) < n_examples:
+    if n_examples is not None and len(kept) < n_examples:
         raise RuntimeError(f"only {len(kept)} usable rows in {split}; wanted {n_examples}")
     print(f"[data] {split}: kept {len(kept)} rows", flush=True)
     return Dataset.from_list(kept)
@@ -209,6 +219,79 @@ class SQLEnv:
         except sqlite3.Error:
             return 0.0
         return float(normalize_rows(rows) == self._gold)
+
+
+def answer_submitted(tools):
+    """True once the environment behind these tools has accepted an answer."""
+    return any(
+        tool.__name__ == "submit_answer" and tool.__self__.submitted_query is not None for tool in tools
+    )
+
+
+class SQLRolloutLoop(AsyncRolloutLoop):
+    """Training rollouts end at submit_answer, as evaluation episodes do.
+
+    TRL's default loop samples until the model stops calling tools. Without this override, the model could keep
+    querying after it submits, and those turns would be trained on.
+    """
+
+    async def generate_one(self, prompt, tools, group_id=0):
+        # TRL's AsyncRolloutLoop.generate_one, with one stop after the tool calls that submit an answer.
+        messages = list(prompt)
+        tool_dict = {tool.__name__: tool for tool in tools}
+        turns = []
+        completion, completion_ids = [], []
+        tool_call_count = 0
+        tool_failure_count = 0
+        iteration_num = 0
+        loop_exhausted = False
+        max_iterations = self.config.max_tool_calling_iterations
+        while True:
+            prompt_ids = self.tokenizer.apply_chat_template(
+                messages,
+                return_dict=False,
+                add_generation_prompt=True,
+                tools=tools or None,
+                chat_template=self.chat_template,
+                **self.chat_template_kwargs,
+            )
+            turn = await self.generate_one_turn(prompt_ids)
+            if (
+                getattr(self.tokenizer, "response_template", None) is not None
+                or getattr(self.tokenizer, "response_schema", None) is not None
+            ):
+                assistant_message = parse_response(self.tokenizer, turn.output_ids, prefix=prompt_ids, tools=tools)
+            else:
+                content = self.tokenizer.decode(turn.output_ids, skip_special_tokens=True)
+                assistant_message = {"role": "assistant", "content": content}
+            completion.append(assistant_message)
+            completion_ids.extend(turn.output_ids)
+            messages.append(assistant_message)
+            turns.append(turn)
+            tool_calls = assistant_message.get("tool_calls")
+            if tool_calls is None:
+                break
+            if max_iterations is not None and iteration_num >= max_iterations:
+                loop_exhausted = True
+                break
+            tool_messages, n_calls, n_failures = await self._execute_tool_calls(tool_calls, tool_dict)
+            tool_call_count += n_calls
+            tool_failure_count += n_failures
+            completion.extend(tool_messages)
+            messages.extend(tool_messages)
+            if answer_submitted(tools):
+                break
+            iteration_num += 1
+        if self.tools:
+            self._rates["tools/loop_exhausted_frac"][0] += loop_exhausted
+            self._rates["tools/loop_exhausted_frac"][1] += 1
+        return Rollout(completion, completion_ids, turns, tool_call_count, tool_failure_count)
+
+
+class SQLTrainer(AsyncGRPOTrainer):
+    """AsyncGRPOTrainer that runs SQLRolloutLoop for its rollouts."""
+
+    loop_cls = SQLRolloutLoop
 
 
 def dispatch(env, name, arguments):
@@ -306,14 +389,11 @@ def evaluate(model, rows, label):
         summary[f"{label}/{name}"] = mean
         summary[f"{label}/{name}_se"] = standard_error
     total_calls = sum(e["tool_calls"] for e in episodes)
-    error_rate = sum(e["tool_errors"] for e in episodes) / max(1, total_calls)
-    # Treat individual tool calls as the sampled units for this pooled proportion's standard error.
-    summary[f"{label}/tool_error_rate"] = error_rate
-    summary[f"{label}/tool_error_rate_se"] = (error_rate * (1 - error_rate) / max(1, total_calls)) ** 0.5
+    summary[f"{label}/tool_error_rate"] = sum(e["tool_errors"] for e in episodes) / max(1, total_calls)
     print(
         f"[eval] {label}: "
         + ", ".join(
-            f"{key.split('/')[1]}={value:.3f}" + (f" +/- {summary[f'{key}_se']:.3f}" if not key.endswith("_se") else "")
+            f"{key.split('/')[1]}={value:.3f}" + (f" +/- {summary[f'{key}_se']:.3f}" if f"{key}_se" in summary else "")
             for key, value in summary.items()
             if not key.endswith("_se")
         ),
@@ -345,14 +425,14 @@ def main():
     WORK.mkdir(parents=True, exist_ok=True)
 
     train_ds = build_split("train", int(P["train_samples"]), seed=0)
-    eval_ds = build_split("test", P["eval_samples"], seed=0)
+    eval_ds = build_split("test", None, seed=0)
 
     # Baseline: the base model through the same multi-turn tool loop, on the held-out rows.
     # Logged before training: the run exists but the trainer's MLflow callback has not resumed it yet.
     base = evaluate(P["model_name"], eval_ds, "eval")
     log_eval_metrics(base, step=0)
 
-    trainer = AsyncGRPOTrainer(
+    trainer = SQLTrainer(
         model=P["model_name"],
         args=AsyncGRPOConfig(
             output_dir=str(WORK / "trainer"),
