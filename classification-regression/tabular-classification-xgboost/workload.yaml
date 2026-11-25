@@ -13,7 +13,10 @@ compute:
 code_source:
   root_path: .
 
-command: python $CODE_SOURCE_PATH/train.py
+command: |
+  set -eo pipefail
+  python $CODE_SOURCE_PATH/train.py
+  python $CODE_SOURCE_PATH/load_check.py
 
 max_retries: 0
 timeout_minutes: 30
