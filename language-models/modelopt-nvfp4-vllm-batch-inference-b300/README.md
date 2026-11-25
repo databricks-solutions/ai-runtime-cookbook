@@ -2,7 +2,7 @@
 
 This recipe quantizes `Qwen/Qwen3-32B` to NVFP4 (4-bit floating point) with [NVIDIA Model Optimizer](https://github.com/NVIDIA/Model-Optimizer) post-training quantization (PTQ). Calibration uses 256 CNN/DailyMail articles. The recipe then runs vLLM offline batch inference on all 1,319 GSM8K test questions with the quantized model and the bf16 original, side by side on two B300 GPUs. It compares output throughput and accuracy.
 
-The whole run takes about 11 minutes.
+The run takes 10m 31s in the container on one 8xB300 node.
 
 ## Before you run
 
@@ -24,12 +24,12 @@ The run prints throughput and GSM8K accuracy for both models. It writes `generat
 
 The model revision is `Qwen/Qwen3-32B` at `9216db5781bf21249d130ec9da846c4624c16137`.
 
-Validation runs on 8xB300 produced these results:
+A validation run on 8xB300 produced these results, on all 1,319 GSM8K test questions:
 
-| Model | Weights | Output tokens/s | Speedup | GSM8K accuracy |
-|---|---|---|---|---|
-| Qwen3-32B bf16 | 65.5 GB | 9,628 | 1.00× | 93.4% |
-| Qwen3-32B NVFP4 | 20.7 GB | 14,190 | 1.47× | 92.6% |
+| Model | Output tokens/s | Speedup | GSM8K accuracy |
+|---|---|---|---|
+| Qwen3-32B bf16 | 10,626 | 1.00× | 96.1% |
+| Qwen3-32B NVFP4 | 14,273 | 1.34× | 95.5% |
 
 Notes on the environment:
 
