@@ -32,6 +32,8 @@ command: |
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/train.py"
+  # A new process loads the saved adapter and answers one test receipt with it.
+  python "$CODE_SOURCE_PATH/load_adapter.py"
 
 max_retries: 0
 # The timeout clock starts at submission and includes queue time.
@@ -53,11 +55,5 @@ parameters:
   max_new_tokens: 512           # generation cap per receipt
   eval_batch_size: 16
   seed: 42
-  # Smoke-test overrides (-1 runs everything): max_train_samples, max_eval_samples, max_steps.
-  # Validated end to end: max_train_samples=8, max_eval_samples=8, max_steps=5 (max_steps must be
-  # at least logging_steps=5 in train.py, or no training loss is logged and the sanity check fails).
-  max_train_samples: -1
-  max_eval_samples: -1
-  max_steps: -1
   # Requires access to this existing volume; replace it with another writable volume if needed.
   output_root: /Volumes/main/default/air_examples/finetune-qwen3-vl-2b-lora-receipts-a10

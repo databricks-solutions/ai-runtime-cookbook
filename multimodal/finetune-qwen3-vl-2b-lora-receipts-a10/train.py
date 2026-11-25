@@ -13,7 +13,6 @@ Run from this recipe's directory:
     databricks air run -f workload.yaml --watch
 """
 
-import io
 import json
 import logging
 import math
@@ -49,11 +48,8 @@ LORA_TARGET_REGEX = (
 
 def load_params() -> dict:
     """Read the ``parameters:`` block that ``air`` materializes from the workload YAML."""
-    path = os.environ.get("HYPERPARAMETERS_PATH")
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    return {}
+    with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+        return yaml.safe_load(f)
 
 
 def load_processor(model_name: str, min_pixels: int, max_pixels: int):
@@ -67,9 +63,7 @@ def load_processor(model_name: str, min_pixels: int, max_pixels: int):
 
 
 def as_rgb(image) -> Image.Image:
-    """The dataset decodes images to PIL only when the feature type is declared; decode raw bytes otherwise."""
-    if isinstance(image, dict):
-        image = Image.open(io.BytesIO(image["bytes"]))
+    """CORD-v2 declares its image column as an Image feature, so rows arrive as PIL images."""
     return image.convert("RGB")
 
 
@@ -252,23 +246,20 @@ def write_predictions(path: str, scored: list[dict]) -> None:
 
 def main() -> None:
     p = load_params()
-    model_name = p.get("model_name", "Qwen/Qwen3-VL-2B-Instruct")
-    dataset_name = p.get("dataset_name", "naver-clova-ix/cord-v2")
-    min_pixels = int(p.get("min_pixels", 65536))
-    max_pixels = int(p.get("max_pixels", 768 * 28 * 28))
-    max_train_samples = int(p.get("max_train_samples", -1))
-    max_eval_samples = int(p.get("max_eval_samples", -1))
-    max_steps = int(p.get("max_steps", -1))
-    epochs = float(p.get("epochs", 2))
-    per_device_batch_size = int(p.get("per_device_batch_size", 2))
-    grad_accum = int(p.get("grad_accum", 4))
-    learning_rate = float(p.get("learning_rate", 2e-4))
-    lora_r = int(p.get("lora_r", 16))
-    lora_alpha = int(p.get("lora_alpha", 32))
-    lora_dropout = float(p.get("lora_dropout", 0.05))
-    max_new_tokens = int(p.get("max_new_tokens", 512))
-    eval_batch_size = int(p.get("eval_batch_size", 16))
-    seed = int(p.get("seed", 42))
+    model_name = p["model_name"]
+    dataset_name = p["dataset_name"]
+    min_pixels = int(p["min_pixels"])
+    max_pixels = int(p["max_pixels"])
+    epochs = float(p["epochs"])
+    per_device_batch_size = int(p["per_device_batch_size"])
+    grad_accum = int(p["grad_accum"])
+    learning_rate = float(p["learning_rate"])
+    lora_r = int(p["lora_r"])
+    lora_alpha = int(p["lora_alpha"])
+    lora_dropout = float(p["lora_dropout"])
+    max_new_tokens = int(p["max_new_tokens"])
+    eval_batch_size = int(p["eval_batch_size"])
+    seed = int(p["seed"])
     output_root = p["output_root"]
 
     set_seed(seed)
@@ -283,12 +274,6 @@ def main() -> None:
     train_rows = load_dataset(dataset_name, split="train")
     val_rows = load_dataset(dataset_name, split="validation")
     test_rows = load_dataset(dataset_name, split="test")
-    # Smoke-test subsets take the first N rows; the default run uses every row.
-    if max_train_samples > 0:
-        train_rows = train_rows.select(range(min(max_train_samples, len(train_rows))))
-    if max_eval_samples > 0:
-        test_rows = test_rows.select(range(min(max_eval_samples, len(test_rows))))
-        val_rows = val_rows.select(range(min(max_eval_samples, len(val_rows))))
     print(f"train={len(train_rows)} validation={len(val_rows)} test={len(test_rows)}", flush=True)
 
     processor = load_processor(model_name, min_pixels, max_pixels)
@@ -365,7 +350,6 @@ def main() -> None:
         args = TrainingArguments(
             output_dir="/tmp/qwen3vl-lora-trainer",
             num_train_epochs=epochs,
-            max_steps=max_steps,
             per_device_train_batch_size=per_device_batch_size,
             gradient_accumulation_steps=grad_accum,
             learning_rate=learning_rate,
@@ -431,7 +415,6 @@ def main() -> None:
             "diff_schema_field_f1_se": schema_diff_f1_se,
             "diff_schema_exact_match": schema_diff_em_mean,
             "diff_schema_exact_match_se": schema_diff_em_se,
-            "diff_val_loss": tuned_val_loss - base_val_loss,
         }
         mlflow.log_metrics(final)
         print("difference (tuned - base):", final, flush=True)
