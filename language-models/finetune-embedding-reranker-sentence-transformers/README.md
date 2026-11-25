@@ -39,6 +39,18 @@ Each run saves its files in `<output_root>/<MLFLOW_RUN_ID>/`:
 | `metrics.json` | Dataset counts, stage timings, and dev and test metrics with standard errors for each system. It also includes the dev sweep over rerank depths and paired standard errors for the fine-tuning and reranking comparisons. |
 | `parameters.json` | The settings used for the run. |
 
+To load the saved models in a new process, set `output_dir` to `<output_root>/<MLFLOW_RUN_ID>` and run the lines below. The recipe runs the same lines in [check_artifacts.py](check_artifacts.py) after training, in a fresh process, and scores one question and one document with both models.
+
+```python
+from sentence_transformers import CrossEncoder, SentenceTransformer
+
+embedder = SentenceTransformer(
+    str(output_dir / "embedder"),
+    config_kwargs={"vision_config": None, "audio_config": None},
+)
+reranker = CrossEncoder(str(output_dir / "reranker"))
+```
+
 Results from the validated run (one A10, 57,638 documents, 648 test queries). Standard errors are over test queries. Test scores use the reranker depth that dev selected (20):
 
 | System | Test nDCG@10 | Test Recall@100 |
