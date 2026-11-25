@@ -4,10 +4,12 @@
 experiment_name: air-sglang-eagle3-qwen3-8b
 
 environment:
-  # CUDA 13 environment, matching the CUDA 13 wheels that SGLang 0.5.23 ships.
-  version: databricks_ai_v6
+  # Standard environment 6 has no preinstalled torch, flash-attn or legacy pynvml.
+  version: "6"
   dependencies:
     - sglang==0.5.23
+    - torch==2.14.1
+    - nvidia-ml-py==13.615.71
     # SGLang's tokenizers pin needs huggingface_hub < 2; these versions work together with it.
     - datasets==4.8.5
     - huggingface_hub==1.33.0
@@ -24,12 +26,6 @@ command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   set -eo pipefail
-  # The environment's flash-attn is compiled for its original PyTorch, which sglang replaces.
-  # SGLang ships its own attention kernels, so remove the incompatible package.
-  python -m pip uninstall -y flash-attn
-  # The environment's legacy pynvml package shadows nvidia-ml-py's newer pynvml module.
-  python -m pip uninstall -y pynvml
-  python -m pip install --no-deps --force-reinstall nvidia-ml-py==13.615.71
   python "$CODE_SOURCE_PATH/batch_inference.py"
 
 max_retries: 0
