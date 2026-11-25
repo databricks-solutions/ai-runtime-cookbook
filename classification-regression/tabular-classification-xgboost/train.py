@@ -118,9 +118,8 @@ def main() -> None:
     mlflow.set_registry_uri("databricks-uc")
 
     # AIR provisions an MLflow run for the job and sets MLFLOW_RUN_ID; resume it so everything lands
-    # in the run the CLI shows. (Falls back to a fresh run when executed outside AIR.)
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    run = mlflow.start_run(run_id=run_id) if run_id else mlflow.start_run(run_name="xgboost-covertype")
+    # in the run the CLI shows.
+    run = mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"])
     with run:
         # Log the config UP FRONT so the run has content before training finishes.
         mlflow.log_params({
