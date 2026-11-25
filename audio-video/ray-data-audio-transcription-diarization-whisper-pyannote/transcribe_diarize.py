@@ -175,6 +175,7 @@ class WhisperDiarizer:
 
 
 def main():
+    run_id = os.environ["MLFLOW_RUN_ID"]
     check_model_access()
     ray.init(address="auto")
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
@@ -194,11 +195,9 @@ def main():
         batch_size=1,
     ).materialize()
 
-    # Write each run under its own AIR MLflow run id so reruns don't overwrite
-    # earlier results (falls back to OUTPUT_PATH itself when run locally). Overwrite
-    # mode keeps a retried write from appending Parquet files next to partial ones.
-    run_id = os.environ.get("MLFLOW_RUN_ID")
-    output_dir = f"{OUTPUT_PATH}/{run_id}" if run_id else OUTPUT_PATH
+    # Write each run under its own AIR MLflow run id so reruns don't overwrite earlier results.
+    # Overwrite mode keeps a retried write from appending Parquet files next to partial ones.
+    output_dir = f"{OUTPUT_PATH}/{run_id}"
     out.write_parquet(output_dir, mode="overwrite")
     print(f"Wrote {out.count()} rows to {output_dir}", flush=True)
     for row in out.take(2):
