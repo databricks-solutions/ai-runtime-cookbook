@@ -100,7 +100,4 @@ def parse_number(text):
         found = re.findall(r"-?[\d,]*\.?\d+", text)
     if not found:
         return None
-    try:
-        return float(found[-1].replace(",", "").rstrip("."))
-    except ValueError:
-        return None
+    return float(found[-1].replace(",", "").rstrip("."))
