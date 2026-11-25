@@ -97,8 +97,7 @@ def main() -> None:
 
     # Load AG News, optionally subsample for a fast demo, and tokenize.
     ds = load_dataset(dataset_name)
-    if max_train_samples > 0:
-        ds["train"] = ds["train"].shuffle(seed=seed).select(range(min(max_train_samples, ds["train"].num_rows)))
+    ds["train"] = ds["train"].shuffle(seed=seed).select(range(min(max_train_samples, ds["train"].num_rows)))
     if max_eval_samples > 0:
         ds["test"] = ds["test"].shuffle(seed=seed).select(range(min(max_eval_samples, ds["test"].num_rows)))
     tokenizer = AutoTokenizer.from_pretrained(model_name)

@@ -12,7 +12,7 @@ environment:
 
 compute:
   num_accelerators: 1
-  accelerator_type: GPU_1xA10   # any single GPU works (e.g. GPU_1xH100); A10 is the cheapest here
+  accelerator_type: GPU_1xA10
 
 code_source:
   root_path: .
@@ -35,9 +35,9 @@ parameters:
   model_name: answerdotai/ModernBERT-base
   dataset_name: fancyzhx/ag_news
   max_length: 256
-  max_train_samples: 20000   # subsample to keep the single-GPU demo fast; set -1 for the full split
+  max_train_samples: 20000   # subsample to keep the single-GPU demo fast
   max_eval_samples: 2000
-  attn_implementation: sdpa  # or "flash_attention_2" with a matching flash-attn build
+  attn_implementation: sdpa
   # Training hyperparameters (decimal, not 5e-5, so YAML parses them as floats).
   epochs: 1
   train_batch_size: 32
