@@ -16,14 +16,6 @@ databricks air run -f workload.yaml --override env_variables.OUTPUT_PATH=/Volume
 databricks air run -f workload.yaml --watch
 ```
 
-For a quick test on one GPU:
-
-```bash
-databricks air run -f workload.yaml --watch \
-  --override compute.accelerator_type=GPU_1xH100 --override compute.num_accelerators=1 \
-  --override env_variables.NUM_IMAGES=64
-```
-
 ## Results
 
 Each run writes one Parquet row per image to `OUTPUT_PATH/<MLflow run ID>`, with the true and predicted species and breed, the caption, and per-image correctness flags. The workload's MLflow run records the accuracy and throughput metrics, a `sample_predictions.json` table with the first 50 predictions, and a `breed_confusions.json` table with the 20 most common mistakes.

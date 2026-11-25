@@ -34,8 +34,6 @@ from ray.data.llm import build_processor, vLLMEngineProcessorConfig
 MODEL_SOURCE = "Qwen/Qwen3-VL-8B-Instruct"
 DATASET_REPO = "timm/oxford-iiit-pet"
 DATASET_FILE = "data/test-00000-of-00001.parquet"
-# 0 processes the full test split. Set a small value for a quick smoke test.
-NUM_IMAGES = int(os.environ.get("NUM_IMAGES", "0"))
 # Unity Catalog volume path where results land as Parquet. Set this in workload.yaml.
 OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/Volumes/main/default/air_examples/batch-inference-qwen3-vl-8b-vllm")
 # AI Runtime creates an MLflow run per attempt, so each attempt gets its own output directory.
@@ -81,8 +79,6 @@ def load_images():
     """Build a Ray Dataset of images and labels from the public Oxford-IIIT Pet test split."""
     local_file = hf_hub_download(repo_id=DATASET_REPO, filename=DATASET_FILE, repo_type="dataset")
     table = pq.read_table(local_file, columns=["image", "label", "image_id"])
-    if NUM_IMAGES > 0:
-        table = table.slice(0, NUM_IMAGES)
     items = []
     for row in table.to_pylist():
         breed = BREEDS[row["label"]]
