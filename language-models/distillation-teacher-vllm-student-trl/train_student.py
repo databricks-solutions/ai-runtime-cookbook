@@ -2,9 +2,11 @@
 
 import json
 import math
+import os
 import time
 from pathlib import Path
 
+import mlflow
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, TrainerCallback
@@ -41,14 +43,20 @@ def main():
         logging_steps=10,
         logging_nan_inf_filter=False,
         save_strategy="no",
-        report_to="none",
+        report_to="mlflow",
     )
-    t0 = time.time()
-    trainer = SFTTrainer(model=P["student_model"], args=args, train_dataset=data, processing_class=tok,
-                         callbacks=[StopOnNonFiniteGradients()])
-    result = trainer.train()
-    trainer.save_model(f"{WORK}/student")
-    tok.save_pretrained(f"{WORK}/student")
+    # AIR sets MLFLOW_RUN_ID. Open that run before training and pop the variable, so the
+    # trainer's MLflow callback logs into this run instead of starting and ending its own.
+    run_id = os.environ.pop("MLFLOW_RUN_ID", None)
+    if not run_id:
+        raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+    with mlflow.start_run(run_id=run_id):
+        t0 = time.time()
+        trainer = SFTTrainer(model=P["student_model"], args=args, train_dataset=data, processing_class=tok,
+                             callbacks=[StopOnNonFiniteGradients()])
+        result = trainer.train()
+        trainer.save_model(f"{WORK}/student")
+        tok.save_pretrained(f"{WORK}/student")
     stats = {"student_train_loss": result.training_loss, "student_train_seconds": time.time() - t0,
              "student_train_examples": len(data)}
     print(json.dumps(stats), flush=True)
