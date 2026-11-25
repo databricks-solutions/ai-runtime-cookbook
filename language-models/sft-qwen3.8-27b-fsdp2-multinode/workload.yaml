@@ -10,9 +10,8 @@
 # Data:   UltraChat 200k (SFT) streamed from the HF hub, chat-templated + tokenized
 #         with the Qwen3.8 tokenizer into seq-8192 blocks (response-only loss).
 # Image:  databricks_ai_v6 -- the "v6" AI Runtime environment version (a CUDA 13 base). We
-#         install torch 2.12 (cu130), then build flash-attn-3 + causal-conv1d from source
-#         against it, plus transformers + fla. The v6 environment (vs the older v5) is needed
-#         for its CUDA-13 driver.
+#         pin torch 2.12 from PyPI, then build flash-attn-3 + causal-conv1d from source against
+#         it, plus transformers + fla.
 #
 # Run it directly on a 32xH100 (4-node) workspace:
 #   databricks air run -f workload.yaml --watch
