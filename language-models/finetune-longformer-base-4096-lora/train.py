@@ -39,32 +39,26 @@ from transformers import (
 
 def load_params() -> dict:
     """Read the hyperparameters block that `air` materializes from `parameters:`."""
-    path = os.environ.get("HYPERPARAMETERS_PATH")
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-    return {}
+    with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
+        return yaml.safe_load(f)
 
 
 def main():
     p = load_params()
-    output_root = p.get(
-        "output_root",
-        "/Volumes/main/default/air_examples/finetune-longformer-base-4096-lora",
-    )
-    model_name = p.get("model_name", "allenai/longformer-base-4096")
-    dataset_name = p.get("dataset_name", "stanfordnlp/imdb")
-    num_labels = int(p.get("num_labels", 2))
-    max_length = int(p.get("max_length", 4096))
-    train_samples = int(p.get("train_samples", 2000))
-    eval_samples = int(p.get("eval_samples", 500))
-    learning_rate = float(p.get("learning_rate", 1e-4))
-    num_epochs = int(p.get("num_epochs", 1))
-    per_device_batch_size = int(p.get("per_device_batch_size", 4))
-    gradient_accumulation_steps = int(p.get("gradient_accumulation_steps", 1))
-    lora_r = int(p.get("lora_r", 16))
-    lora_alpha = int(p.get("lora_alpha", 32))
-    lora_dropout = float(p.get("lora_dropout", 0.05))
+    output_root = p["output_root"]
+    model_name = p["model_name"]
+    dataset_name = p["dataset_name"]
+    num_labels = int(p["num_labels"])
+    max_length = int(p["max_length"])
+    train_samples = int(p["train_samples"])
+    eval_samples = int(p["eval_samples"])
+    learning_rate = float(p["learning_rate"])
+    num_epochs = int(p["num_epochs"])
+    per_device_batch_size = int(p["per_device_batch_size"])
+    gradient_accumulation_steps = int(p["gradient_accumulation_steps"])
+    lora_r = int(p["lora_r"])
+    lora_alpha = int(p["lora_alpha"])
+    lora_dropout = float(p["lora_dropout"])
 
     # AIR sets MLFLOW_RUN_ID. Pop it so the run is opened here, not by the Trainer's MLflow callback.
     # The output dir is keyed by the run, so reruns and retries don't overwrite a previous adapter.
