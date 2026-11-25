@@ -15,8 +15,11 @@ code_source:
   root_path: .
 
 command: |
+  set -eo pipefail
   cd "$CODE_SOURCE_PATH"
   RAY_ENTRYPOINT=tune.py bash ray_bootstrap.sh
+  # Only the head node runs the check; the workers exit when the head stops.
+  if [ "${NODE_RANK:-0}" = "0" ]; then python "$CODE_SOURCE_PATH/load_check.py"; fi
 
 max_retries: 0
 timeout_minutes: 45
