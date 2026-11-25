@@ -2,7 +2,7 @@
 
 This recipe runs QLoRA fine-tuning of `unsloth/gpt-oss-20b` on a single 24 GB A10 using [Unsloth](https://github.com/unslothai/unsloth). gpt-oss-20b is a 21B-parameter mixture-of-experts (MoE) model. Unsloth loads it in 4-bit and trains LoRA adapters (0.44% of parameters) on the `HuggingFaceH4/Multilingual-Thinking` reasoning dataset for 30 steps, then generates a sample answer.
 
-The run takes about 10 minutes. About half of that is downloading and loading the model.
+The run takes about 10 minutes.
 
 ## Before you run
 
