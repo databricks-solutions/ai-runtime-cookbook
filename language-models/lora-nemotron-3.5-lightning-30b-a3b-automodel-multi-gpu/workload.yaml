@@ -20,7 +20,7 @@ compute:
 code_source:
   root_path: .
   include_paths:
-    - train.sh
+    - train.py
     - nemotron_hellaswag.yaml
 
 env_variables:
@@ -42,4 +42,6 @@ timeout_minutes: 240
 max_retries: 0
 
 command: |
-  bash "$CODE_SOURCE_PATH/train.sh"
+  set -eo pipefail
+  cd "$CODE_SOURCE_PATH"
+  python train.py
