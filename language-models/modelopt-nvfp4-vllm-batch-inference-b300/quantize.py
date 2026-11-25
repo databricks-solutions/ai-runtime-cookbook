@@ -18,9 +18,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 with open(os.environ["HYPERPARAMETERS_PATH"]) as f:
     P = yaml.safe_load(f)
 
-CONFIGS = {"nvfp4": mtq.NVFP4_DEFAULT_CFG, "fp8": mtq.FP8_DEFAULT_CFG}
-
-
 def main():
     out = Path(P["quantized_dir"])
     tok = AutoTokenizer.from_pretrained(P["model_name"])
@@ -36,8 +33,8 @@ def main():
             m(ids["input_ids"].cuda())
 
     t0 = time.time()
-    model = mtq.quantize(model, CONFIGS[P["quant_format"]], forward_loop)
-    print(f"[quantize] {P['quant_format']} calibration done in {time.time() - t0:.0f}s")
+    model = mtq.quantize(model, mtq.NVFP4_DEFAULT_CFG, forward_loop)
+    print(f"[quantize] NVFP4 calibration done in {time.time() - t0:.0f}s")
     mtq.print_quant_summary(model)
 
     with torch.inference_mode():

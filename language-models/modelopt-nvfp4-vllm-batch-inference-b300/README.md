@@ -2,7 +2,7 @@
 
 This recipe quantizes `Qwen/Qwen3-32B` to NVFP4 (4-bit floating point) with [NVIDIA Model Optimizer](https://github.com/NVIDIA/Model-Optimizer) post-training quantization (PTQ). Calibration uses 256 CNN/DailyMail articles. The recipe then runs vLLM offline batch inference on all 1,319 GSM8K test questions with the quantized model and the bf16 original, side by side on two B300 GPUs. It compares output throughput and accuracy.
 
-The whole run takes about 11 minutes. `quantize.py` also accepts `quant_format: fp8`, but only NVFP4 has been validated.
+The whole run takes about 11 minutes.
 
 ## Before you run
 
@@ -28,10 +28,8 @@ Validation runs on 8xB300 produced these results:
 |---|---|---|---|---|
 | Qwen3-32B bf16 | 65.5 GB | 9,628 | 1.00× | 93.4% |
 | Qwen3-32B NVFP4 | 20.7 GB | 14,190 | 1.47× | 92.6% |
-| Qwen3-8B bf16 | 16.4 GB | 32,557 | 1.00× | 90.9% |
-| Qwen3-8B NVFP4 | 6.4 GB | 26,951 | 0.83× | 88.6% |
 
-An earlier Qwen3-32B run measured a 1.55× speedup, so expect some run-to-run variation. NVFP4 was faster for Qwen3-32B but slower than bf16 for Qwen3-8B. For a small model on B300, expect NVFP4 to save memory rather than time. Set `model_name: Qwen/Qwen3-8B` to reproduce the smaller comparison.
+An earlier Qwen3-32B run measured a 1.55× speedup, so expect some run-to-run variation.
 
 Notes on the environment:
 

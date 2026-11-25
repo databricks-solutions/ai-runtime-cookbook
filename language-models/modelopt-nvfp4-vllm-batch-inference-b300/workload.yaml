@@ -39,9 +39,7 @@ max_retries: 0
 timeout_minutes: 90
 
 parameters:
-  # Qwen3-8B also runs, but NVFP4 was slower than bf16 at that size.
   model_name: Qwen/Qwen3-32B  # public; no Hugging Face token needed
-  quant_format: nvfp4         # quantize.py also accepts fp8, which hasn't been validated
   calib_samples: 256
   calib_seq_len: 1024
   quantized_dir: /tmp/qwen3-quantized
