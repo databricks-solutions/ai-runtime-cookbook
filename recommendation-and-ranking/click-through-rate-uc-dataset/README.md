@@ -30,8 +30,6 @@ UCDataset can't read tables in workspaces whose serverless network policy limits
 databricks air run -f workload.yaml --watch
 ```
 
-To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`, and set `parameters.batch_size` to `512`. `batch_size` is per GPU, so this keeps the global batch at 8,192 rows, the same as two GPUs at 4,096. For other GPU counts, set it to 8,192 divided by `num_accelerators`. `train.py` and the command don't change. If you leave `batch_size` at 4,096, the global batch is 65,536 rows and an epoch takes about 18 optimizer steps instead of about 102.
-
 ## Results
 
 The AIR MLflow run logs these metrics for each epoch:
