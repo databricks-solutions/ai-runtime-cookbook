@@ -24,6 +24,8 @@ from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
+LOG_EVERY = 10
+
 
 def load_params() -> dict:
     """Read the hyperparameters block that `air` materializes from the YAML `parameters:`."""
@@ -135,9 +137,11 @@ def main():
             optimizer.step()
             optimizer.zero_grad()
             step += 1
-            if rank == 0:
-                print(f"step={step}/{max_steps} loss={out.loss.item():.4f}", flush=True)
-                mlflow.log_metric("train_loss", out.loss.item(), step=step)
+            # Reading the loss syncs the GPU, so rank 0 reads it once per LOG_EVERY steps.
+            if rank == 0 and (step % LOG_EVERY == 0 or step >= max_steps):
+                loss = out.loss.item()
+                print(f"step={step}/{max_steps} loss={loss:.4f}", flush=True)
+                mlflow.log_metric("train_loss", loss, step=step)
             if step >= max_steps:
                 break
 
