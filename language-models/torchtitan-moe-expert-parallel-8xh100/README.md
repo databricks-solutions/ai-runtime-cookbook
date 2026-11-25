@@ -20,8 +20,6 @@ databricks air run -f workload.yaml --override env_variables.OUTPUT_ROOT=/Volume
 databricks air run -f workload.yaml --watch
 ```
 
-`EXPERT_PARALLEL_DEGREE`, `TENSOR_PARALLEL_DEGREE` and `NUM_LAYERS` in `workload.yaml` set the layout. Only the default layout (EP=8, TP=1, 12 layers) has been validated. Raising `TENSOR_PARALLEL_DEGREE` leaves fewer data-parallel ranks, which lowers the tokens per step.
-
 ## Results
 
 The run prints torchtitan's step metrics. It writes `summary.json` (final loss, tokens/s and TFLOPs per GPU, and all logged steps) to `<OUTPUT_ROOT>/<MLflow run ID>/`. It also logs the summary metrics to the MLflow run and uploads `summary.json` and the rank 0 training log (`logs/train.log`) as run artifacts.

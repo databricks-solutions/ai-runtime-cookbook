@@ -26,7 +26,6 @@ env_variables:
   PYTORCH_ALLOC_CONF: "expandable_segments:True"
   # Each GPU holds 128 / 8 = 16 of each layer's experts; tokens are exchanged with all-to-all.
   EXPERT_PARALLEL_DEGREE: "8"
-  TENSOR_PARALLEL_DEGREE: "1"
   # 12 of the 48 Qwen3-30B-A3B layers: 8.1B total and 1.0B active parameters.
   NUM_LAYERS: "12"
   SEQ_LEN: "4096"

@@ -25,7 +25,7 @@ def qwen3_moe_ep() -> Trainer.Config:
     parallelism = ParallelismConfig(
         data_parallel_shard_degree=-1,  # FSDP over all GPUs
         expert_parallel_degree=int(os.environ["EXPERT_PARALLEL_DEGREE"]),
-        tensor_parallel_degree=int(os.environ.get("TENSOR_PARALLEL_DEGREE", "1")),
+        tensor_parallel_degree=1,
     )
     # FlexAttention is built into PyTorch; the default "varlen" backend needs FlashAttention 3.
     model = build_model_config(
