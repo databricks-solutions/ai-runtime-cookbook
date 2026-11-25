@@ -63,7 +63,7 @@ def train_func(config: dict):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, dtype=torch.bfloat16)
     model.config.use_cache = False
     # prepare_model moves the model to this worker's GPU and wraps it in DDP.
     model = prepare_model(model)
