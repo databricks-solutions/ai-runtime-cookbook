@@ -6,11 +6,11 @@ experiment_name: air-modelopt-nvfp4-vllm-b300
 
 environment:
   # B300 requires environment version 6 or later.
-  version: databricks_ai_v6
+  version: "6"
   dependencies:
     - vllm==0.33.0
+    - torch==2.14.0
     - nvidia-modelopt[hf]==0.48.0
-    # Satisfies both vLLM (<5.21) and Model Optimizer (<5.19).
     - transformers==5.18.0
     - datasets==5.2.0
     - huggingface_hub==2.4.0
@@ -31,9 +31,6 @@ command: |
   set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # The environment's flash-attn is compiled for its original PyTorch, which vllm replaces.
-  # vLLM ships its own attention kernels, so remove the incompatible package.
-  python -m pip uninstall -y flash-attn
   cd "$CODE_SOURCE_PATH"
   # Quantize on GPU 0, then run the bf16 baseline and the quantized model side by side.
   python quantize.py

@@ -22,6 +22,8 @@ databricks air run -f workload.yaml --watch
 
 The run prints throughput and GSM8K accuracy for both models. It writes `generations_bf16.jsonl` and `generations_quantized.jsonl` to `<output_root>/<MLflow run ID>/`. `summarize.py` logs the throughput, speedup and accuracy metrics to the MLflow run.
 
+The model revision is `Qwen/Qwen3-32B` at `9216db5781bf21249d130ec9da846c4624c16137`.
+
 Validation runs on 8xB300 produced these results:
 
 | Model | Weights | Output tokens/s | Speedup | GSM8K accuracy |
@@ -33,5 +35,4 @@ An earlier Qwen3-32B run measured a 1.55× speedup, so expect some run-to-run va
 
 Notes on the environment:
 
-- The command removes `databricks_ai_v6`'s preinstalled `flash-attn`, which is compiled for the original PyTorch that vLLM replaces.
 - FlashInfer compiles some kernels when vLLM starts, and they need `curand.h`. That header ships only in the NVIDIA pip wheels in this environment. `batch_inference.py` copies the `curand` headers to a directory on `CPATH`.
