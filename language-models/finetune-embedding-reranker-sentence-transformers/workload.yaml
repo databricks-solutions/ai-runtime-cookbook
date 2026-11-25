@@ -1,0 +1,66 @@
+experiment_name: air-finetune-embedding-reranker-sentence-transformers
+
+environment:
+  version: "5"
+  dependencies:
+    - torch==2.14.1
+    # EmbeddingGemma 2's processor imports torchvision even for text-only inputs.
+    - torchvision==0.29.2
+    - sentence-transformers==6.3.0
+    - transformers==5.22.2
+    - datasets==5.2.0
+    - accelerate==1.15.0
+    # Newer fsspec releases break load_dataset with this huggingface_hub ("HfFileSystem.find() got multiple values for keyword argument 'maxdepth'").
+    - huggingface_hub==2.4.0
+    - fsspec==2026.9.0
+
+compute:
+  num_accelerators: 1
+  accelerator_type: GPU_1xA10
+
+code_source:
+  root_path: .
+
+command: |
+  set -eo pipefail
+  # AIR may inherit this obsolete setting; Hub 1.x and later use Xet for downloads.
+  unset HF_HUB_ENABLE_HF_TRANSFER
+  python "$CODE_SOURCE_PATH/finetune_retrieval.py"
+  # Loads the saved models in a fresh process and scores one pair.
+  python "$CODE_SOURCE_PATH/check_artifacts.py"
+
+max_retries: 0
+# Counts from submission, so it includes queueing and setup in addition to time in the container.
+timeout_minutes: 90
+
+parameters:
+  # Public, ungated models. The embedder is Apache 2.0; the reranker is Apache 2.0.
+  embedder_model: google/embeddinggemma-2
+  reranker_model: cross-encoder/ms-marco-MiniLM-L12-v2
+  # BEIR FiQA (financial question answering). Queries and relevance labels come from the same BEIR packaging.
+  dataset_name: BeIR/fiqa
+  qrels_dataset_name: BeIR/fiqa-qrels
+  seed: 42
+  # Tokens per document or query for the embedder.
+  max_seq_length: 256
+  # Bi-encoder fine-tuning with in-batch and mined hard negatives.
+  embedder_epochs: 1
+  embedder_learning_rate: 2e-5
+  embedder_train_batch_size: 128
+  # Cached contrastive loss encodes this many examples at once, which keeps the 128-example batch within A10 memory.
+  mini_batch_size: 16
+  embed_batch_size: 128
+  # Hard negatives are sampled from ranks [range_min, range_max) of the base embedder. Skipping the top ranks reduces false negatives.
+  negatives_per_positive: 1
+  negative_range_min: 10
+  negative_range_max: 50
+  # Cross-encoder fine-tuning on the same mined pairs.
+  reranker_epochs: 1
+  reranker_learning_rate: 2e-5
+  reranker_train_batch_size: 32
+  reranker_max_length: 256
+  rerank_batch_size: 64
+  # Candidate depths for reranking. The best depth is chosen on dev and reported once on test. Maximum 100.
+  rerank_depths: [20, 50, 100]
+  # Requires access to this existing volume; replace it with another writable volume if needed.
+  output_root: /Volumes/main/default/air_examples/finetune-embedding-reranker-sentence-transformers
