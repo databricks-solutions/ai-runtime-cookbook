@@ -23,8 +23,6 @@ The default `parameters.output_root` is a Unity Catalog volume. The volume must 
 databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
 ```
 
-The default tables (`hash_size: 1000000`, 64 dimensions) total about 7 GB, so sharding here spreads the work rather than being required. At 4M or more rows per table they no longer fit on one A10. To run on one 8xH100 node instead, set `compute.accelerator_type` to `GPU_8xH100` and `compute.num_accelerators` to `8`. This shape is not validated.
-
 ## Run
 
 ```bash
@@ -38,13 +36,3 @@ The AIR MLflow run contains training log loss, throughput, validation and test m
 - `checkpoint/`: sharded model weights saved with `torch.distributed.checkpoint`, about 7 GB
 - `model_config.json`: table sizes, layer sizes, feature columns, and world size
 - `metrics.json`: final metrics
-
-To reload the weights, build the same sharded model as `train.py` with the settings in `model_config.json`, then load the checkpoint into its state dict:
-
-```python
-import torch.distributed.checkpoint as dcp
-
-state_dict = model.state_dict()  # model: DistributedModelParallel built as in train.py
-dcp.load(state_dict, checkpoint_id="<output_root>/<MLFLOW_RUN_ID>/checkpoint")
-model.load_state_dict(state_dict)
-```
