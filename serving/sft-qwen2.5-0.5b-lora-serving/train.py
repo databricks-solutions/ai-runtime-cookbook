@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import time
 from pathlib import Path
@@ -15,20 +14,6 @@ from datasets import load_dataset
 from peft import LoraConfig, TaskType
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainerCallback
 from trl import SFTConfig, SFTTrainer
-
-
-class LossToMlflow(TrainerCallback):
-    """Record Trainer metrics in the AIR-managed MLflow run."""
-
-    def on_log(self, args, state, control, logs=None, **kwargs):
-        if state.is_world_process_zero and logs:
-            values = {
-                key: float(value)
-                for key, value in logs.items()
-                if isinstance(value, (int, float)) and math.isfinite(value)
-            }
-            if values:
-                mlflow.log_metrics(values, step=state.global_step)
 
 
 class TrainTimeBudget(TrainerCallback):
@@ -98,7 +83,7 @@ def train(params: dict, run_dir: Path) -> dict:
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        report_to="none",
+        report_to="mlflow",
     )
     trainer = SFTTrainer(
         model=model,
@@ -107,7 +92,7 @@ def train(params: dict, run_dir: Path) -> dict:
         eval_dataset=eval_data,
         processing_class=tokenizer,
         peft_config=lora,
-        callbacks=[LossToMlflow(), TrainTimeBudget(float(params["max_train_minutes"]))],
+        callbacks=[TrainTimeBudget(float(params["max_train_minutes"]))],
     )
 
     mlflow.log_params(
