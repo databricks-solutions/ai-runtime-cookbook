@@ -41,7 +41,7 @@ env_variables:
   MLFLOW_TRACKING_URI: databricks
   PYTHONUNBUFFERED: '1'
 
-timeout_minutes: 30
+timeout_minutes: 60
 
 max_retries: 0
 

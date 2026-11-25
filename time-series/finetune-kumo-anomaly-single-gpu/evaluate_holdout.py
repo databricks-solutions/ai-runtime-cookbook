@@ -24,6 +24,7 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 
@@ -51,8 +52,14 @@ def load_holdout(source, manifest_path):
     return features, labels
 
 
-def evaluate(features, labels, model_path, config_path, nsample):
-    """Score one checkpoint and return ranking and threshold metrics."""
+# Neighboring rows are correlated, so the bootstrap resamples 100-row blocks, not single rows.
+BOOTSTRAP_BLOCK_ROWS = 100
+BOOTSTRAP_RESAMPLES = 1000
+BOOTSTRAP_SEED = 0
+
+
+def evaluate(features, model_path, config_path, nsample):
+    """Return each held-out row's anomaly score and predicted label for one checkpoint."""
     results = perform_anomaly_analysis_with_diffusion(
         df=features,
         threshold_strategy="scs",
@@ -60,8 +67,11 @@ def evaluate(features, labels, model_path, config_path, nsample):
         model_config_path=config_path,
         nsample=nsample,
     )
-    scores = results["MAE"].to_numpy()
-    predictions = results["Anomaly"].to_numpy()
+    return results["MAE"].to_numpy(), results["Anomaly"].to_numpy()
+
+
+def score_metrics(labels, scores, predictions):
+    """Average precision (threshold-free) and precision, recall and F1 at the predicted labels."""
     precision, recall, f1, _ = precision_recall_fscore_support(
         labels, predictions, average="binary", zero_division=0
     )
@@ -71,6 +81,51 @@ def evaluate(features, labels, model_path, config_path, nsample):
         "recall": float(recall),
         "f1": float(f1),
     }
+
+
+def block_bootstrap_rows(num_rows, rng):
+    """Row indices for one resample, built from whole blocks drawn with replacement."""
+    starts = np.arange(0, num_rows, BOOTSTRAP_BLOCK_ROWS)
+    picked = rng.integers(len(starts), size=len(starts))
+    return np.concatenate(
+        [np.arange(starts[block], min(starts[block] + BOOTSTRAP_BLOCK_ROWS, num_rows)) for block in picked]
+    )
+
+
+def _spread(values):
+    """Sample standard deviation over resamples of (average precision, F1)."""
+    return {
+        "average_precision_se": float(values[:, 0].std(ddof=1)),
+        "f1_se": float(values[:, 1].std(ddof=1)),
+    }
+
+
+def bootstrap_standard_errors(labels, runs):
+    """Block-bootstrap standard errors for average precision and F1.
+
+    runs maps each checkpoint name to its (scores, predictions). Every resample uses the
+    same rows for all checkpoints, so the base-to-fine-tuned difference is paired.
+    Resamples with no anomaly are skipped because average precision is undefined for them.
+    """
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    names = list(runs)
+    draws = []
+    while len(draws) < BOOTSTRAP_RESAMPLES:
+        rows = block_bootstrap_rows(len(labels), rng)
+        if labels[rows].sum() == 0:
+            continue
+        draws.append([
+            [metrics["average_precision"], metrics["f1"]]
+            for metrics in (
+                score_metrics(labels[rows], runs[name][0][rows], runs[name][1][rows]) for name in names
+            )
+        ])
+    draws = np.array(draws)  # shape: (resamples, checkpoints, [average precision, F1])
+    errors = {name: _spread(draws[:, index]) for index, name in enumerate(names)}
+    if {"base", "finetuned"} <= set(names):
+        difference = draws[:, names.index("finetuned")] - draws[:, names.index("base")]
+        errors["finetuned_minus_base"] = _spread(difference)
+    return errors
 
 
 def main():
@@ -95,17 +150,28 @@ def main():
     if args.base_model:
         checkpoints["base"] = (args.base_model, args.base_config)
 
+    runs = {}
+    for name, (model_path, config_path) in checkpoints.items():
+        print(f"Scoring {name} checkpoint: {model_path}", flush=True)
+        runs[name] = evaluate(features, str(model_path), str(config_path), args.nsample)
+    errors = bootstrap_standard_errors(labels, runs)
+
     summary = {
         "eval_rows": int(len(labels)),
         "positives": int(labels.sum()),
         "nsample": args.nsample,
-        "models": {},
+        "models": {
+            name: {**score_metrics(labels, scores, predictions), **errors[name]}
+            for name, (scores, predictions) in runs.items()
+        },
     }
-    for name, (model_path, config_path) in checkpoints.items():
-        print(f"Scoring {name} checkpoint: {model_path}", flush=True)
-        summary["models"][name] = evaluate(
-            features, labels, str(model_path), str(config_path), args.nsample
-        )
+    if "finetuned_minus_base" in errors:
+        base, finetuned = summary["models"]["base"], summary["models"]["finetuned"]
+        summary["finetuned_minus_base"] = {
+            "average_precision": finetuned["average_precision"] - base["average_precision"],
+            "f1": finetuned["f1"] - base["f1"],
+            **errors["finetuned_minus_base"],
+        }
 
     args.output.write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2), flush=True)

@@ -34,7 +34,7 @@ The AIR MLflow run has per-epoch `train_loss` and `val_loss` and `best_val_loss`
 - `checkpoints/finetune_config.yaml`: the model configuration needed to load a checkpoint
 - `checkpoints/epoch_metrics.json`: the losses for each epoch
 - `training_summary.json`: training parameters, the upstream commit, and the final and best losses
-- `evaluation.json`: the held-out average precision and F1 for the base and fine-tuned checkpoints
+- `evaluation.json`: the held-out average precision and F1 for the base and fine-tuned checkpoints, their standard errors, and the fine-tuned minus base difference with its standard error
 
 The MLflow run also keeps the prepared training and validation CSVs with their original row IDs and checksums (`kumo_finetune/data/`), plus the data-preparation, training, and evaluation logs. The [Evaluate on the held-out test set](#evaluate-on-the-held-out-test-set) section explains these metrics and how to rerun the evaluation.
 
@@ -42,7 +42,7 @@ The MLflow run also keeps the prepared training and validation CSVs with their o
 
 Training and validation use normal data only, so the losses do not show how well the model detects anomalies. The last 20% of the series is held out for that. It keeps its labels and has both normal and anomalous rows, so it works as a labeled test set.
 
-After training, the recipe scores the held-out rows with the base checkpoint and the fine-tuned checkpoint. For each one it reports average precision and F1 against the labels. Average precision suits this task because anomalies are rare and it needs no threshold. Comparing the base and fine-tuned numbers shows the effect of fine-tuning.
+After training, the recipe scores the held-out rows with the base checkpoint and the fine-tuned checkpoint. For each one it reports average precision and F1 against the labels. Average precision suits this task because anomalies are rare and it needs no threshold. Both checkpoints score the same rows, and each metric has a standard error from a block bootstrap: 1,000 resamples of 100-row blocks, so neighboring rows stay together. The report also gives the fine-tuned minus base difference and the standard error of that difference.
 
 To run the evaluation on its own, change to the upstream `Kumo-Anomaly` directory, then run this recipe's `evaluate_holdout.py` with that directory's `uv` environment. It scores the held-out rows with the given checkpoints and writes the metrics to the output file:
 
