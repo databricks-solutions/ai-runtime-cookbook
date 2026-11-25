@@ -139,16 +139,15 @@ def main() -> None:
 
     # Rank 0 owns the MLflow run. AIR sets MLFLOW_RUN_ID (the run the CLI shows); we POP it and open
     # that run ourselves BEFORE training, so the Trainer's MLflow callback streams its curves into
-    # our run instead of starting — and auto-ending — its own (which on transformers 5.x would close
-    # the run before we attach the model). Other ranks never touch MLflow.
+    # our run instead of starting — and auto-ending — its own. Otherwise the callback ends the run at
+    # train end, and the model logging goes to a new run. Other ranks never touch MLflow.
     if is_main:
         mlflow.set_registry_uri("databricks-uc")
         ensure_uc_schema(uc_catalog, uc_schema)
         run_id = os.environ.pop("MLFLOW_RUN_ID", None)
-        if run_id:
-            mlflow.start_run(run_id=run_id)
-        else:
-            mlflow.start_run(run_name="modernbert-agnews-ddp")
+        if not run_id:
+            raise RuntimeError("MLFLOW_RUN_ID is not set; AIR provides it for each run.")
+        mlflow.start_run(run_id=run_id)
 
     t0 = time.time()
     trainer.train()
@@ -157,17 +156,13 @@ def main() -> None:
     print(f"[rank {rank}/{world_size}] train_seconds={train_seconds:.1f} eval={metrics}")
 
     if is_main:
-        # Extra config under distinct keys (HF already logged the Trainer args + model config).
-        for k, v in {
+        # Extra config under distinct keys; HF already logs the Trainer args and model config.
+        mlflow.log_params({
             "base_model": model_name, "dataset": dataset_name, "tokenizer_max_length": max_length,
             "ddp_world_size": world_size,
             "effective_batch_size": int(p.get("train_batch_size", 64)) * world_size,
             "training_mode": f"ddp-{world_size}gpu",
-        }.items():
-            try:
-                mlflow.log_param(k, v)
-            except Exception:  # noqa: BLE001
-                pass
+        })
         mlflow.log_metric("train_seconds", train_seconds)
         # Final eval metrics under distinct final_* keys so they don't overwrite the per-step
         # training `loss` curve the callback already streamed.
