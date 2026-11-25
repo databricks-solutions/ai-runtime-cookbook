@@ -32,6 +32,7 @@ command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
   python "$CODE_SOURCE_PATH/finetune_parakeet.py"
+  python "$CODE_SOURCE_PATH/load_finetuned.py"
 
 max_retries: 0
 timeout_minutes: 60
