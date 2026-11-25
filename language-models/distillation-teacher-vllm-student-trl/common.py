@@ -1,5 +1,6 @@
 """Shared prompt format, answer parsing and parameters."""
 
+import math
 import os
 import re
 
@@ -17,10 +18,14 @@ def messages(question):
 
 
 def final_number(text):
-    """Final answer after '####', else the last number in the text."""
+    """Final answer after '####', else the last number in the text, as a float (None if absent)."""
     match = re.search(r"####\s*\$?(-?[\d,]*\.?\d+)", text)
     found = match.group(1) if match else (re.findall(r"-?[\d,]*\.?\d+", text) or [None])[-1]
     if found is None:
         return None
-    found = found.replace(",", "").rstrip(".")
-    return found[:-2] if found.endswith(".0") else found
+    return float(found.replace(",", "").rstrip("."))
+
+
+def is_correct(pred, gold):
+    """Compare numerically, so '#### 72.00' matches gold 72."""
+    return pred is not None and math.isclose(pred, gold, abs_tol=1e-6)

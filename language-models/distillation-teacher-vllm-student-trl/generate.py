@@ -13,7 +13,7 @@ from pathlib import Path
 from datasets import load_dataset
 from vllm import LLM, SamplingParams
 
-from common import P, WORK, final_number, messages
+from common import P, WORK, final_number, is_correct, messages
 
 
 def teacher():
@@ -29,9 +29,9 @@ def teacher():
 
     kept, total = [], 0
     for q, g, out in zip(ds["question"], gold, outs):
+        total += len(out.outputs)
         for c in out.outputs:
-            total += 1
-            if final_number(c.text) == g:
+            if is_correct(final_number(c.text), g):
                 # Prompt-completion format: TRL trains on the completion tokens only.
                 kept.append({"prompt": messages(q),
                              "completion": [{"role": "assistant", "content": c.text}]})
@@ -52,7 +52,7 @@ def evaluate(tag):
     llm = LLM(model=model, max_model_len=4096, gpu_memory_utilization=0.85)
     outs = llm.chat([messages(q) for q in ds["question"]],
                     SamplingParams(temperature=0.0, max_tokens=P["max_tokens"]))
-    acc = sum(final_number(o.outputs[0].text) == final_number(a)
+    acc = sum(is_correct(final_number(o.outputs[0].text), final_number(a))
               for o, a in zip(outs, ds["answer"])) / len(ds)
     print(json.dumps({"tag": tag, "gsm8k_accuracy": acc}), flush=True)
     Path(f"{WORK}/eval_{tag}.json").write_text(json.dumps({"gsm8k_accuracy": acc}))
