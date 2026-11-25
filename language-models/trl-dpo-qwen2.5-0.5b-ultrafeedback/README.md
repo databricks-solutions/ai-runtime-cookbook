@@ -9,6 +9,14 @@ The recipe evaluates the tuned model in two ways, both on UltraFeedback test dat
 
 The run takes about 33 minutes in the container, plus provisioning and queueing.
 
+## Before you run
+
+The default `output_root` is the shared Unity Catalog volume `/Volumes/main/default/air_examples/trl-dpo-qwen2.5-0.5b-ultrafeedback`. The volume must already exist and be writable. To use another volume, run:
+
+```bash
+databricks air run -f workload.yaml --override parameters.output_root=/Volumes/<catalog>/<schema>/<volume>/<dir> --watch
+```
+
 ## Run
 
 ```bash
