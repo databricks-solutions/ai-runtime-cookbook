@@ -29,11 +29,6 @@ command: |
   set -eo pipefail
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
-  # FlashInfer JIT-compiles some kernels that need curand.h. This environment ships it only inside the nvidia-* wheels,
-  # so expose just those headers to the compiler.
-  mkdir -p /tmp/curand-include
-  find "$(python -c 'import nvidia; print(nvidia.__path__[0])')" -name 'curand*.h' -exec cp {} /tmp/curand-include/ \;
-  export CPATH="/tmp/curand-include:${CPATH:-}"
   python "$CODE_SOURCE_PATH/train_draft.py"
   python "$CODE_SOURCE_PATH/benchmark.py"
 

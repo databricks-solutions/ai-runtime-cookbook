@@ -9,11 +9,13 @@ greedy decoding and the same SGLang build. Each configuration is timed once.
 import json
 import math
 import os
+import shutil
 import statistics
 import time
 from pathlib import Path
 
 import mlflow
+import nvidia
 import sglang as sgl
 import yaml
 
@@ -27,6 +29,19 @@ OUT = Path(P["output_root"]) / RUN_ID
 DRAFT_DIR = OUT / "draft"
 UNTRAINED_DIR = OUT / "draft_untrained"
 SEED = int(P["seed"])
+
+
+def expose_curand_headers():
+    """Put curand.h on CPATH for SGLang's FlashInfer JIT.
+
+    FlashInfer JIT-compiles some kernels that need curand.h. This environment ships it only inside
+    the nvidia-* wheels, so copy just those headers to one include directory.
+    """
+    include = Path("/tmp/curand-include")
+    include.mkdir(parents=True, exist_ok=True)
+    for header in Path(nvidia.__path__[0]).rglob("curand*.h"):
+        shutil.copy(header, include)
+    os.environ["CPATH"] = f"{include}:{os.environ.get('CPATH', '')}"
 
 
 def mean_se(xs):
@@ -83,6 +98,7 @@ def compare(result, texts, base_tokens, tok):
 
 
 def main():
+    expose_curand_headers()
     tok = tokenizer(P["model_name"])
     pairs = load_split("test_sft", int(P["num_eval_prompts"]), SEED)
     prompts = [tok.apply_chat_template([{"role": "user", "content": u}], tokenize=False,
