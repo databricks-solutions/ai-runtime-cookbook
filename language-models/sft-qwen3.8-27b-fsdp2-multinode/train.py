@@ -197,8 +197,7 @@ def run_training_loop(model: torch.nn.Module, data) -> None:
     )
     model.train()
 
-    use_mlflow = RANK == 0 and "MLFLOW_RUN_ID" in os.environ
-    if use_mlflow:
+    if RANK == 0:
         mlflow.start_run(run_id=os.environ["MLFLOW_RUN_ID"])
         mlflow.log_params(
             {
@@ -242,8 +241,7 @@ def run_training_loop(model: torch.nn.Module, data) -> None:
             loss = out.loss
         if (step + 1) % 100 == 0 and RANK == 0:
             log.info(f"[train] step {step + 1}, loss={loss.item():.3f}")
-            if use_mlflow:
-                mlflow.log_metric("train_loss", loss.item(), step=step + 1)
+            mlflow.log_metric("train_loss", loss.item(), step=step + 1)
 
         # .item() is a sync point, so check it at the end rather than before the step.
         done = bool(ran_out.item())
@@ -256,11 +254,10 @@ def run_training_loop(model: torch.nn.Module, data) -> None:
         log.info(
             f"[train] {trained} steps in {elapsed:.2f}s ({elapsed / trained:.2f}s/step), final loss={loss.item():.3f}"
         )
-        if use_mlflow:
-            mlflow.log_metrics(
-                {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
-            )
-    if use_mlflow:
+        mlflow.log_metrics(
+            {"train_seconds": elapsed, "seconds_per_step": elapsed / trained, "final_loss": loss.item()}
+        )
+    if RANK == 0:
         mlflow.end_run()
 
 
