@@ -60,10 +60,7 @@ def number(text):
 def is_correct(pred, gold):
     if pred is None:
         return False
-    try:
-        return math.isclose(float(pred), float(gold), abs_tol=1e-6)
-    except ValueError:
-        return False
+    return math.isclose(float(pred), float(gold), abs_tol=1e-6)
 
 
 class GpuMemorySampler:
@@ -295,7 +292,6 @@ def main():
 
     # Paired comparison against bf16 on the same questions. The standard error is of the mean
     # per-question difference, so it reflects the pairing.
-    # Keep the bf16 list in a variable: the loop deletes each row's "correct" key, including bf16's.
     bf16_correct = rows[0]["correct"]
     for row in rows:
         diffs = [int(c) - int(b) for c, b in zip(row["correct"], bf16_correct)]
@@ -303,7 +299,6 @@ def main():
         row["diff_vs_bf16_se"] = statistics.stdev(diffs) / math.sqrt(len(diffs))
         row["bf16_only_correct"] = sum(b and not c for b, c in zip(bf16_correct, row["correct"]))
         row["config_only_correct"] = sum(c and not b for b, c in zip(bf16_correct, row["correct"]))
-        del row["correct"]
 
     columns = [
         "config", "weights_gb", "n", "accuracy", "accuracy_se", "diff_vs_bf16", "diff_vs_bf16_se",
