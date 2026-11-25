@@ -34,12 +34,9 @@ def main():
     corpus = load_dataset(
         p["dataset_name"], p["dataset_config"], split=p["dataset_split"]
     )
-    corpus = corpus.filter(lambda row: bool(row["text"].strip()))
     corpus = corpus.shuffle(seed=p["sample_seed"]).select(
         range(min(p["max_documents"], len(corpus)))
     )
-    if not len(corpus):
-        raise ValueError("The corpus contains no nonempty documents")
     texts = list(corpus["text"])
     document_ids = list(corpus["_id"])
     if len(set(document_ids)) != len(document_ids):
