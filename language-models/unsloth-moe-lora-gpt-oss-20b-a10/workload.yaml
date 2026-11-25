@@ -29,7 +29,10 @@ env_variables:
 command: |
   # AIR may inherit this obsolete setting; Hub 1.x uses Xet for downloads.
   unset HF_HUB_ENABLE_HF_TRANSFER
+  set -eo pipefail
   python "$CODE_SOURCE_PATH/train.py"
+  # Loads the saved adapter in a new process and generates once. Skipped unless save_adapter is true.
+  python "$CODE_SOURCE_PATH/load_adapter.py"
 
 max_retries: 0
 timeout_minutes: 90
