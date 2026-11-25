@@ -5,7 +5,7 @@ the forward pass). The teacher is the original bf16 model. The loss is the forwa
 logits on GSM8K train answer tokens, so the student learns the teacher's next-token distribution
 rather than only the hard answer tokens.
 
-Launched with accelerate + FSDP2 on all GPUs (see run.sh). Accelerate's FSDP2 upcasts the bf16
+Launched with accelerate + FSDP2 on all GPUs (see the command in workload.yaml). Accelerate's FSDP2 upcasts the bf16
 student to fp32 master weights under bf16 mixed precision (accelerate/utils/fsdp_utils.py); plain
 DDP would apply lr=1e-5 updates to bf16 weights, where many of them round away.
 """
