@@ -12,7 +12,7 @@ Workload execution takes about 12 minutes. For the first run, the one-time image
 
 Complete these steps from this recipe's directory.
 
-1. Configure and authenticate the CLI using the [cookbook setup instructions](../../README.md#run-a-recipe). Ask a workspace admin to enable the Databricks Artifact Registry preview, as described in the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/docker-images).
+1. Configure and authenticate the CLI using the [cookbook setup instructions](../../README.md#run-a-recipe). Follow the prerequisites in the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/docker-images).
 
 2. Install [Docker Engine on Linux](https://docs.docker.com/engine/install/) or [Docker Desktop on macOS](https://docs.docker.com/desktop/setup/install/mac-install/) and start it. Keep Docker running through the build and push. On macOS, choose the installer for your chip. AIR requires `linux/amd64`, including on Apple silicon.
 
