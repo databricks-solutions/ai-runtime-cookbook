@@ -10,7 +10,7 @@ Workload execution takes about 9 minutes. For the first run, image upload may ta
 
 ## Before you run
 
-Ask a workspace admin to enable the Databricks Artifact Registry preview, as described in the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/docker-images).
+Follow the prerequisites in the custom Docker image guide: [AWS](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images) | [Azure](https://learn.microsoft.com/en-us/azure/databricks/machine-learning/ai-runtime/connecting/cli/docker-images).
 
 ### Custom image setup
 
