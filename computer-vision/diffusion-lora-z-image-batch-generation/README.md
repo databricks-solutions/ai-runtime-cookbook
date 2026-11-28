@@ -2,7 +2,7 @@
 
 This recipe teaches the `Tongyi-MAI/Z-Image` text-to-image model (6B parameters) a new subject with DreamBooth LoRA on one H100. It trains on the five photos of one dog in `diffusers/dog-example`, which are paired with the prompt "a photo of sks dog". Training runs 300 steps at 768×768 using the [diffusers example script](https://github.com/huggingface/diffusers/blob/v0.42.1/examples/dreambooth/train_dreambooth_lora_z_image.py).
 
-The recipe then batch-generates images for 8 prompts twice: once with the LoRA and once without it. The whole run takes about 8 minutes.
+The recipe then batch-generates images for 8 prompts twice: once with the LoRA and once without it. The workload takes about 8 minutes in the container.
 
 ## Run
 
