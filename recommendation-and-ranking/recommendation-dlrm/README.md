@@ -1,6 +1,6 @@
 # DLRM recommendation
 
-Train a [DLRM](https://arxiv.org/abs/1906.00091) click-through-rate model with TorchRec on about 26M rows from one day of [Criteo 1TB click logs](https://huggingface.co/datasets/criteo/CriteoClickLogs) across 4 A10 nodes with one GPU each, in about 6 minutes. TorchRec's planner shards the 26 categorical embedding tables across the GPUs.
+Train a [DLRM](https://arxiv.org/abs/1906.00091) click-through-rate model with TorchRec on about 26M rows from one day of [Criteo 1TB click logs](https://huggingface.co/datasets/criteo/CriteoClickLogs) across 4 A10 nodes with one GPU each, in about 6 minutes in the container. TorchRec's planner shards the 26 categorical embedding tables across the GPUs.
 
 How the data is used:
 
@@ -17,7 +17,7 @@ How the model is evaluated:
 
 Review the CC-BY-NC-SA-4.0 license on the dataset page. Files download automatically without a token. To write outputs elsewhere, set `parameters.output_root` to an existing Unity Catalog volume you can write to.
 
-The default tables (`hash_size: 1000000`, 64 dimensions) total about 7 GB, so sharding here spreads the work rather than being required. At 4M or more rows per table they no longer fit on one A10. To run on one 8xH100 node instead, set `compute.accelerator_type` to `GPU_8xH100` and `compute.num_accelerators` to `8`. This shape is not validated.
+The default tables (`hash_size: 1000000`, 64 dimensions) total about 7 GB, so sharding here spreads the work rather than being required. At 4M or more rows per table they no longer fit on one A10.
 
 ## Run
 
