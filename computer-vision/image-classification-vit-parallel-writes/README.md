@@ -2,7 +2,7 @@
 
 This recipe runs batch inference with ViT-Base ([google/vit-base-patch16-224](https://huggingface.co/google/vit-base-patch16-224)) on 3,669 Oxford-IIIT Pet photos using a single A10 GPU in Databricks AI Runtime. It predicts one of 1,000 ImageNet labels per photo, such as "Egyptian cat" or "English setter", and saves each labeled photo as a JPEG in a Unity Catalog volume.
 
-One file per prediction, rather than one table, is the point of the recipe. Those writes are about 95% of the run. `write_workers` overlaps them in a thread pool so the GPU does not wait on object storage. Use this pattern when a batch job has to produce images for human review.
+One file per prediction, rather than one table, is the point of the recipe. Those writes are about 95% of the run, and the GPU sits idle through them. `write_workers` overlaps them in a thread pool to shorten that idle time. Use this pattern when a batch job has to produce images for human review.
 
 ## Before you run
 
