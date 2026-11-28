@@ -17,10 +17,12 @@ import json
 import os
 import tempfile
 
+import mlflow
 import torch
 import yaml
 from datasets import load_from_disk
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.integrations import MLflowCallback
 from trl import SFTConfig, SFTTrainer
 
 
@@ -78,6 +80,9 @@ def main():
     data_dir = f"{output_root}/data"
     run_id = os.environ.get("MLFLOW_RUN_ID") or f"lr{learning_rate}_ep{num_epochs}"
     attempt_base = f"{output_root}/{run_id}"
+    # Read the AIR run ID before training: MLflow clears MLFLOW_RUN_ID when the
+    # callback ends the run.
+    mlflow_run_id = os.environ["MLFLOW_RUN_ID"]
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
     # Write embedded DeepSpeed config to a temp file (HF Trainer needs a path).
@@ -171,15 +176,14 @@ def main():
         processing_class=tokenizer,
     )
 
-    # MLflow logging is handled by Trainer's report_to="mlflow": AIR sets
-    # MLFLOW_RUN_ID (and the tracking URI) on the node, and the MLflowCallback
-    # resumes that run and logs only from rank 0, so metrics land in the run AIR
-    # injected. We must NOT open the run manually here -- a manual
-    # mlflow.start_run() leaves a run active and the callback's own start_run()
-    # then fails with "Run ... is already active".
+    # The MLflowCallback (report_to="mlflow") logs training curves to the AIR run
+    # from rank 0 and ends that run when training finishes. Remove it before the
+    # final evaluate() so evaluation does not start a new run; the final metrics
+    # are written to the AIR run explicitly below.
     train_result = trainer.train()
     metrics = train_result.metrics
     trainer.log_metrics("train", metrics)
+    trainer.remove_callback(MLflowCallback)
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
 
@@ -187,6 +191,8 @@ def main():
         print("\nTraining complete!", flush=True)
         print(f"  Train loss: {metrics['train_loss']:.4f}", flush=True)
         print(f"  Eval loss:  {eval_metrics['eval_loss']:.4f}", flush=True)
+        with mlflow.start_run(run_id=mlflow_run_id):
+            mlflow.log_metrics(eval_metrics, step=trainer.state.global_step)
 
     final_path = f"{attempt_base}/final"
     trainer.save_model(final_path)  # main-process-guarded internally
