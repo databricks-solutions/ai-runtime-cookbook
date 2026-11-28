@@ -30,8 +30,6 @@ UCDataset can't read tables in workspaces whose serverless network policy limits
 databricks air run -f workload.yaml --watch
 ```
 
-To train on two nodes with eight H100 GPUs each, set `accelerator_type: GPU_8xH100` and `num_accelerators: 16`, and set `parameters.batch_size` to `512`. `batch_size` is per GPU, so this keeps the global batch at 8,192 rows, the same as two GPUs at 4,096. For other GPU counts, set it to 8,192 divided by `num_accelerators`. `train.py` and the command don't change. If you leave `batch_size` at 4,096, the global batch is 65,536 rows and an epoch takes about 18 optimizer steps instead of about 102.
-
 ## Results
 
 The AIR MLflow run logs these metrics for each epoch:
@@ -41,4 +39,4 @@ The AIR MLflow run logs these metrics for each epoch:
 
 The run also logs `test_loss_baseline`, the log loss of always predicting the test split's click rate. The recipe doesn't save a model or checkpoints.
 
-With `databricks-uc-dataset` 0.0.1b1, `test_loss` drops below the 0.60 baseline after the first epoch and reaches about 0.55 after the third. Values vary slightly between runs. The workload takes about two minutes.
+With `databricks-uc-dataset` 0.0.1b1, `test_loss` drops below the 0.60 baseline after the first epoch and reaches about 0.55 after the third. Values vary slightly between runs. The workload takes about two minutes in the container.
