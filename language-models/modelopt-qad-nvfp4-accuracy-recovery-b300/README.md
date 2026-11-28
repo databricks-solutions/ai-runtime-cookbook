@@ -2,7 +2,7 @@
 
 This recipe quantizes `Qwen/Qwen3-1.7B` to NVFP4 (4-bit floating point) with [NVIDIA Model Optimizer](https://github.com/NVIDIA/Model-Optimizer) and then tries to recover the accuracy that post-training quantization (PTQ) loses. It trains the NVFP4 student with quantization-aware distillation (QAD) against the original bf16 model as teacher, with a forward KL loss on logits. It then exports the student as an NVFP4 checkpoint and compares bf16, PTQ and QAD on all 1,319 GSM8K test questions with vLLM.
 
-The whole run takes about 17 minutes in the container on one 8xB300 node (16m 28s in the standard v6 validation run). QAD training takes about 8 minutes (`train_runtime` 468.2 s, 466 steps). The QAD stage runs on all 8 GPUs with FSDP2. The run uses the full node because B300 is offered only as an 8-GPU shape, and FSDP2 shards both the student and the teacher across the 8 GPUs during QAD.
+The whole run takes about 17 minutes in the container on one 8xB300 node (16m 28s in the standard v6 validation run). QAD training takes about 8 minutes (`train_runtime` 468.2 s, 466 steps). The QAD stage runs on all 8 GPUs with FSDP2. The workload requests the full node (`GPU_8xB300` with 8 accelerators), and FSDP2 shards the student across the 8 GPUs during QAD.
 
 ## Before you run
 
