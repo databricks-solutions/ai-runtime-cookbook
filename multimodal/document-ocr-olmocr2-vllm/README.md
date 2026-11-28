@@ -4,6 +4,10 @@ This recipe converts PDFs to Markdown with `allenai/olmOCR-2-7B-1025-FP8`, a doc
 
 The input is 300 one-page PDFs (tables, multi-column papers and old scans) from the public `allenai/olmOCR-bench` dataset. The run takes 6 to 8 minutes in the container, plus provisioning and queueing.
 
+## Before you run
+
+Results go to `parameters.output_root` in `workload.yaml`, which points to the shared `/Volumes/main/default/air_examples/document-ocr-olmocr2-vllm` volume. Replace it with another writable volume if you cannot use that one.
+
 ## Run
 
 ```bash
