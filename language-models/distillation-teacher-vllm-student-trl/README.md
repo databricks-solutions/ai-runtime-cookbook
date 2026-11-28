@@ -22,7 +22,9 @@ A validation run on an H100 produced these results:
 | Student fine-tuning | 3,882 examples × 2 epochs, in 105 s |
 | Student GSM8K accuracy (1,319 questions) | 47.1% → 51.2% |
 
-With 1,319 questions, each accuracy has a standard error of about 1.4 points, and their difference about 1.9 points if the two evaluations are treated as independent. The 4.1-point gain is about twice that. The test set is only used for this report. No checkpoint is selected on it.
+A second validation run gave 3,889 of 4,000 questions solved correctly in 172 s, and student accuracy of 47.1% → 49.9%.
+
+With 1,319 questions, each accuracy has a standard error of about 1.4 points, and their difference about 1.9 points if the two evaluations are treated as independent. The 4.1-point and 2.8-point gains are about 2.1 and 1.4 times that. The test set is only used for this report. No checkpoint is selected on it.
 
 Notes:
 
