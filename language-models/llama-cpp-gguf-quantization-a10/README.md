@@ -51,7 +51,7 @@ The run writes to `/Volumes/main/default/air_examples/llama-cpp-gguf-quantizatio
 - `predictions/<config>.jsonl`: every reply, its parsed number and whether it was correct.
 - `servers/<config>.log`: each server's log.
 
-The AIR MLflow run has the same figures as `gsm8k_accuracy_<config>`, `output_tokens_per_second_<config>`, `peak_gpu_memory_mib_<config>`, `weights_gb_<config>` and `accuracy_diff_vs_bf16_<config>`, plus the `results.csv` artifact.
+The AIR MLflow run has the same figures as `gsm8k_accuracy_<config>`, `output_tokens_per_second_<config>`, `peak_gpu_memory_mib_<config>`, `weights_gb_<config>` and `accuracy_diff_vs_bf16_<config>`, plus the `results.csv` artifact. `<config>` is the lowercase configuration name: `bf16`, `q8_0`, `q4_k_m` or `q2_k`.
 
 | Config | Weights (GB) | GSM8K accuracy (± SE) | Diff. vs bf16 (± SE) | Output tokens/s | Peak GPU memory (MiB) |
 |---|---|---|---|---|---|
