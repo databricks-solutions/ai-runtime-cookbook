@@ -2,7 +2,7 @@
 
 This recipe uses NeMo AutoModel to fine-tune `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16` on HellaSwag with LoRA. The model combines Mamba and attention layers in a mixture-of-experts architecture.
 
-Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, and rank-8 LoRA. The local batch size is 32 per GPU for a global batch of 256 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. It logs training metrics only; HellaSwag multiple-choice accuracy requires a separate evaluation.
+Training runs for 50 steps on one 8x H100 node. It uses FSDP2, eight-way expert parallelism, and rank-8 LoRA. The local batch size is 32 per GPU for a global batch of 256 (no gradient accumulation). At the final step, it runs validation and saves a checkpoint. It does not report HellaSwag multiple-choice accuracy, which requires a separate evaluation.
 
 Environment configurations: the workload runs NVIDIA's `nemo-automodel:26.08.00` container image as a custom [AIR container image](https://docs.databricks.com/aws/en/machine-learning/ai-runtime/connecting/cli/docker-images). This container provides the GMM/DeepEP backend used for training.
 
