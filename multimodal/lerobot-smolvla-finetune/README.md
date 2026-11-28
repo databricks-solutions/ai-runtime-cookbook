@@ -2,7 +2,7 @@
 
 This recipe fine-tunes `lerobot/smolvla_base`, a 450M-parameter vision-language-action (VLA) policy, with [Hugging Face LeRobot](https://github.com/huggingface/lerobot) on one H100. It trains on `lerobot/svla_so100_pickplace`: 50 teleoperated pick-and-place episodes from an SO-100 robot arm, with top and wrist cameras. The policy learns to predict chunks of arm actions from camera images, the robot state and a language instruction.
 
-The run trains for 2,000 steps at batch size 64 and takes about 17 minutes.
+The run trains for 2,000 steps at batch size 64 and takes about 17 minutes in the container.
 
 ## Run
 
