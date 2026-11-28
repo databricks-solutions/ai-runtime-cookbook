@@ -6,12 +6,12 @@ How the data is used:
 
 - A rating of 4 or higher counts as a positive interaction.
 - Ratings are split by time into about 80% training, 10% validation, and 10% test. Ratings with the same timestamp stay together.
-- User and movie vocabularies come from training data only.
+- User and movie vocabularies come from positive training ratings only.
 
 How the model is evaluated:
 
 - Validation Recall@20 picks the best epoch.
-- Test Recall@20 and NDCG@20 rank all training movies for each user, skipping movies the user rated before the test period. Each user counts equally.
+- Test Recall@20 and NDCG@20 rank all movies with a positive training rating for each user, skipping movies the user rated before the test period. Each user counts equally.
 - Users and movies not seen in training are left out. You can check the logged coverage and evaluated user counts.
 - A popularity baseline uses the same candidates for comparison.
 
