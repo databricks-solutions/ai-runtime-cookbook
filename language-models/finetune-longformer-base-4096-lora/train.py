@@ -15,6 +15,7 @@ randomly-initialized classifier head is kept trainable via ``modules_to_save``
 Hyperparameters are read from the YAML block passed by ``air`` via HYPERPARAMETERS_PATH.
 """
 
+import contextlib
 import os
 
 # HF caches must live on a writable path (the default /root/.cache is read-only
@@ -22,6 +23,7 @@ import os
 os.environ.setdefault("HF_HOME", "/tmp/hf_home")
 os.environ.setdefault("HF_DATASETS_CACHE", "/tmp/hf_home/datasets")
 
+import mlflow
 import numpy as np
 import yaml
 from datasets import load_dataset
@@ -34,6 +36,7 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+from transformers.integrations import MLflowCallback
 
 
 def load_params() -> dict:
@@ -137,13 +140,15 @@ def main():
         compute_metrics=compute_metrics,
     )
 
-    # report_to="mlflow" lets Trainer's MLflowCallback manage the run. AIR sets
-    # MLFLOW_RUN_ID in the environment, which the callback resumes, so metrics log
-    # into the run AIR injected rather than a new one. We must NOT open the run
-    # ourselves here — a manual mlflow.start_run() leaves a run active and the
-    # callback's own start_run() then raises "Run ... is already active".
+    # report_to="mlflow" lets Trainer's MLflowCallback log training curves into the
+    # run AIR injected. The callback ends that run when training finishes, so the
+    # callback is removed and the run is reopened by ID for the final evaluation.
     trainer.train()
-    eval_metrics = trainer.evaluate()
+    trainer.remove_callback(MLflowCallback)
+    with mlflow.start_run(run_id=run_id) if run_id else contextlib.nullcontext():
+        eval_metrics = trainer.evaluate()
+        if run_id:
+            mlflow.log_metrics({k: float(v) for k, v in eval_metrics.items() if isinstance(v, (int, float))})
     print(f"\nEval accuracy: {eval_metrics['eval_accuracy']:.4f}  |  f1: {eval_metrics['eval_f1']:.4f}", flush=True)
 
     # Save the LoRA adapter (+ the classifier head via modules_to_save) and tokenizer.
