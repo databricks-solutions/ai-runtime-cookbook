@@ -15,9 +15,8 @@ environment:
     # so pin the x86_64 manylinux2014 wheel, which bundles a compatible OpenSSL.
     - opencv-python-headless@https://files.pythonhosted.org/packages/de/06/14c8c5d331bc72738683a9b227966aceaa4c6d08752f33d64578aebcb6f8/opencv_python_headless-4.14.0.94-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
 
-# One 8xH100 node; Ray Data runs one vLLM replica per GPU. Increase
-# num_accelerators to add nodes. ray_bootstrap.sh forms the multi-node cluster.
-# At this dataset size, startup dominates, so extra nodes don't shorten the run.
+# One 8xH100 node; Ray Data runs one vLLM replica per GPU. The model snapshot is
+# on the driver's local disk, so keep num_accelerators at 8 (single node only).
 compute:
   num_accelerators: 8
   accelerator_type: GPU_8xH100

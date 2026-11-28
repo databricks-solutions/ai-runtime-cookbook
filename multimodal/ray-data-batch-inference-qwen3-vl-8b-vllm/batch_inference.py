@@ -28,7 +28,7 @@ import time
 
 import pyarrow.parquet as pq
 import ray
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, snapshot_download
 from ray.data.llm import build_processor, vLLMEngineProcessorConfig
 
 MODEL_SOURCE = "Qwen/Qwen3-VL-8B-Instruct"
@@ -198,7 +198,7 @@ def log_to_mlflow(params, metrics, tables):
 def main():
     prepare_output_directory(OUTPUT_PATH, RUN_OUTPUT_PATH)
     ray.init(address="auto")
-    # Derive replicas from the live cluster so the example scales when nodes are added.
+    # Derive replicas from the live cluster's GPU count.
     total_gpus = int(ray.cluster_resources().get("GPU", 0))
     print(
         f"Ray cluster ready: {total_gpus} GPU(s); starting {total_gpus} vLLM replicas "
@@ -207,12 +207,16 @@ def main():
     )
 
     ds = load_images()
+    # Loading a Hub id makes every replica's processor call the Hub API, and concurrent
+    # replicas get rate-limited (HTTP 429). Download once here and pass the local path.
+    # The path exists only on this node, so the recipe runs on a single node.
+    model_path = snapshot_download(MODEL_SOURCE)
 
     # Ray 2.56.1 treats an integer concurrency as an autoscaling range from 1 to n.
     # Equal lower/upper bounds start one replica per GPU, including on short runs.
     # engine_kwargs are passed through to the vLLM engine.
     config = vLLMEngineProcessorConfig(
-        model_source=MODEL_SOURCE,
+        model_source=model_path,
         engine_kwargs={
             "max_model_len": 8192,
             "tensor_parallel_size": 1,
