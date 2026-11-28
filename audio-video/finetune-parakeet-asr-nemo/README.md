@@ -27,7 +27,7 @@ Each run writes to `<output_root>/<MLFLOW_RUN_ID>/`:
 
 The AIR MLflow run logs the WER values and standard errors as metrics, and `metrics.json` and `test_predictions.jsonl` as artifacts.
 
-On the normalized scores in the validated run (`GPU_1xA10`, about 17 minutes in the container), the test improvement is well above its standard error:
+On the normalized scores in the validated run (`GPU_1xA10`, about 11 minutes in the container), the test improvement is well above its standard error:
 
 | Split | Pretrained | Fine-tuned (step 900) |
 | --- | --- | --- |
